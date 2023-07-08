@@ -56,10 +56,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for files
      */
 
-    private Button fileList, fileSelect, fileSettings, changeFileSettings;
+    private Button fileList, fileSelect, getFileSettings, changeFileSettings;
     private com.google.android.material.textfield.TextInputEditText fileSelected;
     private String selectedFileId = "";
     private int selectedFileSize;
+    private FileSettings selectedFileSettings;
 
     /**
      * section for standard file handling
@@ -123,6 +124,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
     private final byte READ_STANDARD_FILE_COMMAND = (byte) 0xBD;
     private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
+    private final byte GET_FILE_SETTINGS_COMMAND = (byte) 0xF5;
 
 
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
@@ -169,7 +171,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
         fileList = findViewById(R.id.btnListFiles);
         fileSelect = findViewById(R.id.btnSelectFile);
-        fileSettings = findViewById(R.id.btnGetFileSettings);
+        getFileSettings = findViewById(R.id.btnGetFileSettings);
         changeFileSettings = findViewById(R.id.btnChangeFileSettings);
         fileSelected = findViewById(R.id.etSelectedFileId);
         rbFileFreeAccess = findViewById(R.id.rbFileAccessTypeFreeAccess);
@@ -397,6 +399,43 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
                     }
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        getFileSettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "get file settings";
+                writeToUiAppend(output, logString);
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                byte[] responseData = new byte[2];
+                byte[] result = getFileSettings(output, fileIdByte, responseData);
+                if (result == null) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkResponseMoreData(responseData)) {
+                        writeToUiAppend(output, "the data I'm receiving is too long to read, sorry");
+                    }
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with the Application Master Key ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " ID: " + fileIdByte + Utils.printData(" data", result));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    // get the data in the  FileSettings class
+                    selectedFileSettings = new FileSettings(fileIdByte, result);
+                    writeToUiAppend(output, selectedFileSettings.dump());
+                    vibrateShort();
                 }
             }
         });
@@ -757,6 +796,119 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         }
     }
 
+    private byte[] getFileSettings(TextView logTextView, byte fileNumber, byte[] methodResponse) {
+        final String methodName = "getFileSettings";
+        Log.d(TAG, methodName);
+        // sanity checks
+        if (logTextView == null) {
+            Log.e(TAG, methodName + " logTextView is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        if (fileNumber < 0) {
+            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        if (fileNumber > 14) {
+            Log.e(TAG, methodName + " fileNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        // generate the parameter
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        byte[] parameter = baos.toByteArray();
+        Log.d(TAG, methodName + Utils.printData(" parameter", parameter));
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(GET_FILE_SETTINGS_COMMAND, parameter);
+            Log.d(TAG, methodName + Utils.printData(" apdu", apdu));
+            response = isoDep.transceive(apdu);
+            Log.d(TAG, methodName + Utils.printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return Arrays.copyOf(response, response.length - 2);
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return null;
+        }
+    }
+
+    /*
+    private boolean changeTheFileSettings() {
+        int selectedFileIdInt = Integer.parseInt(selectedFileId);
+        byte selectedFileIdByte = Byte.parseByte(selectedFileId);
+        Log.d(TAG, "changeTheFileSettings for selectedFileId " + selectedFileIdInt);
+        Log.d(TAG, printData("DES session key", SESSION_KEY_DES));
+
+        byte changeFileSettingsCommand = (byte) 0x5f;
+        // CD | File No | Comms setting byte | Access rights (2 bytes) | File size (3 bytes)
+        byte commSettingsByte = 0; // plain communication without any encryption
+
+        // the application master key is key 0
+        // here we are using key 3 for read and key 4 for write access access, key 1 has read&write access and key 2 has change rights !
+        byte accessRightsRwCar = (byte) 0x12; // Read&Write Access & ChangeAccessRights
+        byte accessRightsRW = (byte) 0x34; // Read Access & Write Access // read with key 3, write with key 4
+        //byte accessRightsRW = (byte) 0x22; // Read Access & Write Access // read with key 2, write with key 2
+        // to calculate the crc16 over the setting bytes we need a 3 byte long array
+        byte[] bytesForCrc = new byte[3];
+        bytesForCrc[0] = commSettingsByte;
+        bytesForCrc[1] = accessRightsRwCar;
+        bytesForCrc[2] = accessRightsRW;
+        Log.d(TAG, printData("bytesForCrc", bytesForCrc));
+        byte[] crc16Value = CRC16.get(bytesForCrc);
+        Log.d(TAG, printData("crc16Value", crc16Value));
+        // create a 8 byte long array
+        byte[] bytesForDecryption = new byte[8];
+        System.arraycopy(bytesForCrc, 0, bytesForDecryption, 0, 3);
+        System.arraycopy(crc16Value, 0, bytesForDecryption, 3, 2);
+        Log.d(TAG, printData("bytesForDecryption", bytesForDecryption));
+        // generate 24 bytes long triple des key
+        byte[] tripleDES_SESSION_KEY = new byte[24];
+        System.arraycopy(SESSION_KEY_DES, 0, tripleDES_SESSION_KEY, 0, 8);
+        System.arraycopy(SESSION_KEY_DES, 0, tripleDES_SESSION_KEY, 8, 8);
+        System.arraycopy(SESSION_KEY_DES, 0, tripleDES_SESSION_KEY, 16, 8);
+        Log.d(TAG, printData("tripeDES Session Key", tripleDES_SESSION_KEY));
+        byte[] IV_DES = new byte[8];
+        Log.d(TAG, printData("IV_DES", IV_DES));
+        //byte[] decryptedData = TripleDES.encrypt(IV_DES, tripleDES_SESSION_KEY, bytesForDecryption);
+        byte[] decryptedData = TripleDES.decrypt(IV_DES, tripleDES_SESSION_KEY, bytesForDecryption);
+        Log.d(TAG, printData("decryptedData", decryptedData));
+        // the parameter for wrapping
+        byte[] parameter = new byte[9];
+        parameter[0] = selectedFileIdByte;
+        System.arraycopy(decryptedData, 0, parameter, 1, 8);
+        Log.d(TAG, printData("parameter", parameter));
+        byte[] wrappedCommand;
+        byte[] response;
+        try {
+            wrappedCommand = wrapMessage(changeFileSettingsCommand, parameter);
+            Log.d(TAG, printData("wrappedCommand", wrappedCommand));
+            response = isoDep.transceive(wrappedCommand);
+            Log.d(TAG, printData("response", response));
+            if (checkResponse(response)) {
+                return true;
+            } else {
+                return false;
+            }
+        } catch (IOException e) {
+            writeToUiAppend(output, "IOException: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return false;
+    }
+*/
 
 
     /**
