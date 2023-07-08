@@ -122,6 +122,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private final byte SELECT_APPLICATION_COMMAND = (byte) 0x5A;
     private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
     private final byte READ_STANDARD_FILE_COMMAND = (byte) 0xBD;
+    private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
+
 
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
     private final byte[] RESPONSE_AUTHENTICATION_ERROR = new byte[]{(byte) 0x91, (byte) 0xAE};
@@ -178,6 +180,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileStandardWrite = findViewById(R.id.btnWriteStandardFile);
         fileStandardFileId = findViewById(R.id.etFileStandardFileId);
         fileStandardSize = findViewById(R.id.etFileStandardSize);
+        fileStandardData = findViewById(R.id.etFileStandardData);
 
         // some presets
         applicationId.setText(Utils.bytesToHexNpeUpperCase(APPLICATION_IDENTIFIER));
@@ -314,8 +317,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 // at this point we should read the available file ids from the card
                 //byte fileIdByte = Byte.parseByte(fileStandardFileId.getText().toString());
+                // as well we should read the file settings of the selected file to know about e.g. the file type and file size
                 selectedFileId = fileStandardFileId.getText().toString();
+                selectedFileSize = MAXIMUM_FILE_SIZE; // this value should be read from file settings
                 fileSelected.setText(fileStandardFileId.getText().toString());
+                writeToUiAppend(output, "you selected the fileID " + selectedFileId);
+                writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " file selection SUCCESS", COLOR_GREEN);
                 vibrateShort();
             }
         });
@@ -333,9 +340,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
                 byte fileIdByte = Byte.parseByte(selectedFileId);
-                System.out.println("fileIdByte: " + fileIdByte);
                 byte[] responseData = new byte[2];
-                byte[] result = readFromAStandardFilePlainCommunicationDes(output, fileIdByte, responseData);
+                byte[] result = readFromAStandardFilePlainCommunicationDes(output, fileIdByte, selectedFileSize, responseData);
                 if (result == null) {
                     // something gone wrong
                     writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
@@ -375,8 +381,23 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
                 byte[] dataToWriteBytes = dataToWrite.getBytes(StandardCharsets.UTF_8);
-
-
+                // create an empty array and copy the dataToWrite to clear the complete standard file
+                byte[] fullDataToWrite = new byte[selectedFileSize];
+                System.arraycopy(dataToWriteBytes, 0, fullDataToWrite, 0, dataToWriteBytes.length);
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                byte[] responseData = new byte[2];
+                boolean success = writeToAStandardFilePlainCommunicationDes(output, fileIdByte, fullDataToWrite, responseData);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
             }
         });
     }
@@ -391,6 +412,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private boolean createApplicationPlainCommunicationDes(TextView logTextView, byte[] applicationIdentifier, byte numberOfKeys, byte[] methodResponse) {
         final String methodName = "createApplicationPlainCommunicationDes";
+        Log.d(TAG, methodName);
         // sanity checks
         if (logTextView == null) {
             Log.e(TAG, methodName + " logTextView is NULL, aborted");
@@ -457,6 +479,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private boolean selectApplication(TextView logTextView, byte[] applicationIdentifier, byte[] methodResponse) {
         final String methodName = "selectApplication";
+        Log.d(TAG, methodName);
         // sanity checks
         if (logTextView == null) {
             Log.e(TAG, methodName + " logTextView is NULL, aborted");
@@ -513,6 +536,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private boolean createStandardFilePlainCommunicationDes(TextView logTextView, byte fileNumber, int fileSize, boolean isFreeAccess, byte[] methodResponse) {
         final String methodName = "createFilePlainCommunicationDes";
+        Log.d(TAG, methodName);
         // sanity checks
         if (logTextView == null) {
             Log.e(TAG, methodName + " logTextView is NULL, aborted");
@@ -591,8 +615,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         }
     }
 
-    private byte[] readFromAStandardFilePlainCommunicationDes(TextView logTextView, byte fileNumber, byte[] methodResponse) {
+    private byte[] readFromAStandardFilePlainCommunicationDes(TextView logTextView, byte fileNumber, int fileSize, byte[] methodResponse) {
         final String methodName = "createFilePlainCommunicationDes";
+        Log.d(TAG, methodName);
         // sanity checks
         if (logTextView == null) {
             Log.e(TAG, methodName + " logTextView is NULL, aborted");
@@ -609,6 +634,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
             return null;
         }
+        if ((fileSize < 1) || (fileSize > MAXIMUM_FILE_SIZE)){
+            Log.e(TAG, methodName + " fileSize has to be in range 1.." + MAXIMUM_FILE_SIZE + " but found " + fileSize + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
         if ((isoDep == null) || (!isoDep.isConnected())) {
             writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
             Log.e(TAG, methodName + " lost connection to the card, aborted");
@@ -616,7 +646,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             return null;
         }
         // generate the parameter
-        int numberOfBytes = MAXIMUM_FILE_SIZE; // note: this should be read from the file settings before
+        int numberOfBytes = fileSize;
         int offsetBytes = 0; // read from the beginning
         byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
         byte[] length = Utils.intTo3ByteArrayInversed(numberOfBytes); // LSB order
@@ -662,6 +692,70 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         }
     }
 
+    private boolean writeToAStandardFilePlainCommunicationDes(TextView logTextView, byte fileNumber, byte[] data, byte[] methodResponse) {
+        final String methodName = "writeToAStandardFilePlainCommunicationDes";
+        Log.d(TAG, methodName);
+        // sanity checks
+        if (logTextView == null) {
+            Log.e(TAG, methodName + " logTextView is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (fileNumber < 0) {
+            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (fileNumber > 14) {
+            Log.e(TAG, methodName + " fileNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if ((data == null) || (data.length < 1) || (data.length > selectedFileSize)) {
+            Log.e(TAG, "data length not in range 1.." + MAXIMUM_FILE_SIZE + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        // generate the parameter
+        int numberOfBytes = data.length;
+        int offsetBytes = 0; // write from the beginning
+        byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
+        byte[] length = Utils.intTo3ByteArrayInversed(numberOfBytes); // LSB order
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(offset, 0, 3);
+        baos.write(length, 0, 3);
+        baos.write(data, 0, numberOfBytes);
+        byte[] parameter = baos.toByteArray();
+        Log.d(TAG, methodName + Utils.printData(" parameter", parameter));
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(WRITE_STANDARD_FILE_COMMAND, parameter);
+            Log.d(TAG, methodName + Utils.printData(" apdu", apdu));
+            response = isoDep.transceive(apdu);
+            Log.d(TAG, methodName + Utils.printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            return false;
+        }
+    }
 
 
 
