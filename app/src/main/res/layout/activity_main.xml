@@ -274,20 +274,20 @@
                     android:orientation="horizontal">
 
                     <Button
-                        android:id="@+id/btnCreateApplication"
+                        android:id="@+id/btnSelectApplication"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
-                        android:text="create" />
+                        android:text="select" />
 
                     <Button
-                        android:id="@+id/btnSelectApplication"
+                        android:id="@+id/btnCreateApplication"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="select" />
+                        android:text="create" />
 
                 </LinearLayout>
 
