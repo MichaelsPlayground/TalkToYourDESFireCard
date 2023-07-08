@@ -1072,7 +1072,7 @@
                     android:orientation="horizontal">
 
                     <Button
-                        android:id="@+id/btnAuthDM0"
+                        android:id="@+id/btnAuthDM0D"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
@@ -1080,7 +1080,7 @@
                         android:text="MAS D0 M" />
 
                     <Button
-                        android:id="@+id/btnAuthD0"
+                        android:id="@+id/btnAuthD0D"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
@@ -1089,7 +1089,7 @@
                         android:text="D0 M" />
 
                     <Button
-                        android:id="@+id/btnAuthD1"
+                        android:id="@+id/btnAuthD1D"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
@@ -1104,7 +1104,7 @@
                     android:orientation="horizontal">
 
                     <Button
-                        android:id="@+id/btnAuthD2"
+                        android:id="@+id/btnAuthD2D"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
@@ -1112,7 +1112,7 @@
                         android:text="D2 CAR" />
 
                     <Button
-                        android:id="@+id/btnAuthD3"
+                        android:id="@+id/btnAuthD3D"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
@@ -1121,7 +1121,7 @@
                         android:text="D3 R" />
 
                     <Button
-                        android:id="@+id/btnAuthD4"
+                        android:id="@+id/btnAuthD4D"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
