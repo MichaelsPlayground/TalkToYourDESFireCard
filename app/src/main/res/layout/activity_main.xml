@@ -153,6 +153,13 @@
                     tools:ignore="KeyboardInaccessibleWidget" />
             </com.google.android.material.textfield.TextInputLayout>
 
+            <com.google.android.material.divider.MaterialDivider
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:dividerInsetEnd="8dp"
+                app:dividerInsetStart="8dp" />
+
             <LinearLayout
                 android:id="@+id/llApplications"
                 android:layout_width="match_parent"
@@ -175,15 +182,16 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
+                    android:visibility="gone"
                     android:orientation="horizontal">
 
                     <Button
-                        android:id="@+id/btnSelectApplication"
+                        android:id="@+id/btnXXXSelectApplication"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
-                        android:text="select" />
+                        android:text="xxx select" />
 
                     <Button
                         android:id="@+id/btnListApplications"
@@ -226,7 +234,8 @@
                         android:layout_height="wrap_content"
                         android:ellipsize="end"
                         android:maxLines="1"
-                        android:text="A1A2A3"
+                        android:text=""
+                        android:focusable="false"
                         tools:ignore="KeyboardInaccessibleWidget" />
                 </com.google.android.material.textfield.TextInputLayout>
 
@@ -254,13 +263,14 @@
                         android:ellipsize="end"
                         android:focusable="false"
                         android:maxLines="1"
-                        android:text="5"
+                        android:text=""
                         tools:ignore="KeyboardInaccessibleWidget" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
+                    android:layout_marginTop="16dp"
                     android:orientation="horizontal">
 
                     <Button
@@ -272,12 +282,12 @@
                         android:text="create" />
 
                     <Button
-                        android:id="@+id/btn"
+                        android:id="@+id/btnSelectApplication"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="xx" />
+                        android:text="select" />
 
                 </LinearLayout>
 
@@ -292,6 +302,13 @@
                 android:orientation="vertical"
                 android:visibility="visible">
 
+                <com.google.android.material.divider.MaterialDivider
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    app:dividerInsetEnd="8dp"
+                    app:dividerInsetStart="8dp" />
+
                 <TextView
                     android:id="@+id/tvFiles"
                     android:layout_width="match_parent"
@@ -301,6 +318,41 @@
                     android:textAlignment="center"
                     android:textSize="16sp"
                     android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvFileAccessType"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="10dp"
+                    android:text="choose access type"
+                    android:textAlignment="center"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <RadioGroup
+                    android:id="@+id/rgFileAccessType"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:gravity="center_horizontal"
+                    android:orientation="horizontal">
+
+                    <RadioButton
+                        android:id="@+id/rbFileAccessTypeFreeAccess"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:checked="true"
+                        android:text="free access" />
+
+                    <RadioButton
+                        android:id="@+id/rbFileAccessTypeKeySecuredAccess"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="key secured access" />
+
+                </RadioGroup>
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -441,20 +493,34 @@
 
                 </LinearLayout>
 
-                <LinearLayout
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/etFileStandardFileIdLayout"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                     android:layout_width="match_parent"
-                    android:layout_height="64dp"
-                    android:orientation="horizontal">
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginEnd="8dp"
+                    android:hint="file ID"
+                    app:boxCornerRadiusBottomEnd="5dp"
+                    app:boxCornerRadiusBottomStart="5dp"
+                    app:boxCornerRadiusTopEnd="5dp"
+                    app:boxCornerRadiusTopStart="5dp"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent">
 
-                    <TextView
-                        android:layout_width="wrap_content"
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etFileStandardFileId"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="20dp"
-                        android:layout_weight="1"
-                        android:text="File ID:"
-                        android:textSize="20sp" />
-
-                </LinearLayout>
+                        android:ellipsize="end"
+                        android:focusable="false"
+                        android:inputType="number"
+                        android:maxLines="1"
+                        android:text="01"
+                        tools:ignore="KeyboardInaccessibleWidget" />
+                </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/etFileStandardSizeLayout"
@@ -478,12 +544,19 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:ellipsize="end"
-                        android:focusable="true"
+                        android:focusable="false"
                         android:inputType="number"
                         android:maxLines="1"
                         android:text="32"
                         tools:ignore="KeyboardInaccessibleWidget" />
                 </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.divider.MaterialDivider
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    app:dividerInsetEnd="8dp"
+                    app:dividerInsetStart="8dp" />
 
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/etFileStandardDataLayout"
@@ -528,6 +601,13 @@
                 android:layout_marginEnd="8dp"
                 android:orientation="vertical"
                 android:visibility="visible">
+
+                <com.google.android.material.divider.MaterialDivider
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    app:dividerInsetEnd="8dp"
+                    app:dividerInsetStart="8dp" />
 
                 <TextView
                     android:id="@+id/tvValueFiles"

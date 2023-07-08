@@ -1,5 +1,6 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
@@ -14,17 +15,23 @@ import android.os.Bundle;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.TextView;
 
 import com.google.android.material.textfield.TextInputLayout;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 
 public class MainActivity extends AppCompatActivity implements NfcAdapter.ReaderCallback {
 
@@ -58,11 +65,68 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     private Button fileStandardCreate, fileStandardWrite, fileStandardRead;
-    private com.google.android.material.textfield.TextInputEditText fileStandardSize, fileStandardData;
+    private com.google.android.material.textfield.TextInputEditText fileStandardFileId, fileStandardSize, fileStandardData;
+    RadioButton rbFileFreeAccess, rbFileKeySecuredAccess;
+
+    /**
+     * section for authentication
+     */
+
+
 
     private byte KEY_NUMBER_USED_FOR_AUTHENTICATION; // the key number used for a successful authentication
     private byte[] SESSION_KEY_DES; // filled in authenticate, simply the first (leftmost) 8 bytes of SESSION_KEY_TDES
     private byte[] SESSION_KEY_TDES; // filled in authenticate
+
+    /**
+     * section for constants
+     */
+
+    private final byte[] APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("D1D2D3"); // AID 'D1 D2 D3'
+    private final byte APPLICATION_NUMBER_OF_KEYS = (byte) 0x05; // maximum 5 keys for secured access
+    private final byte APPLICATION_MASTER_KEY_SETTINGS = (byte) 0x0F; // 'amks'
+    /**
+     * for explanations on Master Key Settings see M075031_desfire.pdf page 35:
+     * left '0' = Application master key authentication is necessary to change any key (default)
+     * right 'f' = bits 3..0
+     * bit 3: 1: this configuration is changeable if authenticated with the application master key (default setting)
+     * bit 2: 1: CreateFile / DeleteFile is permitted also without application master key authentication (default setting)
+     * bit 1: 1: GetFileIDs, GetFileSettings and GetKeySettings commands succeed independently of a preceding application master key authentication (default setting)
+     * bit 0: 1: Application master key is changeable (authentication with the current application master key necessary, default setting)
+     */
+
+    private final byte FILE_COMMUNICATION_SETTINGS = (byte) 0x00; // plain communication
+    /**
+     * for explanations on File Communication Settings see M075031_desfire.pdf page 15:
+     * byte = 0: Plain communication
+     * byte = 1: Plain communication secured by DES/3DES/AES MACing
+     * byte = 3: Fully DES/3DES/AES enciphered communication
+     */
+
+    private final byte STANDARD_FILE_FREE_ACCESS_ID = (byte) 0x01; // file ID with free access
+    private final byte STANDARD_FILE_KEY_SECURED_ACCESS_ID = (byte) 0x02; // file ID with key secured access
+    // settings for key secured access depend on RadioButtons rbFileFreeAccess, rbFileKeySecuredAccess
+    // key 0 is the  Application Master Key
+    private final byte ACCESS_RIGHTS_RW_CAR_FREE = (byte) 0xEE; // Read&Write Access (free) & ChangeAccessRights (free)
+    private final byte ACCESS_RIGHTS_R_W_FREE = (byte) 0xEE; // Read Access (free) & Write Access (free)
+    private final byte ACCESS_RIGHTS_RW_CAR_SECURED = (byte) 0x12; // Read&Write Access (key 01) & ChangeAccessRights (key 02)
+    private final byte ACCESS_RIGHTS_R_W_SECURED = (byte) 0x34; // Read Access (key 03) & Write Access (key 04)
+    private int MAXIMUM_FILE_SIZE = 32; // do not increase this value to avoid framing !
+
+    /**
+     * section for commands and responses
+     */
+
+    private final byte CREATE_APPLICATION_COMMAND = (byte) 0xCA;
+    private final byte SELECT_APPLICATION_COMMAND = (byte) 0x5A;
+    private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
+
+    private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
+    private final byte[] RESPONSE_FAILURE = new byte[]{(byte) 0x91, (byte) 0xFF};
+
+    /**
+     * general constants
+     */
 
     int COLOR_GREEN = Color.rgb(0, 255, 0);
     int COLOR_RED = Color.rgb(255, 0, 0);
@@ -94,19 +158,394 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         numberOfKeys = findViewById(R.id.etNumberOfKeys);
         applicationId = findViewById(R.id.etApplicationId);
 
+
         // file handling
+
         fileList = findViewById(R.id.btnListFiles);
         fileSelect = findViewById(R.id.btnSelectFile);
         fileSettings = findViewById(R.id.btnGetFileSettings);
         changeFileSettings = findViewById(R.id.btnChangeFileSettings);
         fileSelected = findViewById(R.id.etSelectedFileId);
+        rbFileFreeAccess = findViewById(R.id.rbFileAccessTypeFreeAccess);
+        rbFileKeySecuredAccess = findViewById(R.id.rbFileAccessTypeKeySecuredAccess);
+        // standard files
+        fileStandardCreate = findViewById(R.id.btnCreateStandardFile);
+        fileStandardFileId = findViewById(R.id.etFileStandardFileId);
 
+        // some presets
+        applicationId.setText(Utils.bytesToHexNpeUpperCase(APPLICATION_IDENTIFIER));
+        numberOfKeys.setText(String.valueOf((int) APPLICATION_NUMBER_OF_KEYS));
+        fileStandardFileId.setText(String.valueOf((int) STANDARD_FILE_FREE_ACCESS_ID)); // preset is FREE ACCESS
+
+
+        rbFileFreeAccess.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                if (b) {
+                    // free access
+                    fileStandardFileId.setText(String.valueOf((int) STANDARD_FILE_FREE_ACCESS_ID));
+                } else {
+                    // key secured access
+                    fileStandardFileId.setText(String.valueOf((int) STANDARD_FILE_KEY_SECURED_ACCESS_ID));
+                }
+            }
+        });
 
         // hide soft keyboard from showing up on startup
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
 
         mNfcAdapter = NfcAdapter.getDefaultAdapter(this);
 
+        /**
+         * section for application handling
+         */
+
+        applicationCreate.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "create a new application";
+                writeToUiAppend(output, logString);
+                byte numberOfKeysByte = Byte.parseByte(numberOfKeys.getText().toString());
+                byte[] applicationIdentifier = Utils.hexStringToByteArray(applicationId.getText().toString());
+                if (applicationIdentifier == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you entered a wrong application ID", COLOR_RED);
+                    return;
+                }
+                //Utils.reverseByteArrayInPlace(applicationIdentifier); // change to LSB = change the order
+                if (applicationIdentifier.length != 3) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you did not enter a 6 hex string application ID", COLOR_RED);
+                    return;
+                }
+                writeToUiAppend(output, logString +" with id: " + applicationId.getText().toString());
+                byte[] responseData = new byte[2];
+                boolean success = createApplicationPlainCommunicationDes(output, applicationIdentifier, numberOfKeysByte, responseData);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        applicationSelect.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "select an application";
+                writeToUiAppend(output, logString);
+                byte[] applicationIdentifier = Utils.hexStringToByteArray(applicationId.getText().toString());
+                if (applicationIdentifier == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you entered a wrong application ID", COLOR_RED);
+                    return;
+                }
+                //Utils.reverseByteArrayInPlace(applicationIdentifier); // change to LSB = change the order
+                if (applicationIdentifier.length != 3) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you did not enter a 6 hex string application ID", COLOR_RED);
+                    return;
+                }
+                writeToUiAppend(output, logString +" with id: " + applicationId.getText().toString());
+                byte[] responseData = new byte[2];
+                boolean success = selectApplication(output, applicationIdentifier, responseData);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+
+            }
+        });
+
+
+
+        fileStandardCreate.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "create a new standard file";
+                writeToUiAppend(output, logString);
+                byte fileIdByte = Byte.parseByte(fileStandardFileId.getText().toString());
+                int fileSizeInt = Integer.parseInt(fileStandardSize.getText().toString());
+                // todo check that an application was selected before
+
+                writeToUiAppend(output, logString +" with id: " + fileStandardFileId.getText().toString());
+                byte[] responseData = new byte[2];
+                boolean success = createFilePlainCommunicationDes(output, fileIdByte, fileSizeInt, rbFileFreeAccess.isChecked(), responseData);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+    }
+
+
+
+    /**
+     * section for application handling
+     */
+
+    private boolean createApplicationPlainCommunicationDes(TextView logTextView, byte[] applicationIdentifier, byte numberOfKeys, byte[] methodResponse) {
+        final String methodName = "createApplicationPlainCommunicationDes";
+        // sanity checks
+        if (logTextView == null) {
+            Log.e(TAG, methodName + " logTextView is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (applicationIdentifier == null) {
+            Log.e(TAG, methodName + " applicationIdentifier is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (applicationIdentifier.length != 3) {
+            Log.e(TAG, methodName + " applicationIdentifier length is not 3, found: " + applicationIdentifier.length + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (numberOfKeys < 1) {
+            Log.e(TAG, methodName + " numberOfKeys is < 1, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (numberOfKeys > 14) {
+            Log.e(TAG, methodName + " numberOfKeys is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        // generate the parameter
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(applicationIdentifier, 0, 3);
+        baos.write(APPLICATION_MASTER_KEY_SETTINGS);
+        baos.write(numberOfKeys);
+        byte[] parameter = baos.toByteArray();
+        Log.d(TAG, methodName + Utils.printData(" parameter", parameter));
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(CREATE_APPLICATION_COMMAND, parameter);
+            Log.d(TAG, methodName + Utils.printData(" apdu", apdu));
+            response = isoDep.transceive(apdu);
+            Log.d(TAG, methodName + Utils.printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+    }
+
+    private boolean selectApplication(TextView logTextView, byte[] applicationIdentifier, byte[] methodResponse) {
+        final String methodName = "selectApplication";
+        // sanity checks
+        if (logTextView == null) {
+            Log.e(TAG, methodName + " logTextView is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (applicationIdentifier == null) {
+            Log.e(TAG, methodName + " applicationIdentifier is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (applicationIdentifier.length != 3) {
+            Log.e(TAG, methodName + " applicationIdentifier length is not 3, found: " + applicationIdentifier.length + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(SELECT_APPLICATION_COMMAND, applicationIdentifier);
+            Log.d(TAG, methodName + Utils.printData(" apdu", apdu));
+            response = isoDep.transceive(apdu);
+            Log.d(TAG, methodName + Utils.printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            selectedApplicationId = applicationIdentifier.clone();
+            applicationSelected.setText(Utils.bytesToHexNpeUpperCase(applicationIdentifier));
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+    }
+
+    /**
+     * section for file handling
+     */
+
+    private boolean createFilePlainCommunicationDes(TextView logTextView, byte fileNumber, int fileSize, boolean isFreeAccess, byte[] methodResponse) {
+        final String methodName = "createFilePlainCommunicationDes";
+        // sanity checks
+        if (logTextView == null) {
+            Log.e(TAG, methodName + " logTextView is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (fileNumber < 0) {
+            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (fileNumber > 14) {
+            Log.e(TAG, methodName + " fileNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (fileSize < 1) {
+            Log.e(TAG, methodName + " fileSize is < 1, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (fileSize > MAXIMUM_FILE_SIZE) {
+            Log.e(TAG, methodName + " fileSize is > " + MAXIMUM_FILE_SIZE + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (isFreeAccess) {
+            Log.d(TAG, methodName + " file is created with FREE access");
+        } else {
+            Log.d(TAG, methodName + " file is created with KEY SECURED access");
+        }
+        byte[] fileSizeArray = Utils.intTo3ByteArrayInversed(fileSize); // lsb order
+        // generate the parameter
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(FILE_COMMUNICATION_SETTINGS);
+        // the access rights depend on free access or not
+        if (isFreeAccess) {
+            baos.write(ACCESS_RIGHTS_RW_CAR_FREE);
+            baos.write(ACCESS_RIGHTS_R_W_FREE);
+        } else {
+            baos.write(ACCESS_RIGHTS_RW_CAR_SECURED);
+            baos.write(ACCESS_RIGHTS_R_W_SECURED);
+        }
+        baos.write(fileSizeArray, 0, 3);
+        byte[] parameter = baos.toByteArray();
+        Log.d(TAG, methodName + Utils.printData(" parameter", parameter));
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(CREATE_STANDARD_FILE_COMMAND, parameter);
+            Log.d(TAG, methodName + Utils.printData(" apdu", apdu));
+            response = isoDep.transceive(apdu);
+            Log.d(TAG, methodName + Utils.printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+    }
+
+
+    /**
+     * section for command and response handling
+     */
+
+    private byte[] wrapMessage(byte command, byte[] parameters) throws IOException {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        stream.write((byte) 0x90);
+        stream.write(command);
+        stream.write((byte) 0x00);
+        stream.write((byte) 0x00);
+        if (parameters != null) {
+            stream.write((byte) parameters.length);
+            stream.write(parameters);
+        }
+        stream.write((byte) 0x00);
+        return stream.toByteArray();
+    }
+
+    private byte[] returnStatusBytes(byte[] data) {
+        return Arrays.copyOfRange(data, (data.length - 2), data.length);
+    }
+
+    /**
+     * checks if the response has an 0x'9100' at the end means success
+     * and the method returns the data without 0x'9100' at the end
+     * if any other trailing bytes show up the method returns false
+     *
+     * @param data
+     * @return
+     */
+    private boolean checkResponse(@NonNull byte[] data) {
+        // simple sanity check
+        if (data.length < 2) {
+            return false;
+        } // not ok
+        if (Arrays.equals(RESPONSE_OK, returnStatusBytes(data))) {
+            return true;
+        } else {
+            return false;
+        }
+        /*
+        int status = ((0xff & data[data.length - 2]) << 8) | (0xff & data[data.length - 1]);
+        if (status == 0x9100) {
+            return true;
+        } else {
+            return false;
+        }
+         */
     }
 
     /**
@@ -261,26 +700,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         });
     }
 
-    public String printData(String dataName, byte[] data) {
-        int dataLength;
-        String dataString = "";
-        if (data == null) {
-            dataLength = 0;
-            dataString = "IS NULL";
-        } else {
-            dataLength = data.length;
-            dataString = Utils.bytesToHex(data);
-        }
-        StringBuilder sb = new StringBuilder();
-        sb
-                .append(dataName)
-                .append(" length: ")
-                .append(dataLength)
-                .append(" data: ")
-                .append(dataString);
-        return sb.toString();
-    }
-
     private void clearOutputFields() {
         runOnUiThread(() -> {
             output.setText("");
@@ -320,6 +739,16 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         KEY_NUMBER_USED_FOR_AUTHENTICATION = -1;
         SESSION_KEY_DES = null;
         SESSION_KEY_TDES = null;
+    }
+
+    private void vibrateShort() {
+        // Make a Sound
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            ((Vibrator) getSystemService(VIBRATOR_SERVICE)).vibrate(VibrationEffect.createOneShot(50, 10));
+        } else {
+            Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            v.vibrate(50);
+        }
     }
 
     /**
