@@ -145,6 +145,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private final byte READ_STANDARD_FILE_COMMAND = (byte) 0xBD;
     private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
     private final byte GET_FILE_SETTINGS_COMMAND = (byte) 0xF5;
+    private final byte AUTHENTICATE_LEGACY_DES_0A_COMMAND = (byte) 0x0A;
+    private final byte AUTHENTICATE_ISO_DES_1A_COMMAND = (byte) 0x1A;
+    private final byte MORE_DATA_COMMAND = (byte) 0xAF;
 
 
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
@@ -258,7 +261,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you did not enter a 6 hex string application ID", COLOR_RED);
                     return;
                 }
-                writeToUiAppend(output, logString +" with id: " + applicationId.getText().toString());
+                writeToUiAppend(output, logString + " with id: " + applicationId.getText().toString());
                 byte[] responseData = new byte[2];
                 boolean success = createApplicationPlainCommunicationDes(output, applicationIdentifier, numberOfKeysByte, responseData);
                 if (success) {
@@ -288,7 +291,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you did not enter a 6 hex string application ID", COLOR_RED);
                     return;
                 }
-                writeToUiAppend(output, logString +" with id: " + applicationId.getText().toString());
+                writeToUiAppend(output, logString + " with id: " + applicationId.getText().toString());
                 byte[] responseData = new byte[2];
                 boolean success = selectApplication(output, applicationIdentifier, responseData);
                 if (success) {
@@ -321,7 +324,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
                     return;
                 }
-                writeToUiAppend(output, logString +" with id: " + fileStandardFileId.getText().toString() + " size: " + fileSizeInt);
+                writeToUiAppend(output, logString + " with id: " + fileStandardFileId.getText().toString() + " size: " + fileSizeInt);
                 byte[] responseData = new byte[2];
                 boolean success = createStandardFilePlainCommunicationDes(output, fileIdByte, fileSizeInt, rbFileFreeAccess.isChecked(), responseData);
                 if (success) {
@@ -508,7 +511,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
                 byte[] responseData = new byte[2];
-                boolean success = authenticateApplicationDes0A(output, APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES_DEFAULT, true, responseData);
+                boolean success = authenticateApplicationDes1A(output, APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES_DEFAULT, true, responseData);
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
@@ -519,9 +522,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
     }
-
-
-
 
 
     /**
@@ -752,7 +752,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
             return null;
         }
-        if ((fileSize < 1) || (fileSize > MAXIMUM_FILE_SIZE)){
+        if ((fileSize < 1) || (fileSize > MAXIMUM_FILE_SIZE)) {
             Log.e(TAG, methodName + " fileSize has to be in range 1.." + MAXIMUM_FILE_SIZE + " but found " + fileSize + ", aborted");
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
             return null;
@@ -764,10 +764,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             return null;
         }
         // generate the parameter
-        int numberOfBytes = fileSize;
         int offsetBytes = 0; // read from the beginning
         byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
-        byte[] length = Utils.intTo3ByteArrayInversed(numberOfBytes); // LSB order
+        byte[] length = Utils.intTo3ByteArrayInversed(fileSize); // LSB order
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         baos.write(fileNumber);
         baos.write(offset, 0, 3);
@@ -793,7 +792,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             Log.d(TAG, methodName + " SUCCESS");
             // now strip of the response bytes
             // if the card responses more data than expected we truncate the data
-            int expectedResponse = numberOfBytes - offsetBytes;
+            int expectedResponse = fileSize - offsetBytes;
             if (response.length == expectedResponse) {
                 return response;
             } else if (response.length > expectedResponse) {
@@ -995,49 +994,63 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     // if verbose = true all steps are printed out
-    private boolean authenticateApplicationDes0A(TextView logTextView, byte keyId, byte[] key, boolean verbose, byte[] response) {
+    private boolean authenticateApplicationDes0A(TextView logTextView, byte keyId, byte[] key, boolean verbose, byte[] methodResponse) {
+        verbose = false;
+        final String methodName = "authenticateApplicationDes0A";
+        Log.d(TAG, methodName + " for keyId " + keyId + " and key " + Utils.bytesToHexNpeUpperCase(key));
+        writeToUiAppend(logTextView, methodName + " for keyId " + keyId + " and key " + Utils.bytesToHexNpeUpperCase(key));
         try {
-            Log.d(TAG, "authenticateApplicationDes for keyId " + keyId + " and key " + Utils.bytesToHex(key));
-            writeToUiAppend(logTextView, "authenticateApplicationDes for keyId " + keyId + " and key " + Utils.bytesToHex(key));
-            // do DES auth
-
+            // do DES auth with command 0x0A
             setKeyVersion(key, 0, key.length, (byte) 0x00);
-
-            // Authenticate Part 1 get encrypted rndB from PICC and decrypt it with CAR key
-            byte authDes0aCommand = (byte) 0x0a;
-
-            byte[] apdu = wrapMessage(authDes0aCommand, new byte[]{(byte) (keyId & 0xFF)});
+            Log.d(TAG, methodName + " key after setKeyVersion 00: " + Utils.bytesToHexNpeUpperCase(key));
+            if (verbose)
+                writeToUiAppend(logTextView, printData("key after setKeyVersion", key));
+            // Authenticate Part 1 get encrypted rndB from PICC and decrypt it key
+            byte[] apdu = wrapMessage(AUTHENTICATE_LEGACY_DES_0A_COMMAND, new byte[]{keyId});
+            Log.d(TAG, methodName + printData(" apdu", apdu));
             byte[] getChallengeResponse = isoDep.transceive(apdu);
+            Log.d(TAG, methodName + printData(" getChallengeResponse", getChallengeResponse));
             if (verbose)
                 writeToUiAppend(logTextView, printData("getChallengeResponse", getChallengeResponse));
             byte[] challengeData = Arrays.copyOf(getChallengeResponse, getChallengeResponse.length - 2);
             // Decrypt to find RndB. TripleDES is used rather than AES, so the blocks are 8 bytes in size.
+            if (verbose) writeToUiAppend(output, printData("key", key));
+            Log.d(TAG, methodName + printData(" key", key));
             byte[] iv = new byte[8];
-            writeToUiAppend(output, printData("iv", iv));
+            if (verbose) writeToUiAppend(output, printData("iv", iv));
+            Log.d(TAG, methodName + printData(" iv", iv));
             byte[] rndB = decrypt(challengeData, key, iv);
+            Log.d(TAG, methodName + printData(" rndB", rndB));
             if (verbose) writeToUiAppend(logTextView, printData("rndB", rndB));
 
             // Authenticate Part 2 generate random rndA and send it together with rndB to PICC
             byte[] rndA = getRndADes();
+            Log.d(TAG, methodName + printData(" rndA", rndA));
             if (verbose) writeToUiAppend(logTextView, printData("rndA", rndA));
             // Rotate left the rndB byte[] leftRotatedRndB = rotateLeft(rndB);
             byte[] leftRotatedRndB = rotateLeft(rndB);
+            Log.d(TAG, methodName + printData(" leftRotatedRndB", leftRotatedRndB));
             if (verbose)
                 writeToUiAppend(logTextView, printData("leftRotatedRndB", leftRotatedRndB));
             byte[] rndA_rndB = concatenate(rndA, leftRotatedRndB);
+            Log.d(TAG, methodName + printData(" rndA_rndB", rndA_rndB));
             if (verbose) writeToUiAppend(logTextView, printData("rndA_rndB", rndA_rndB));
             // get the IV from old challengeData
             iv = challengeData.clone();
-            writeToUiAppend(output, printData("iv", iv));
+            if (verbose) writeToUiAppend(output, printData("iv", iv));
+            Log.d(TAG, methodName + printData(" iv", iv));
+            /*
             byte[] challengeAnswer = encrypt(rndA_rndB, key, iv);
             if (verbose)
                 writeToUiAppend(logTextView, printData("challengeAnswer", challengeAnswer));
+            */
             // encrypt rndA_rndB
             byte[] encryptedRndA_RndB = encrypt(rndA_rndB, key, iv);
             if (verbose)
-                writeToUiAppend(logTextView, printData("challengeAnswer", challengeAnswer));
-            byte moreDataCommand = (byte) 0xaf;
-            byte[] apdu2 = wrapMessage(moreDataCommand, encryptedRndA_RndB);
+                writeToUiAppend(logTextView, printData("encryptedRndA_RndB", encryptedRndA_RndB));
+            Log.d(TAG, methodName + printData(" encryptedRndA_RndB", encryptedRndA_RndB));
+            byte[] apdu2 = wrapMessage(MORE_DATA_COMMAND, encryptedRndA_RndB);
+            Log.d(TAG, methodName + printData(" apdu2", apdu2));
             /*
              * Sending the APDU containing the challenge answer.
              * It is expected to be return 10 bytes [rndA from the Card] + 9100
@@ -1045,43 +1058,429 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             byte[] getChallenge2Response = isoDep.transceive(apdu2);
             if (verbose)
                 writeToUiAppend(logTextView, printData("getChallenge2Response", getChallenge2Response));
+            Log.d(TAG, methodName + printData(" getChallenge2Response", getChallenge2Response));
             byte[] challenge2Data = Arrays.copyOf(getChallenge2Response, getChallenge2Response.length - 2);
             if (verbose)
                 writeToUiAppend(logTextView, printData("challenge2Data", challenge2Data));
+            Log.d(TAG, methodName + printData(" challenge2Data", challenge2Data));
             // Decrypt the rnd received from the Card.byte[] rotatedRndAFromCard = decrypt(encryptedRndAFromCard, defaultDESKey, IV);
             //byte[] rotatedRndAFromCard = decrypt(encryptedRndAFromCard, defaultDESKey, IV);
             byte[] rotatedRndAFromCard = decrypt(challenge2Data, key, iv);
             if (verbose)
                 writeToUiAppend(logTextView, printData("rotatedRndAFromCard", rotatedRndAFromCard));
-
-            /*
-            // As the card rotated left the rndA,// we shall un-rotate the bytes in order to get compare it to our original rndA.byte[] rndAFromCard = rotateRight(rotatedRndAFromCard);
-            byte[] rndAFromCard = Ev3.rotateRight(rotatedRndAFromCard);
+            Log.d(TAG, methodName + printData(" rotatedRndAFromCard", rotatedRndAFromCard));
+            // As the card rotated left the rndA,
+            // we shall un-rotate the bytes in order to get compare it to our original rndA.byte[] rndAFromCard = rotateRight(rotatedRndAFromCard);
+            byte[] rndAFromCard = rotateRight(rotatedRndAFromCard);
             // todo get a new IV after ?? step
             if (verbose) writeToUiAppend(logTextView, printData("rndAFromCard", rndAFromCard));
-            writeToUiAppend(logTextView, "********** AUTH RESULT **********");
-            */
+            Log.d(TAG, methodName + printData(" rndAFromCard", rndAFromCard));
+            // check of our generated rndA matches with the returned rndAFromCard
+            boolean rndA_equals = Arrays.equals(rndA, rndAFromCard);
+            if (rndA_equals) {
+                writeToUiAppend(logTextView, "********** AUTH RESULT SUCCESS **********");
+                Log.d(TAG, methodName + " ********** AUTH RESULT SUCCESS **********");
+                System.arraycopy(RESPONSE_OK, 0, methodResponse, 0, 2);
+            } else {
+                writeToUiAppend(logTextView, "********** AUTH RESULT FAILURE **********");
+                Log.d(TAG, methodName + " ********** AUTH RESULT FAILURE **********");
+                System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+                return false;
+            }
+            // now generate the session key from rndA and rndB
+            Log.d(TAG, methodName + printData(" rndA", rndA));
+            Log.d(TAG, methodName + printData(" rndB", rndB));
 
-            // get the session key
-            byte[] responseManual = new byte[]{(byte) 0x91, (byte) 0x00};
-            System.arraycopy(responseManual, 0, response, 0, 2);
             // now generate the session key
             //SESSION_KEY_DES = generateD40SessionKeyDes(rndA, rndB); // this is a 16 bytes long key, but for D40 encryption (DES) we need 8 bytes only
             SESSION_KEY_DES = generateSessionKey(rndA, rndB);
+            writeToUiAppend(logTextView, printData("DES sessionKey", SESSION_KEY_DES));
+            Log.d(TAG, methodName + printData(" SESSION_KEY_DES", SESSION_KEY_DES));
+            /*
             SESSION_KEY_TDES = new byte[16];
             System.arraycopy(SESSION_KEY_DES, 0, SESSION_KEY_TDES, 0, 8);
             System.arraycopy(SESSION_KEY_DES, 0, SESSION_KEY_TDES, 8, 8);
-            writeToUiAppend(logTextView, printData("DES sessionKey", SESSION_KEY_DES));
             writeToUiAppend(logTextView, printData("TDES sessionKey", SESSION_KEY_TDES));
-            // as it is a single DES cryptography I'm using the first part of the SESSION_KEY_TDES only
-            //SESSION_KEY_DES = Arrays.copyOf(SESSION_KEY_TDES, 8);
+             */
             return true;
         } catch (Exception e) {
             //throw new RuntimeException(e);
             writeToUiAppend(logTextView, "authenticateApplicationDes transceive failed: " + e.getMessage());
             writeToUiAppend(logTextView, "authenticateApplicationDes transceive failed: " + Arrays.toString(e.getStackTrace()));
-            byte[] responseManual = new byte[]{(byte) 0x91, (byte) 0xFF};
-            System.arraycopy(responseManual, 0, response, 0, 2);
+            Log.e(TAG, methodName + " authenticateApplicationDes transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+        }
+        //System.arraycopy(createApplicationResponse, 0, response, 0, createApplicationResponse.length);
+        return false;
+    }
+
+    // if verbose = true all steps are printed out
+    private boolean authenticateApplicationDes1A(TextView logTextView, byte keyId, byte[] key, boolean verbose, byte[] methodResponse) {
+        // this is the modified code by David Coelho, https://www.linkedin.com/pulse/mifare-desfire-introduction-david-coelho
+        // STATUS: working !!
+        verbose = false;
+        final String methodName = "authenticateApplicationDes1A";
+        Log.d(TAG, methodName + " for keyId " + keyId + " and key " + Utils.bytesToHexNpeUpperCase(key));
+        writeToUiAppend(logTextView, methodName + " for keyId " + keyId + " and key " + Utils.bytesToHexNpeUpperCase(key));
+
+        try {
+
+            /*
+             * Sending the GetChallenge APDU: 901a0000010000
+             * This is the starting point of the authentication.
+             */
+            byte[] response;
+            //response = channel.transmit(new CommandAPDU(new byte[]{(byte) 0x90, 0x1a, 0x00, 0x00, 0x01, 0x00, 0x00}));
+            //response = isoDep.transceive(new byte[]{(byte) 0x90, 0x1a, 0x00, 0x00, 0x01, 0x00, 0x00}); // keyNo 00
+            //response = isoDep.transceive(new byte[]{(byte) 0x90, 0x1a, 0x00, 0x00, 0x01, 0x01, 0x00}); // keyNo 01
+
+            // do DES auth with command 0x1A
+            setKeyVersion(key, 0, key.length, (byte) 0x00);
+            Log.d(TAG, methodName + " key after setKeyVersion 00: " + Utils.bytesToHexNpeUpperCase(key));
+            if (verbose)
+                writeToUiAppend(logTextView, printData("key after setKeyVersion", key));
+            // Authenticate Part 1 get encrypted rndB from PICC and decrypt it key
+            byte[] apdu = wrapMessage(AUTHENTICATE_ISO_DES_1A_COMMAND, new byte[]{keyId});
+            Log.d(TAG, methodName + printData(" apdu", apdu));
+            byte[] getChallengeResponse = isoDep.transceive(apdu);
+            Log.d(TAG, methodName + printData(" getChallengeResponse", getChallengeResponse));
+            if (verbose)
+                writeToUiAppend(logTextView, printData("getChallengeResponse", getChallengeResponse));
+            byte[] challengeData = Arrays.copyOf(getChallengeResponse, getChallengeResponse.length - 2);
+
+            //Log.d(TAG, "Authentication challenge (8 bytes challenge + 91af) : " + Utils.bytesToHexNpeUpperCase(response));
+            Log.d(TAG, "Authentication challenge (8 bytes challenge + 91af) : " + Utils.bytesToHexNpeUpperCase(getChallengeResponse));
+
+            // Decrypt to find RndB. TripleDES is used rather than AES, so the blocks are 8 bytes in size.
+            if (verbose) writeToUiAppend(output, printData("key", key));
+            Log.d(TAG, methodName + printData(" key", key));
+            byte[] iv = new byte[8];
+            if (verbose) writeToUiAppend(output, printData("iv", iv));
+            Log.d(TAG, methodName + printData(" iv", iv));
+            byte[] rndB = decrypt(challengeData, key, iv);
+            Log.d(TAG, methodName + printData(" rndB", rndB));
+            if (verbose) writeToUiAppend(logTextView, printData("rndB", rndB));
+
+            // Authenticate Part 2 generate random rndA and send it together with rndB to PICC
+            byte[] rndA = getRndADes();
+            Log.d(TAG, methodName + printData(" rndA", rndA));
+            // Rotate left the rndB byte[] leftRotatedRndB = rotateLeft(rndB);
+            byte[] leftRotatedRndB = rotateLeft(rndB);
+            Log.d(TAG, methodName + printData(" leftRotatedRndB", leftRotatedRndB));
+            if (verbose)
+                writeToUiAppend(logTextView, printData("leftRotatedRndB", leftRotatedRndB));
+            byte[] rndA_rndB = concatenate(rndA, leftRotatedRndB);
+            Log.d(TAG, methodName + printData(" rndA_rndB", rndA_rndB));
+            if (verbose) writeToUiAppend(logTextView, printData("rndA_rndB", rndA_rndB));
+            // get the IV from old challengeData
+            iv = challengeData.clone();
+            if (verbose) writeToUiAppend(output, printData("iv", iv));
+            Log.d(TAG, methodName + printData(" iv", iv));
+
+            // encrypt rndA_rndB
+            byte[] encryptedRndA_RndB = encrypt(rndA_rndB, key, iv);
+            if (verbose)
+                writeToUiAppend(logTextView, printData("encryptedRndA_RndB", encryptedRndA_RndB));
+            Log.d(TAG, methodName + printData(" encryptedRndA_RndB", encryptedRndA_RndB));
+            byte[] apdu2 = wrapMessage(MORE_DATA_COMMAND, encryptedRndA_RndB);
+            Log.d(TAG, methodName + printData(" apdu2", apdu2));
+            // get a new iv
+            iv = Arrays.copyOfRange(encryptedRndA_RndB, 8, 16);
+            if (verbose) writeToUiAppend(output, printData("iv", iv));
+            Log.d(TAG, methodName + printData(" iv", iv));
+            /*
+             * Sending the APDU containing the challenge answer.
+             * It is expected to be return 10 bytes [rndA from the Card] + 9100
+             */
+            byte[] getChallenge2Response = isoDep.transceive(apdu2);
+            if (verbose)
+                writeToUiAppend(logTextView, printData("getChallenge2Response", getChallenge2Response));
+            Log.d(TAG, methodName + printData(" getChallenge2Response", getChallenge2Response));
+            byte[] challenge2Data = Arrays.copyOf(getChallenge2Response, getChallenge2Response.length - 2);
+            if (verbose)
+                writeToUiAppend(logTextView, printData("challenge2Data", challenge2Data));
+            Log.d(TAG, methodName + printData(" challenge2Data", challenge2Data));
+
+            byte[] rotatedRndAFromCard = decrypt(challenge2Data, key, iv);
+            if (verbose)
+                writeToUiAppend(logTextView, printData("rotatedRndAFromCard", rotatedRndAFromCard));
+            Log.d(TAG, methodName + printData(" rotatedRndAFromCard", rotatedRndAFromCard));
+            // As the card rotated left the rndA,
+            // we shall un-rotate the bytes in order to get compare it to our original rndA.byte[] rndAFromCard = rotateRight(rotatedRndAFromCard);
+            byte[] rndAFromCard = rotateRight(rotatedRndAFromCard);
+            if (verbose) writeToUiAppend(logTextView, printData("rndAFromCard", rndAFromCard));
+            Log.d(TAG, methodName + printData(" rndAFromCard", rndAFromCard));
+            // check of our generated rndA matches with the returned rndAFromCard
+            boolean rndA_equals = Arrays.equals(rndA, rndAFromCard);
+            if (rndA_equals) {
+                writeToUiAppend(logTextView, "******* AUTH RESULT SUCCESS *******");
+                Log.d(TAG, methodName + " ******* AUTH RESULT SUCCESS *******");
+                System.arraycopy(RESPONSE_OK, 0, methodResponse, 0, 2);
+            } else {
+                writeToUiAppend(logTextView, "********** AUTH RESULT FAILURE **********");
+                Log.d(TAG, methodName + " ********** AUTH RESULT FAILURE **********");
+                System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+                return false;
+            }
+            // now generate the session key from rndA and rndB
+            Log.d(TAG, methodName + printData(" rndA", rndA));
+            Log.d(TAG, methodName + printData(" rndB", rndB));
+
+            // now generate the session key
+            //SESSION_KEY_DES = generateD40SessionKeyDes(rndA, rndB); // this is a 16 bytes long key, but for D40 encryption (DES) we need 8 bytes only
+            SESSION_KEY_DES = generateSessionKey(rndA, rndB);
+            writeToUiAppend(logTextView, printData("DES sessionKey", SESSION_KEY_DES));
+            Log.d(TAG, methodName + printData(" SESSION_KEY_DES", SESSION_KEY_DES));
+            /*
+            SESSION_KEY_TDES = new byte[16];
+            System.arraycopy(SESSION_KEY_DES, 0, SESSION_KEY_TDES, 0, 8);
+            System.arraycopy(SESSION_KEY_DES, 0, SESSION_KEY_TDES, 8, 8);
+            writeToUiAppend(logTextView, printData("TDES sessionKey", SESSION_KEY_TDES));
+             */
+            return true;
+
+        } catch (Exception e) {
+            //throw new RuntimeException(e);
+            writeToUiAppend(logTextView, "authenticateApplicationDes transceive failed: " + e.getMessage());
+            writeToUiAppend(logTextView, "authenticateApplicationDes transceive failed: " + Arrays.toString(e.getStackTrace()));
+            Log.e(TAG, methodName + " authenticateApplicationDes transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+        }
+        //System.arraycopy(createApplicationResponse, 0, response, 0, createApplicationResponse.length);
+        return false;
+    }
+
+    private boolean authenticateApplicationDes1A_David_Coelho(TextView logTextView, byte keyId, byte[] key, boolean verbose, byte[] methodResponse) {
+        // this is the original code by David Coelho, https://www.linkedin.com/pulse/mifare-desfire-introduction-david-coelho
+        verbose = false;
+        final String methodName = "authenticateApplicationDes1A";
+        Log.d(TAG, methodName + " for keyId " + keyId + " and key " + Utils.bytesToHexNpeUpperCase(key));
+        writeToUiAppend(logTextView, methodName + " for keyId " + keyId + " and key " + Utils.bytesToHexNpeUpperCase(key));
+
+        try {
+
+            /*
+             * Sending the GetChallenge APDU: 901a0000010000
+             * This is the starting point of the authentication.
+             */
+            byte[] response;
+            //response = channel.transmit(new CommandAPDU(new byte[]{(byte) 0x90, 0x1a, 0x00, 0x00, 0x01, 0x00, 0x00}));
+            response = isoDep.transceive(new byte[]{(byte) 0x90, 0x1a, 0x00, 0x00, 0x01, 0x00, 0x00});
+
+            Log.d(TAG, "Authentication challenge (8 bytes challenge + 91af) : " + Utils.bytesToHexNpeUpperCase(response));
+
+            //byte[] challenge = response.getData();
+            byte[] challenge = Arrays.copyOf(response, response.length - 2);
+
+            // Of course rndA is expected to a random number. But for the tutorial we keep it as a constant.byte[] rndA = new byte[]{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
+            byte[] rndA = new byte[]{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
+            // DESFire Default DES key is zero byte array.byte[] defaultDESKey = new byte[8];
+            byte[] defaultDESKey = new byte[8];
+            byte[] IV = new byte[8];
+
+            // Decrypt the challenge with default key byte[] rndB = decrypt(challenge, defaultDESKey, IV);
+            byte[] rndB = decrypt(challenge, defaultDESKey, IV);
+            IV = challenge;
+            Log.d(TAG, "Decrypted rndB: " + Utils.bytesToHexNpeUpperCase(rndB));
+
+            // Rotate left the rndB byte[] leftRotatedRndB = rotateLeft(rndB);
+            byte[] leftRotatedRndB = rotateLeft(rndB);
+            Log.d(TAG, "Left rotated rndB: " + Utils.bytesToHexNpeUpperCase(leftRotatedRndB));
+
+            // Concatenate the RndA and rotated RndB byte[] rndA_rndB = concatenate(rndA, leftRotatedRndB);
+            byte[] rndA_rndB = concatenate(rndA, leftRotatedRndB);
+            Log.d(TAG, "rndA and rndB: " + Utils.bytesToHexNpeUpperCase(rndA_rndB));
+
+            // Encrypt the bytes of the last step to get the challenge answer byte[] challengeAnswer = encrypt(rndA_rndB, defaultDESKey, IV);
+            byte[] challengeAnswer = encrypt(rndA_rndB, defaultDESKey, IV);
+            Log.d(TAG, "Challenge answer: " + Utils.bytesToHexNpeUpperCase(challengeAnswer));
+            IV = Arrays.copyOfRange(challengeAnswer, 8, 16);
+
+            /*
+              Build and send APDU with the answer. Basically wrap the challenge answer in the APDU.
+              The total size of apdu (for this scenario) is 22 bytes:
+              > 0x90 0xAF 0x00 0x00 0x10 [16 bytes challenge answer] 0x00
+            */
+            byte[] challengeAnswerAPDU = new byte[22];
+            challengeAnswerAPDU[0] = (byte) 0x90; // CLS
+            challengeAnswerAPDU[1] = (byte) 0xAF; // INS
+            challengeAnswerAPDU[2] = (byte) 0x00; // p1
+            challengeAnswerAPDU[3] = (byte) 0x00; // p2
+            challengeAnswerAPDU[4] = (byte) 0x10; // data length: 16 bytes
+            challengeAnswerAPDU[challengeAnswerAPDU.length - 1] = (byte) 0x00;
+            System.arraycopy(challengeAnswer, 0, challengeAnswerAPDU, 5, challengeAnswer.length);
+            Log.d(TAG, "Challenge Answer APDU: " + Utils.bytesToHexNpeUpperCase(challengeAnswerAPDU));
+
+            /*
+             * Sending the APDU containing the challenge answer.
+             * It is expected to be return 10 bytes [rndA from the Card] + 9100
+             */
+            //response = channel.transmit(new CommandAPDU(challengeAnswerAPDU));
+            response = isoDep.transceive(challengeAnswerAPDU);
+
+            Log.d(TAG, "Response for challenge answer (10 bytes expected): " + Utils.bytesToHexNpeUpperCase(response));
+
+            /*
+             * At this point, the challenge was processed by the card. The card decrypted the rndA rotated it and sent it back.
+             * Now we need to check if the RndA sent by the Card is valid.
+             */// encrypted rndA from Card, returned in the last step byte[] encryptedRndAFromCard = response.getData();
+            //byte[] encryptedRndAFromCard = response.getData();
+            byte[] encryptedRndAFromCard = Arrays.copyOf(response, response.length - 2);
+
+            // Decrypt the rnd received from the Card. byte[] rotatedRndAFromCard = decrypt(encryptedRndAFromCard, defaultDESKey, IV);
+            byte[] rotatedRndAFromCard = decrypt(encryptedRndAFromCard, defaultDESKey, IV);
+            Log.d(TAG, "Rotated rndA from Card: " + Utils.bytesToHexNpeUpperCase(rotatedRndAFromCard));
+
+            // As the card rotated left the rndA,// we shall un-rotate the bytes in order to get compare it to our original rndA.byte[] rndAFromCard = rotateRight(rotatedRndAFromCard);
+            byte[] rndAFromCard = rotateRight(rotatedRndAFromCard);
+            if (Arrays.equals(rndA, rndAFromCard)) {
+                Log.d(TAG, "Authenticated!!!");
+                System.arraycopy(RESPONSE_OK, 0, methodResponse, 0, 2);
+
+                // now generate the session key from rndA and rndB
+                Log.d(TAG, methodName + printData(" rndA", rndA));
+                Log.d(TAG, methodName + printData(" rndB", rndB));
+
+                // now generate the session key
+                //SESSION_KEY_DES = generateD40SessionKeyDes(rndA, rndB); // this is a 16 bytes long key, but for D40 encryption (DES) we need 8 bytes only
+                SESSION_KEY_DES = generateSessionKey(rndA, rndB);
+                writeToUiAppend(logTextView, printData("DES sessionKey", SESSION_KEY_DES));
+                Log.d(TAG, methodName + printData(" SESSION_KEY_DES", SESSION_KEY_DES));
+                return true;
+            } else {
+                System.err.println(" ### Authentication failed. ### ");
+                Log.d(TAG, "rndA:" + Utils.bytesToHexNpeUpperCase(rndA) + ", rndA from Card: " + Utils.bytesToHexNpeUpperCase(rndAFromCard));
+                System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            }
+
+        } catch (Exception e) {
+            //throw new RuntimeException(e);
+            writeToUiAppend(logTextView, "authenticateApplicationDes transceive failed: " + e.getMessage());
+            writeToUiAppend(logTextView, "authenticateApplicationDes transceive failed: " + Arrays.toString(e.getStackTrace()));
+            Log.e(TAG, methodName + " authenticateApplicationDes transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+        }
+        //System.arraycopy(createApplicationResponse, 0, response, 0, createApplicationResponse.length);
+        return false;
+    }
+
+    private boolean authenticateApplicationDes1AOrg(TextView logTextView, byte keyId, byte[] key, boolean verbose, byte[] methodResponse) {
+        verbose = false;
+        final String methodName = "authenticateApplicationDes1A";
+        Log.d(TAG, methodName + " for keyId " + keyId + " and key " + Utils.bytesToHexNpeUpperCase(key));
+        writeToUiAppend(logTextView, methodName + " for keyId " + keyId + " and key " + Utils.bytesToHexNpeUpperCase(key));
+        try {
+            // do DES auth with command 0x1A
+            setKeyVersion(key, 0, key.length, (byte) 0x00);
+            Log.d(TAG, methodName + " key after setKeyVersion 00: " + Utils.bytesToHexNpeUpperCase(key));
+            if (verbose)
+                writeToUiAppend(logTextView, printData("key after setKeyVersion", key));
+            // Authenticate Part 1 get encrypted rndB from PICC and decrypt it key
+            byte[] apdu = wrapMessage(AUTHENTICATE_ISO_DES_1A_COMMAND, new byte[]{keyId});
+
+            Log.d(TAG, methodName + printData(" apdu", apdu));
+            byte[] getChallengeResponse = isoDep.transceive(apdu);
+            Log.d(TAG, methodName + printData(" getChallengeResponse", getChallengeResponse));
+            if (verbose)
+                writeToUiAppend(logTextView, printData("getChallengeResponse", getChallengeResponse));
+            byte[] challengeData = Arrays.copyOf(getChallengeResponse, getChallengeResponse.length - 2);
+            // Decrypt to find RndB. TripleDES is used rather than AES, so the blocks are 8 bytes in size.
+            if (verbose) writeToUiAppend(output, printData("key", key));
+            Log.d(TAG, methodName + printData(" key", key));
+            byte[] iv = new byte[8];
+            if (verbose) writeToUiAppend(output, printData("iv", iv));
+            Log.d(TAG, methodName + printData(" iv", iv));
+            byte[] rndB = decrypt(challengeData, key, iv);
+            Log.d(TAG, methodName + printData(" rndB", rndB));
+            if (verbose) writeToUiAppend(logTextView, printData("rndB", rndB));
+
+            // Authenticate Part 2 generate random rndA and send it together with rndB to PICC
+            byte[] rndA = getRndADes();
+            Log.d(TAG, methodName + printData(" rndA", rndA));
+            if (verbose) writeToUiAppend(logTextView, printData("rndA", rndA));
+            // Rotate left the rndB byte[] leftRotatedRndB = rotateLeft(rndB);
+            byte[] leftRotatedRndB = rotateLeft(rndB);
+            Log.d(TAG, methodName + printData(" leftRotatedRndB", leftRotatedRndB));
+            if (verbose)
+                writeToUiAppend(logTextView, printData("leftRotatedRndB", leftRotatedRndB));
+            byte[] rndA_rndB = concatenate(rndA, leftRotatedRndB);
+            Log.d(TAG, methodName + printData(" rndA_rndB", rndA_rndB));
+            if (verbose) writeToUiAppend(logTextView, printData("rndA_rndB", rndA_rndB));
+            // get the IV from old challengeData
+            iv = challengeData.clone();
+            if (verbose) writeToUiAppend(output, printData("iv", iv));
+            Log.d(TAG, methodName + printData(" iv", iv));
+            /*
+            byte[] challengeAnswer = encrypt(rndA_rndB, key, iv);
+            if (verbose)
+                writeToUiAppend(logTextView, printData("challengeAnswer", challengeAnswer));
+            */
+            // encrypt rndA_rndB
+            byte[] encryptedRndA_RndB = encrypt(rndA_rndB, key, iv);
+            if (verbose)
+                writeToUiAppend(logTextView, printData("encryptedRndA_RndB", encryptedRndA_RndB));
+            Log.d(TAG, methodName + printData(" encryptedRndA_RndB", encryptedRndA_RndB));
+            byte[] apdu2 = wrapMessage(MORE_DATA_COMMAND, encryptedRndA_RndB);
+            Log.d(TAG, methodName + printData(" apdu2", apdu2));
+            /*
+             * Sending the APDU containing the challenge answer.
+             * It is expected to be return 10 bytes [rndA from the Card] + 9100
+             */
+            byte[] getChallenge2Response = isoDep.transceive(apdu2);
+            if (verbose)
+                writeToUiAppend(logTextView, printData("getChallenge2Response", getChallenge2Response));
+            Log.d(TAG, methodName + printData(" getChallenge2Response", getChallenge2Response));
+            byte[] challenge2Data = Arrays.copyOf(getChallenge2Response, getChallenge2Response.length - 2);
+            if (verbose)
+                writeToUiAppend(logTextView, printData("challenge2Data", challenge2Data));
+            Log.d(TAG, methodName + printData(" challenge2Data", challenge2Data));
+            // Decrypt the rnd received from the Card.byte[] rotatedRndAFromCard = decrypt(encryptedRndAFromCard, defaultDESKey, IV);
+            //byte[] rotatedRndAFromCard = decrypt(encryptedRndAFromCard, defaultDESKey, IV);
+
+            byte[] rotatedRndAFromCard = decrypt(challenge2Data, key, iv);
+            if (verbose)
+                writeToUiAppend(logTextView, printData("rotatedRndAFromCard", rotatedRndAFromCard));
+            Log.d(TAG, methodName + printData(" rotatedRndAFromCard", rotatedRndAFromCard));
+            // As the card rotated left the rndA,
+            // we shall un-rotate the bytes in order to get compare it to our original rndA.byte[] rndAFromCard = rotateRight(rotatedRndAFromCard);
+            byte[] rndAFromCard = rotateRight(rotatedRndAFromCard);
+            // todo get a new IV after ?? step
+            if (verbose) writeToUiAppend(logTextView, printData("rndAFromCard", rndAFromCard));
+            Log.d(TAG, methodName + printData(" rndAFromCard", rndAFromCard));
+            // check of our generated rndA matches with the returned rndAFromCard
+            boolean rndA_equals = Arrays.equals(rndA, rndAFromCard);
+            if (rndA_equals) {
+                writeToUiAppend(logTextView, "********** AUTH RESULT SUCCESS **********");
+                Log.d(TAG, methodName + " ********** AUTH RESULT SUCCESS **********");
+                System.arraycopy(RESPONSE_OK, 0, methodResponse, 0, 2);
+            } else {
+                writeToUiAppend(logTextView, "********** AUTH RESULT FAILURE **********");
+                Log.d(TAG, methodName + " ********** AUTH RESULT FAILURE **********");
+                System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+                return false;
+            }
+            // now generate the session key from rndA and rndB
+            Log.d(TAG, methodName + printData(" rndA", rndA));
+            Log.d(TAG, methodName + printData(" rndB", rndB));
+
+            // now generate the session key
+            //SESSION_KEY_DES = generateD40SessionKeyDes(rndA, rndB); // this is a 16 bytes long key, but for D40 encryption (DES) we need 8 bytes only
+            SESSION_KEY_DES = generateSessionKey(rndA, rndB);
+            writeToUiAppend(logTextView, printData("DES sessionKey", SESSION_KEY_DES));
+            Log.d(TAG, methodName + printData(" SESSION_KEY_DES", SESSION_KEY_DES));
+            /*
+            SESSION_KEY_TDES = new byte[16];
+            System.arraycopy(SESSION_KEY_DES, 0, SESSION_KEY_TDES, 0, 8);
+            System.arraycopy(SESSION_KEY_DES, 0, SESSION_KEY_TDES, 8, 8);
+            writeToUiAppend(logTextView, printData("TDES sessionKey", SESSION_KEY_TDES));
+             */
+            return true;
+        } catch (Exception e) {
+            //throw new RuntimeException(e);
+            writeToUiAppend(logTextView, "authenticateApplicationDes transceive failed: " + e.getMessage());
+            writeToUiAppend(logTextView, "authenticateApplicationDes transceive failed: " + Arrays.toString(e.getStackTrace()));
+            Log.e(TAG, methodName + " authenticateApplicationDes transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
         }
         //System.arraycopy(createApplicationResponse, 0, response, 0, createApplicationResponse.length);
         return false;
@@ -1157,6 +1556,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         return concatenated;
     }
 
+    /**
+     * generates a random 8 bytes long array
+     *
+     * @return 8 bytes long byte[]
+     */
     public static byte[] getRndADes() {
         byte[] value = new byte[8];
         SecureRandom secureRandom = new SecureRandom();
