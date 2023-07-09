@@ -568,7 +568,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte[] responseData = new byte[2];
                 //boolean success = authenticateApplicationDes1A(output, APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_DES_DEFAULT, true, responseData);
                 //boolean success = authenticateApplicationDes0A(output, APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_DES_DEFAULT, true, responseData);
-                boolean success = authenticateWithNfcjlib(APPLICATION_KEY_CAR_DES_DEFAULT, APPLICATION_KEY_CAR_NUMBER);
+                boolean success = authenticateWithNfcjlibDes(APPLICATION_KEY_CAR_DES_DEFAULT, APPLICATION_KEY_CAR_NUMBER);
                 SESSION_KEY_DES = Mskey.clone();
 
                 if (success) {
@@ -1566,7 +1566,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * Note: some minor modifications has been done to run the code without the rest of the library
      */
 
-    private boolean authenticateWithNfcjlib(byte[] key, byte keyNo) {
+    private boolean authenticateWithNfcjlibDes(byte[] key, byte keyNo) {
+        Log.d(TAG, "authenticateWithNfcjlibDes " + printData("key", key) + " keyNo: " + keyNo);
         try {
             return authenticate(key, keyNo, KeyType.DES);
         } catch (IOException e) {
@@ -1596,12 +1597,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     final byte AUTHENTICATE_AES	= (byte) 0xAA;
 
     // vars
-    boolean Mprint = true; // print data to log
-    private int Mcode; // takes the result code
-    private KeyType Mktype;
-    private Byte Mkno;
-    private byte[] Miv;
-    private byte[] Mskey;
+    public boolean Mprint = true; // print data to log
+    public int Mcode; // takes the result code
+    public KeyType Mktype;
+    public Byte Mkno;
+    public byte[] Miv;
+    public byte[] Mskey;
 
     /**
      * Mutual authentication between PCD and PICC.
@@ -1614,6 +1615,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * @throws IOException
      */
     public boolean authenticate(byte[] key, byte keyNo, KeyType type) throws IOException {
+        Log.d(TAG, "authenticate " + printData("key", key) + " keyNo: " + keyNo + " keyType: " + type.toString());
         if (!validateKey(key, type)) {
             throw new IllegalArgumentException();
         }
@@ -1621,7 +1623,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             // remove version bits from Triple DES keys
             setKeyVersion(key, 0, key.length, (byte) 0x00);
         }
-
         final byte[] iv0 = type == KeyType.AES ? new byte[16] : new byte[8];
         byte[] apdu;
         byte[] responseAPDU;
@@ -1655,7 +1656,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
         //byte[] responseData = getData(responseAPDU);
         byte[] responseData = Arrays.copyOf(responseAPDU, responseAPDU.length - 2);
-
 
         // step 3
         byte[] randB = recv(key, getData(responseAPDU), type, iv0);
@@ -1732,6 +1732,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * 				{@code false} otherwise
      */
     public static boolean validateKey(byte[] key, KeyType type) {
+        Log.d(TAG, "validateKey " + printData("key", key) + " keyType: " + type.toString());
         if (type == KeyType.DES && (key.length != 8)
                 || type == KeyType.TDES && (key.length != 16 || !isKey3DES(key))
                 || type == KeyType.TKTDES && key.length != 24
@@ -1753,6 +1754,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * @return		<code>true</code> if the key is a 3DES key
      */
     public static boolean isKey3DES(byte[] key) {
+        Log.d(TAG, "isKey3DES " + printData("key", key));
         if (key.length != 16)
             return false;
         byte[] tmpKey = Arrays.copyOfRange(key, 0, key.length);
@@ -1771,6 +1773,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      *    byte array if this APDU has no body.
      */
     private static byte[] getData(byte[] responseAPDU) {
+        Log.d(TAG, "getData " + printData("responseAPDU", responseAPDU));
         byte[] data = new byte[responseAPDU.length - 2];
         System.arraycopy(responseAPDU, 0, data, 0, data.length);
         return data;
@@ -1782,10 +1785,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * @return the value of the status byte SW2 as a value between 0 and 255.
      */
     public static int getSW2(byte[] responseAPDU) {
+        Log.d(TAG, "getSW2 " + printData("responseAPDU", responseAPDU));
         return responseAPDU[responseAPDU.length - 1] & 0xff;
     }
 
     private byte[] getRandomData(byte[] var) {
+        Log.d(TAG, "getRandomData " + printData("var", var));
         int varLength = var.length;
         return getRandomData(varLength);
     }
@@ -1796,6 +1801,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * @return 8 bytes long byte[]
      */
     public static byte[] getRandomData(int length) {
+        Log.d(TAG, "getRandomData " + " length: " + length);
         byte[] value = new byte[length];
         SecureRandom secureRandom = new SecureRandom();
         secureRandom.nextBytes(value);
@@ -1812,6 +1818,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * @return		the session key
      */
     private static byte[] generateSessionKey(byte[] randA, byte[] randB, KeyType type) {
+        Log.d(TAG, "generateSessionKey " + printData("randA", randA) + printData(" randB", randB) + " keyType: " + type.toString());
         byte[] skey = null;
 
         switch (type) {
@@ -1851,6 +1858,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     // Receiving data that needs decryption.
     private static byte[] recv(byte[] key, byte[] data, KeyType type, byte[] iv) {
+        Log.d(TAG, "recv " + printData("key", key) + printData(" data", data) + " keyType: " + type.toString() + printData(" iv", iv));
         switch (type) {
             case DES:
             case TDES:
@@ -1866,6 +1874,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     // DES/3DES decryption: CBC send mode and CBC receive mode
     private static byte[] decrypt(byte[] key, byte[] data, DESMode mode) {
+        Log.d(TAG, "decrypt " + printData("key", key) + printData(" data", data) + " DesMode: " + mode.toString());
         byte[] modifiedKey = new byte[24];
         System.arraycopy(key, 0, modifiedKey, 16, 8);
         System.arraycopy(key, 0, modifiedKey, 8, 8);
@@ -1919,6 +1928,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     // if IV is null, then it is set to zeros
     // Sending data that needs encryption.
     private static byte[] send(byte[] key, byte[] data, KeyType type, byte[] iv) {
+        Log.d(TAG, "send " + printData("key", key) + printData(" data", data) + " keyType: " + type.toString() + printData(" iv", iv));
         switch (type) {
             case DES:
             case TDES:
@@ -1934,6 +1944,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     // feedback/debug: a request-response round
     private void feedback(byte[] command, byte[] response) {
+        Log.d(TAG, "feedback " + printData("command", command) + printData(" response", response));
         //if(print) {
         if(Mprint) {
             Log.d(TAG, "---> " + getHexString(command, true) + " (" + command.length + ")");
@@ -1941,11 +1952,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
         //if(print) {
         if(Mprint) {
-            Log.d(TAG, "<--- " + getHexString(response, true) + " (" + command.length + ")");
+            Log.d(TAG, "<--- " + getHexString(response, true) + " (" + response.length + ")");
         }
     }
 
     public static String getHexString(byte[] a, boolean space) {
+        Log.d(TAG, "getHexString " + printData("a", a) + " space: " + space);
         StringBuilder sb = new StringBuilder();
         for (byte b : a) {
             sb.append(String.format("%02x", b & 0xff));
@@ -1955,15 +1967,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         }
         return sb.toString().trim().toUpperCase();
     }
-
-    /**
-     * END authentication codes taken from DESFireEv1.java (NFCJLIB)
-     */
-
-
-    /**
-     * section for key handling
-     */
 
     /**
      * Note on all KEY data (important for DES/TDES keys only)
@@ -1987,6 +1990,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
     // source: nfcjLib
     private static void setKeyVersion(byte[] a, int offset, int length, byte version) {
+        Log.d(TAG, "setKeyVersion " + printData("a", a) + " offset: " + offset + " length: " + length + " version: " + version);
         if (length == 8 || length == 16 || length == 24) {
             for (int i = offset + length - 1, j = 0; i >= offset; i--, j = (j + 1) % 8) {
                 a[i] &= 0xFE;
@@ -1994,6 +1998,16 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         }
     }
+
+    /**
+     * END authentication codes taken from DESFireEv1.java (NFCJLIB)
+     */
+
+
+    /**
+     * section for key handling
+     */
+
 
     /**
      * section for command and response handling

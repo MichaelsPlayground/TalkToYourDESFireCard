@@ -18,9 +18,18 @@ public class DesfireAuthentication {
 
     public static IsoDep isoDep; // you need to set this  value manually
 
-    private boolean authenticateWithNfcjlib(byte[] key, byte keyNo) {
+    public boolean authenticateWithNfcjlibDes(byte[] key, byte keyNo) {
         try {
             return authenticate(key, keyNo, MainActivity.KeyType.DES);
+        } catch (IOException e) {
+            Log.e(TAG, "IOException: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean authenticateWithNfcjlibAes(byte[] key, byte keyNo) {
+        try {
+            return authenticate(key, keyNo, MainActivity.KeyType.AES);
         } catch (IOException e) {
             Log.e(TAG, "IOException: " + e.getMessage());
             return false;
@@ -43,17 +52,17 @@ public class DesfireAuthentication {
     }
 
     // constants
-    final byte AUTHENTICATE_DES_2K3DES = (byte) 0x0A;
-    final byte AUTHENTICATE_3K3DES = (byte) 0x1A;
-    final byte AUTHENTICATE_AES	= (byte) 0xAA;
+    private final byte AUTHENTICATE_DES_2K3DES = (byte) 0x0A;
+    private final byte AUTHENTICATE_3K3DES = (byte) 0x1A;
+    private final byte AUTHENTICATE_AES	= (byte) 0xAA;
 
     // vars
-    boolean Mprint = true; // print data to log
-    private int Mcode; // takes the result code
-    private MainActivity.KeyType Mktype;
-    private Byte Mkno;
-    private byte[] Miv;
-    private byte[] Mskey;
+    public boolean Mprint = true; // print data to log
+    public int Mcode; // takes the result code
+    public MainActivity.KeyType Mktype;
+    public Byte Mkno;
+    public byte[] Miv;
+    public byte[] Mskey;
 
     /**
      * Mutual authentication between PCD and PICC.
@@ -403,7 +412,8 @@ public class DesfireAuthentication {
 
         //if(print) {
         if(Mprint) {
-            Log.d(TAG, "<--- " + getHexString(response, true) + " (" + command.length + ")");
+            //Log.d(TAG, "<--- " + getHexString(response, true) + " (" + command.length + ")"); // todo ERROR command.length is wrong, response.length is right
+            Log.d(TAG, "<--- " + getHexString(response, true) + " (" + response.length + ")");
         }
     }
 
