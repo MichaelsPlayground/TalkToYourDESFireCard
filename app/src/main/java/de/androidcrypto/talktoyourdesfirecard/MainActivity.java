@@ -6,6 +6,8 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
+import android.app.Activity;
+import android.app.Dialog;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
@@ -17,10 +19,12 @@ import android.os.Bundle;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.text.TextUtils;
+import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CompoundButton;
@@ -535,6 +539,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, logString + " SUCCESS");
                     SESSION_KEY_DES = desfireAuthentication.getSessionKey();
                     vibrateShort();
+
+                    // show logData
+                    showDialog(MainActivity.this, desfireAuthentication.getLogData());
+                    //showDialog(MainActivity.this, "hello again");
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                 }
@@ -2358,5 +2366,23 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         });
 
         return super.onCreateOptionsMenu(menu);
+    }
+
+    public void showDialog(Activity activity, String msg){
+        final Dialog dialog = new Dialog(activity);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setCancelable(true);
+        dialog.setContentView(R.layout.logdata);
+        TextView text = dialog.findViewById(R.id.tvLogData);
+        //text.setMovementMethod(new ScrollingMovementMethod());
+        text.setText(msg);
+        Button dialogButton = dialog.findViewById(R.id.btnLogDataOk);
+        dialogButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                dialog.dismiss();
+            }
+        });
+        dialog.show();
     }
 }

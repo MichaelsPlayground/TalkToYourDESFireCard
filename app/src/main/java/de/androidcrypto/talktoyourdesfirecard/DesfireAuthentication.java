@@ -41,9 +41,11 @@ public class DesfireAuthentication {
 
     public boolean authenticateWithNfcjlibDes(byte keyNo, byte[] key) {
         clearData();
+        log("AUTHENTICATE", "**** start auth ****", false);
         log("authenticateWithNfcjlibDes", printData("key", key) + " keyNo: " + keyNo, true);
         //Log.d(TAG, "authenticateWithNfcjlibDes " + printData("key", key) + " keyNo: " + keyNo);
         try {
+            log("AUTHENTICATE", "**** end auth ****", false);
             return authenticate(key, keyNo, KeyType.DES);
         } catch (IOException e) {
             Log.e(TAG, "IOException: " + e.getMessage());
@@ -52,9 +54,12 @@ public class DesfireAuthentication {
     }
 
     public boolean authenticateWithNfcjlibTDes(byte keyNo, byte[] key) {
+        clearData();
+        log("AUTHENTICATE", "**** start auth ****", false);
         log("authenticateWithNfcjlibTDes", printData("key", key) + " keyNo: " + keyNo, true);
         //Log.d(TAG, "authenticateWithNfcjlibTDes " + printData("key", key) + " keyNo: " + keyNo);
         try {
+            log("AUTHENTICATE", "**** end auth ****", false);
             return authenticate(key, keyNo, KeyType.TDES);
         } catch (IOException e) {
             Log.e(TAG, "IOException: " + e.getMessage());
@@ -63,9 +68,12 @@ public class DesfireAuthentication {
     }
 
     public boolean authenticateWithNfcjlibTkTDes(byte keyNo, byte[] key) {
+        clearData();
+        log("AUTHENTICATE", "**** start auth ****", false);
         log("authenticateWithNfcjlibTkTDes", printData("key", key) + " keyNo: " + keyNo, true);
         //Log.d(TAG, "authenticateWithNfcjlibTkTDes " + printData("key", key) + " keyNo: " + keyNo);
         try {
+            log("AUTHENTICATE", "**** end auth ****", false);
             return authenticate(key, keyNo, KeyType.TKTDES);
         } catch (IOException e) {
             Log.e(TAG, "IOException: " + e.getMessage());
@@ -74,9 +82,12 @@ public class DesfireAuthentication {
     }
 
     public boolean authenticateWithNfcjlibAes(byte keyNo, byte[] key) {
+        clearData();
+        log("AUTHENTICATE", "**** start auth ****", false);
         log("authenticateWithNfcjlibAes", printData("key", key) + " keyNo: " + keyNo, true);
         //Log.d(TAG, "authenticateWithNfcjlibAes " + printData("key", key) + " keyNo: " + keyNo);
         try {
+            log("AUTHENTICATE", "**** end auth ****", false);
             return authenticate(key, keyNo, KeyType.AES);
         } catch (IOException e) {
             Log.e(TAG, "IOException: " + e.getMessage());
@@ -603,7 +614,7 @@ public class DesfireAuthentication {
 
     private void log(String methodName, String data, boolean isMethodHeader) {
         if (printToLog) {
-            logData += "\n" + "method: " + methodName + ": " + data;
+            logData += "method: " + methodName + "\n" + data + "\n";
             Log.d(TAG, "method: " + methodName + ": " + data);
         }
     }
