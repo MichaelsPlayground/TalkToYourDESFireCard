@@ -29,6 +29,8 @@ public class DesfireAuthenticateProximity {
 
     // some constants
     private final byte AUTHENTICATE_DES_2K3DES_COMMAND = (byte) 0x0A;
+    private final byte AUTHENTICATE_AES_COMMAND	= (byte) 0xAA;
+
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
     private final byte[] RESPONSE_AUTHENTICATION_ERROR = new byte[]{(byte) 0x91, (byte) 0xAE};
@@ -44,7 +46,6 @@ public class DesfireAuthenticateProximity {
     public boolean authenticateD40(byte keyNo, byte[] key) {
         String methodName = "authenticateD40";
         log( methodName, printData("key", key) + " keyNo: " + keyNo, true);
-        log(methodName, "step 01 get encrypted rndB from card", false);
         errorCode = new byte[2];
         // sanity checks
         if (keyNo < 0) {
@@ -67,7 +68,7 @@ public class DesfireAuthenticateProximity {
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return false;
         }
-
+        log(methodName, "step 01 get encrypted rndB from card", false);
         // authenticate 1st part
         byte[] apdu;
         byte[] response = new byte[0];
@@ -130,6 +131,7 @@ public class DesfireAuthenticateProximity {
         byte[] ciphertext = new byte[rndArndBLeftRotated.length];
         byte[] cipheredBlock = new byte[8];
         // XOR w/ previous ciphered block --> decrypt
+        log(methodName, "XOR w/ previous ciphered block --> decrypt", false);
         log("decrypt", "data before XORing " + printData("data", rndArndBLeftRotated) + printData(" cipheredBlock", cipheredBlock), false);
         for (int i = 0; i < rndArndBLeftRotated.length; i += 8) {
             for (int j = 0; j < 8; j++) {
@@ -143,6 +145,7 @@ public class DesfireAuthenticateProximity {
             log("decrypt", printData(" ciphertext", ciphertext), false);
         }
         byte[] encryptedRndArndBLeftRotated = ciphertext.clone();
+
         /**
          * section copied from DesfireAuthenticate END
          */
@@ -189,12 +192,204 @@ public class DesfireAuthenticateProximity {
         log(methodName, "step xx rotate decryptedRndALeftRotated to RIGHT", false);
         byte[] decryptedRndA = rotateRight(decryptedRndALeftRotated);
         // todo check that both keys are equals
+        boolean rndAEqual = Arrays.equals(rndA, decryptedRndA);
 
-        log(methodName, printData("rndA received ", rndA), false);
+        log(methodName, printData("rndA received ", decryptedRndA), false);
         log(methodName, printData("rndA          ", rndA), false);
+        log(methodName, "rndA and rndA received are equal: " + rndAEqual, false);
         log(methodName, printData("rndB          ", rndB), false);
         sessionKey = getSessionKey(rndA, rndB);
         log(methodName, printData("sessionKey    ", sessionKey), false);
+        log(methodName, "**** auth result ****", false);
+        if (rndAEqual) {
+            log(methodName, "**** AUTHENTICATE ***", false);
+        } else {
+            log(methodName, "****   FAILURE   ****", false);
+        }
+        log(methodName, "*********************", false);
+        return true;
+    }
+
+    public boolean authenticateAes(byte keyNo, byte[] key) {
+        String methodName = "authenticateAes";
+        log( methodName, printData("key", key) + " keyNo: " + keyNo, true);
+        errorCode = new byte[2];
+        // sanity checks
+        if (keyNo < 0) {
+            Log.e(TAG, methodName + " keyNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (keyNo > 14) {
+            Log.e(TAG, methodName + " keyNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((key == null) || (key.length != 16)) {
+            Log.e(TAG, "data length is not 16, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0,errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        log(methodName, "step 01 get encrypted rndB from card", false);
+        // authenticate 1st part
+        byte[] apdu;
+        byte[] response = new byte[0];
+        try {
+            apdu = wrapMessage(AUTHENTICATE_AES_COMMAND, new byte[]{keyNo});
+            log(methodName, "get enc rndB " + printData("apdu", apdu), false);
+            response = isoDep.transceive(apdu);
+            log(methodName, "get enc rndB " + printData("response", response), false);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "IOException: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        // we are expecting that the status code is 0xAF means more data need to get exchanged
+        if (!checkResponseMoreData(responseBytes)) {
+            log(methodName, "expected to get get 0xAF as error code but  found: " + printData("errorCode", responseBytes) + ", aborted", false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        // now we know that we can work with the response
+        byte[] encryptedRndB = getData(response);
+        log(methodName, printData("encryptedRndB", encryptedRndB), false);
+
+        /* skip setKeyVersion for AES keys
+        // remove the keyVersion bits within a DES key
+        log(methodName, "step 03 setKeyVersion to 00 for DES keys", false);
+        setKeyVersion(key, 0, key.length, (byte) 0x00);
+        log( methodName, printData("new DES key", key), false);
+         */
+        log(methodName, "step 03 setKeyVersion skipped", false);
+
+        /*
+        log(methodName, "step 04 get the TDES key from DES key", false);
+        byte[] tdesKey = getModifiedKey(key);
+        log(methodName, printData("tdesKey", tdesKey), false);
+        */
+        log(methodName, "step 04 get the TDES key from DES key skipped", false);
+        // start the decryption
+        //byte[] iv0 = new byte[8];
+        byte[] iv0 = new byte[16];
+        log(methodName, "step 05 decrypt the encRndB AES.decrypt with key " + printData("key", key) + printData("iv0", iv0), false);
+        byte[] rndB = AES.decrypt(iv0, key, encryptedRndB);
+        log(methodName, printData("rndB", rndB), false);
+
+        // authenticate 2nd part
+        log(methodName, "step 06 generate a random rndA", false);
+        //byte[] rndA = new byte[8]; // this is a DES key
+        byte[] rndA = new byte[16]; // this is an AES key
+        rndA = getRandomData(rndA);
+        log(methodName, printData("rndA", rndA), false);
+        log(methodName, "step 07 rotate rndB LEFT", false);
+        byte[] rndBLeftRotated = rotateLeft(rndB);
+        log(methodName, printData("rndBLeftRotated", rndBLeftRotated), false);
+        log(methodName, "step 08 concatenate rndA | rndBLeftRotated", false);
+        byte[] rndArndBLeftRotated = concatenate(rndA, rndBLeftRotated);
+        log(methodName, printData("rndArndBLeftRotated", rndArndBLeftRotated), false);
+
+        /**
+         * section copied from DesfireAuthenticate
+         */
+        byte[] iv1 = Arrays.copyOfRange(encryptedRndB,encryptedRndB.length - iv0.length, encryptedRndB.length);
+        log("authenticate", "step xx get iv1 from responseData " + printData("iv1", iv1), false);
+        log("decrypt", "mode case SEND_MODE", false);
+        log("decrypt", "XOR w/ previous ciphered block --> decrypt", false);
+        byte[] ciphertext = new byte[rndArndBLeftRotated.length];
+        //byte[] cipheredBlock = new byte[8];
+        byte[] cipheredBlock = new byte[16];
+        // XOR w/ previous ciphered block --> decrypt
+        log(methodName, "XOR w/ previous ciphered block --> decrypt", false);
+        log("decrypt", "data before XORing " + printData("data", rndArndBLeftRotated) + printData(" cipheredBlock", cipheredBlock), false);
+        //for (int i = 0; i < rndArndBLeftRotated.length; i += 8) {
+        for (int i = 0; i < rndArndBLeftRotated.length; i += 16) {
+            //for (int j = 0; j < 8; j++) {
+            for (int j = 0; j < 16; j++) {
+                rndArndBLeftRotated[i + j] ^= cipheredBlock[j];
+            }
+            log("decrypt", "data after  XORing " + printData("data", rndArndBLeftRotated) + printData(" cipheredBlock", cipheredBlock), false);
+            log("decrypt", "calling AES.decrypt with " + printData("aesKey", key) + printData(" data", rndArndBLeftRotated) + " i: " + i + " length: " + 8, false);
+            //cipheredBlock = TripleDES.decrypt(tdesKey, rndArndBLeftRotated, i, 8);
+            //cipheredBlock = AES.decrypt(iv1, key, rndArndBLeftRotated, i, 8);
+            cipheredBlock = AES.decrypt(iv1, key, rndArndBLeftRotated, i, 16);
+            //log("decrypt", "TripleDES.decrypt " + printData("cipheredBlock", cipheredBlock), false);
+            log("decrypt", "AES.decrypt " + printData("cipheredBlock", cipheredBlock), false);
+            //System.arraycopy(cipheredBlock, 0, ciphertext, i, 8);
+            System.arraycopy(cipheredBlock, 0, ciphertext, i, 16);
+            log("decrypt", printData(" ciphertext", ciphertext), false);
+        }
+        byte[] encryptedRndArndBLeftRotated = ciphertext.clone();
+
+        /**
+         * section copied from DesfireAuthenticate END
+         */
+
+        /*
+        log(methodName, "step 09 encrypt rndArndBLeftRotated", false);
+        log(methodName, "TripleDES.encrypt with " + printData("tdesKey", tdesKey) + printData(" iv0", iv0), false);
+        byte[] encryptedRndArndBLeftRotated = TripleDES.encrypt(iv0, tdesKey, rndArndBLeftRotated);
+
+         */
+        //log(methodName, "TripleDES.encrypt with " + printData("tdesKey", tdesKey) + printData(" iv1", iv1), false);
+        //byte[] encryptedRndArndBLeftRotated = TripleDES.encrypt(iv1, tdesKey, rndArndBLeftRotated);
+
+        log(methodName, printData("encryptedRndArndBLeftRotated", encryptedRndArndBLeftRotated), false);
+        log(methodName, "step 10 send the encrypted data to the PICC", false);
+        try {
+            apdu = wrapMessage(MORE_DATA_COMMAND, encryptedRndArndBLeftRotated);
+            log(methodName, "send encryptedRndArndBLeftRotated " + printData("apdu", apdu), false);
+            response = isoDep.transceive(apdu);
+            log(methodName, "send encryptedRndArndBLeftRotated " + printData("response", response), false);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "IOException: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        // we are expecting that the status code is 0x00 means the exchange was OK
+        if (!checkResponse(responseBytes)) {
+            log(methodName, "expected to get get 0x00 as error code but  found: " + printData("errorCode", responseBytes) + ", aborted", false);
+            //System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        // now we know that we can work with the response
+        byte[] encryptedRndA = getData(response);
+        log(methodName, printData("encryptedRndA0", encryptedRndA), false);
+        log(methodName, "step 11 Get iv2 from encryptedRndArndBLeftRotated", false);
+        byte[] iv2 = Arrays.copyOfRange(encryptedRndArndBLeftRotated,
+                encryptedRndArndBLeftRotated.length - iv0.length, encryptedRndArndBLeftRotated.length);
+        log(methodName, printData("iv0", iv0), false);
+        //byte[] decryptedRndALeftRotated = TripleDES.decrypt(iv0, tdesKey, encryptedRndA);
+        byte[] decryptedRndALeftRotated = AES.decrypt(iv0, key, encryptedRndA);
+        log(methodName, printData("decryptedRndALeftRotated", decryptedRndALeftRotated), false);
+        log(methodName, "step xx rotate decryptedRndALeftRotated to RIGHT", false);
+        byte[] decryptedRndA = rotateRight(decryptedRndALeftRotated);
+        // todo check that both keys are equals
+        boolean rndAEqual = Arrays.equals(rndA, decryptedRndA);
+
+        log(methodName, printData("rndA received ", decryptedRndA), false);
+        log(methodName, printData("rndA          ", rndA), false);
+        log(methodName, "rndA and rndA received are equal: " + rndAEqual, false);
+        log(methodName, printData("rndB          ", rndB), false);
+        sessionKey = getSessionKey(rndA, rndB);
+        log(methodName, printData("sessionKey    ", sessionKey), false);
+        log(methodName, "**** auth result ****", false);
+        if (rndAEqual) {
+            log(methodName, "**** AUTHENTICATE ***", false);
+        } else {
+            log(methodName, "****   FAILURE   ****", false);
+        }
+        log(methodName, "*********************", false);
         return true;
     }
 

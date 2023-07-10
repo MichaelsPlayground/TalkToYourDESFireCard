@@ -137,6 +137,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private final byte APPLICATION_KEY_RW_NUMBER = (byte) 0x01;
     private final byte[] APPLICATION_KEY_CAR_DES_DEFAULT = Utils.hexStringToByteArray("0000000000000000"); // default DES key with 8 nulls
     private final byte[] APPLICATION_KEY_CAR_DES = Utils.hexStringToByteArray("D2100000000000000");
+    private final byte[] APPLICATION_KEY_CAR_AES_DEFAULT = Utils.hexStringToByteArray("00000000000000000000000000000000"); // default AES key with 8 nulls
     private final byte APPLICATION_KEY_CAR_NUMBER = (byte) 0x02;
     private final byte[] APPLICATION_KEY_R_DES_DEFAULT = Utils.hexStringToByteArray("0000000000000000"); // default DES key with 8 nulls
     private final byte[] APPLICATION_KEY_R_DES = Utils.hexStringToByteArray("D3100000000000000");
@@ -159,6 +160,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
 
+    private final byte APPLICATION_CRYPTO_DES = 0x00; // add this to number of keys for DES
+    private final byte APPLICATION_CRYPTO_AES = (byte) 0x80; // add this to number of keys for AES
 
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
     private final byte[] RESPONSE_AUTHENTICATION_ERROR = new byte[]{(byte) 0x91, (byte) 0xAE};
@@ -729,11 +732,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        // todo CHANGE this is using AES auth
         authD1DC.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 // authenticate with the read&write access key = 01...
                 clearOutputFields();
+                //String logString = "authenticate with CHANGED DES key number 0x01 = read & write access key";
                 String logString = "authenticate with CHANGED DES key number 0x01 = read & write access key";
                 writeToUiAppend(output, logString);
                 if (selectedApplicationId == null) {
@@ -757,6 +762,38 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        // todo CHANGE - this is using AES auth
+        authD2DC.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // authenticate with the car key = 02...
+                clearOutputFields();
+                String logString = "authenticate with DEFAULT AES key number 0x02 = change access rights key";
+                writeToUiAppend(output, logString);
+                if (selectedApplicationId == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
+                    return;
+                }
+                byte[] responseData = new byte[2];
+                // this is the authentication method from the NFCJLIB, working correctly
+                //boolean success = desfireAuthenticate.authenticateWithNfcjlibDes(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_DES);
+
+                boolean success = desfireAuthenticateProximity.authenticateAes(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_AES_DEFAULT);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    SESSION_KEY_DES = desfireAuthenticateProximity.getSessionKey();
+                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
+                    vibrateShort();
+                    // show logData
+                    showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+/*
         authD2DC.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -784,7 +821,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
             }
         });
-
+*/
         authD3DC.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -912,6 +949,74 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             return false;
         }
     }
+
+    private boolean createApplicationPlainCommunicationAes(TextView logTextView, byte[] applicationIdentifier, byte numberOfKeys, byte[] methodResponse) {
+        final String methodName = "createApplicationPlainCommunicationDes";
+        Log.d(TAG, methodName);
+        // sanity checks
+        if (logTextView == null) {
+            Log.e(TAG, methodName + " logTextView is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (applicationIdentifier == null) {
+            Log.e(TAG, methodName + " applicationIdentifier is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (applicationIdentifier.length != 3) {
+            Log.e(TAG, methodName + " applicationIdentifier length is not 3, found: " + applicationIdentifier.length + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (numberOfKeys < 1) {
+            Log.e(TAG, methodName + " numberOfKeys is < 1, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (numberOfKeys > 14) {
+            Log.e(TAG, methodName + " numberOfKeys is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        // generate the parameter
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(applicationIdentifier, 0, 3);
+        baos.write(APPLICATION_MASTER_KEY_SETTINGS);
+        baos.write(numberOfKeys | APPLICATION_CRYPTO_AES);
+        byte[] parameter = baos.toByteArray();
+        Log.d(TAG, methodName + printData(" parameter", parameter));
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(CREATE_APPLICATION_COMMAND, parameter);
+            Log.d(TAG, methodName + printData(" apdu", apdu));
+            response = isoDep.transceive(apdu);
+            Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+    }
+
 
     private boolean selectApplication(TextView logTextView, byte[] applicationIdentifier, byte[] methodResponse) {
         final String methodName = "selectApplication";
@@ -1258,7 +1363,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         // CD | File No | Comms setting byte | Access rights (2 bytes) | File size (3 bytes)
         byte commSettingsByte = 0; // plain communication without any encryption
 
-        // we are changing the keys for R and W from 0x34 to 0x11;
+        // we are changing the keys for R and W from 0x34 to 0x22;
         byte accessRightsRwCar = (byte) 0x12; // Read&Write Access & ChangeAccessRights
         //byte accessRightsRW = (byte) 0x34; // Read Access & Write Access // read with key 3, write with key 4
         byte accessRightsRW = (byte) 0x22; // Read Access & Write Access // read with key 2, write with key 2
@@ -1370,6 +1475,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
             return false;
         }
+
+
+
+
+
 
         return false;
     }
