@@ -12,8 +12,12 @@ import java.util.Arrays;
 public class DesfireAuthentication {
 
     /**
-     * authentication codes taken from DESFireEv1.java (NFCJLIB)
-     * Note: some minor modifications has been done to run the code without the rest of the library
+     * @author Daniel Andrade
+     *
+     * code taken from https://github.com/andrade/nfcjlib
+     * LICENSE: https://github.com/andrade/nfcjlib/blob/master/LICENSE
+     *
+     * Note: some minor modifications has been done by AndroidCrypto to run the code without the rest of the library
      */
 
     private static final String TAG = DesfireAuthentication.class.getName();
@@ -171,14 +175,14 @@ public class DesfireAuthentication {
         byte[] randB = recv(key, getData(responseAPDU), type, iv0);
         if (randB == null)
             return false;
-        log("authenticate", "step 06 randB" + printData("randB", randB), false);
+        log("authenticate", "step 06 randB " + printData("randB", randB), false);
         byte[] randBr = rotateLeft(randB);
-        log("authenticate", "step 07 rotate randB to the LEFT" + printData("randBr", randBr), false);
+        log("authenticate", "step 07 rotate randB to the LEFT " + printData("randBr", randBr), false);
         byte[] randA = new byte[randB.length];
 
         //fillRandom(randA);
         randA = getRandomData(randA);
-        log("authenticate", "step 08 generate randA" + printData("randA", randA), false);
+        log("authenticate", "step 08 generate randA " + printData("randA", randA), false);
         // step 3: encryption
         byte[] plaintext = new byte[randA.length + randBr.length];
         System.arraycopy(randA, 0, plaintext, 0, randA.length);
@@ -228,20 +232,24 @@ public class DesfireAuthentication {
         byte[] skey = generateSessionKey(randA, randB, type);
         log("authenticate", "step 17 generateSessionKey " + printData("skey", skey), false);
         //Log.d(TAG, "The random A is " + Dump.hex(randA));
-        Log.d(TAG, "The random A is " + Utils.bytesToHexNpeUpperCase(randA));
+        log("authenticate", "The random A is " + Utils.bytesToHexNpeUpperCase(randA), false);
+        //Log.d(TAG, "The random A is " + Utils.bytesToHexNpeUpperCase(randA));
         //Log.d(TAG, "The random B is " + Dump.hex(randB));
-        Log.d(TAG, "The random B is " + Utils.bytesToHexNpeUpperCase(randB));
+        //Log.d(TAG, "The random B is " + Utils.bytesToHexNpeUpperCase(randB));
+        log("authenticate", "The random B is " + Utils.bytesToHexNpeUpperCase(randB), false);
         //Log.d(TAG, "The skey     is " + Dump.hex(skey));
-        Log.d(TAG, "The skey     is " + Utils.bytesToHexNpeUpperCase(skey));
+        log("authenticate", "The skey     is " + Utils.bytesToHexNpeUpperCase(skey), false);
+        //Log.d(TAG, "The skey     is " + Utils.bytesToHexNpeUpperCase(skey));
         //this.ktype = type;
         this.keyType = type;
         //this.kno = keyNo;
         this.keyUsedForAuthentication = keyNo;
+        log("authenticate", "The auth key is " + keyNo, false);
         //this.iv = iv0;
         this.initializationVector = iv0;
+        log("authenticate", "The iv0      is" + printData("", iv0), false);
         //this.skey = skey;
         this.sessionKey = skey;
-
         return true;
     }
 
@@ -400,11 +408,16 @@ public class DesfireAuthentication {
         //Log.d(TAG, "recv " + printData("key", key) + printData(" data", data) + " keyType: " + type.toString() + printData(" iv", iv));
         switch (type) {
             case DES:
+                log("recv", "keyType case DES decryption with decrypt in DESMode.RECEIVE_MODE", false);
+                return decrypt(key, data, DESMode.RECEIVE_MODE);
             case TDES:
+                log("recv", "keyType case TDES decryption with decrypt in DESMode.RECEIVE_MODE", false);
                 return decrypt(key, data, DESMode.RECEIVE_MODE);
             case TKTDES:
+                log("recv", "keyType case TKTDES decryption with TripleDES.decrypt", false);
                 return TripleDES.decrypt(iv == null ? new byte[8] : iv, key, data);
             case AES:
+                log("recv", "keyType case AES decryption with AES.decrypt", false);
                 return AES.decrypt(iv == null ? new byte[16] : iv, key, data);
             default:
                 return null;
@@ -414,11 +427,13 @@ public class DesfireAuthentication {
     // DES/3DES decryption: CBC send mode and CBC receive mode
     private byte[] decrypt(byte[] key, byte[] data, DESMode mode) {
         log("decrypt", printData("key", key) + printData(" data", data) + " DesMode: " + mode.toString(), true);
+        log("decrypt", "this method is called from 'recv' in keyType cases DES or TDES", false);
         //Log.d(TAG, "decrypt " + printData("key", key) + printData(" data", data) + " DesMode: " + mode.toString());
         byte[] modifiedKey = new byte[24];
         System.arraycopy(key, 0, modifiedKey, 16, 8);
         System.arraycopy(key, 0, modifiedKey, 8, 8);
         System.arraycopy(key, 0, modifiedKey, 0, key.length);
+        log("decrypt", "generate " + printData("modifiedKey", modifiedKey), false);
 
         /* MF3ICD40, which only supports DES/3DES, has two cryptographic
          * modes of operation (CBC): send mode and receive mode. In send mode,
@@ -434,33 +449,54 @@ public class DesfireAuthentication {
 
         switch (mode) {
             case SEND_MODE:
+                log("decrypt", "mode case SEND_MODE", false);
+                log("decrypt", "XOR w/ previous ciphered block --> decrypt", false);
                 // XOR w/ previous ciphered block --> decrypt
+                log("decrypt", "data before XORing " + printData("data", data) + printData(" cipheredBlock", cipheredBlock), false);
                 for (int i = 0; i < data.length; i += 8) {
                     for (int j = 0; j < 8; j++) {
                         data[i + j] ^= cipheredBlock[j];
                     }
+                    log("decrypt", "data after  XORing " + printData("data", data) + printData(" cipheredBlock", cipheredBlock), false);
+                    log("decrypt", "calling TripleDES.decrypt with " + printData("modifiedKey", modifiedKey) + printData(" data", data) + " i: " + i + " length: " + 8, false);
                     cipheredBlock = TripleDES.decrypt(modifiedKey, data, i, 8);
+                    log("decrypt", "TripleDES.decrypt " + printData(" cipheredBlock", cipheredBlock), false);
                     System.arraycopy(cipheredBlock, 0, ciphertext, i, 8);
+                    log("decrypt", printData(" ciphertext", ciphertext), false);
                 }
                 break;
             case RECEIVE_MODE:
+                log("decrypt", "mode case RECEIVE_MODE", false);
+                log("decrypt", "decrypt --> XOR w/ previous plaintext block", false);
                 // decrypt --> XOR w/ previous plaintext block
+                log("decrypt", "calling TripleDES.decrypt with " + printData("modifiedKey", modifiedKey) + printData(" data", data) + " offset: " + 0 + " length: " + 8, false);
                 cipheredBlock = TripleDES.decrypt(modifiedKey, data, 0, 8);
+                log("decrypt", "TripleDES.decrypt " + printData(" cipheredBlock", cipheredBlock), false);
                 // implicitly XORed w/ IV all zeros
+                log("decrypt", "implicitly XORed w/ IV all zeros", false);
                 System.arraycopy(cipheredBlock, 0, ciphertext, 0, 8);
+                log("decrypt", printData(" ciphertext", ciphertext), false);
+                log("decrypt", "data before XORing " + printData("ciphertext", ciphertext) + printData(" cipheredBlock", cipheredBlock), false);
                 for (int i = 8; i < data.length; i += 8) {
+                    log("decrypt", "calling TripleDES.decrypt with " + printData("modifiedKey", modifiedKey) + printData(" data", data) + " i: " + i + " length: " + 8, false);
                     cipheredBlock = TripleDES.decrypt(modifiedKey, data, i, 8);
+                    log("decrypt", "TripleDES.decrypt " + printData(" cipheredBlock", cipheredBlock), false);
+                    log("decrypt", "now XORing cipheredBlock with data for bytes " + i + printData(" cipheredBlock", cipheredBlock) + printData(" data", data), false);
                     for (int j = 0; j < 8; j++) {
                         cipheredBlock[j] ^= data[i + j - 8];
                     }
+                    log("decrypt", "cipheredBlock after XORing " + printData("cipheredBlock", cipheredBlock), false);
                     System.arraycopy(cipheredBlock, 0, ciphertext, i, 8);
+                    log("decrypt", "ciphertext after copy for bytes " + i + printData(" ciphertext", ciphertext), false);
                 }
+                log("decrypt", "data after  XORing " + printData("ciphertext", ciphertext) + printData(" cipheredBlock", cipheredBlock), false);
                 break;
             default:
+                log("decrypt", "method received wrong mode, returning NULL", false);
                 Log.e(TAG, "Wrong way (decrypt)");
                 return null;
         }
-
+        log("decrypt", "returning " + printData("ciphertext", ciphertext), false);
         return ciphertext;
     }
 
@@ -472,11 +508,16 @@ public class DesfireAuthentication {
         //Log.d(TAG, "send " + printData("key", key) + printData(" data", data) + " keyType: " + type.toString() + printData(" iv", iv));
         switch (type) {
             case DES:
+                log("send", "keyType case DES decryption with decrypt in DESMode.SEND_MODE", false);
+                return decrypt(key, data, DESMode.SEND_MODE);
             case TDES:
+                log("send", "keyType case TDES decryption with decrypt in DESMode.SEND_MODE", false);
                 return decrypt(key, data, DESMode.SEND_MODE);
             case TKTDES:
+                log("send", "keyType case TKTDES encryption with TripleDES.encrypt", false);
                 return TripleDES.encrypt(iv == null ? new byte[8] : iv, key, data);
             case AES:
+                log("send", "keyType case AES encryption with AES.encrypt", false);
                 return AES.encrypt(iv == null ? new byte[16] : iv, key, data);
             default:
                 return null;

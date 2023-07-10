@@ -1,5 +1,9 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
+import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
+
+import android.util.Log;
+
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
@@ -8,6 +12,9 @@ import javax.crypto.spec.IvParameterSpec;
 
 /**
  * @author Daniel Andrade
+ *
+ * code taken from https://github.com/andrade/nfcjlib
+ * LICENSE: https://github.com/andrade/nfcjlib/blob/master/LICENSE
  */
 public class TripleDES {
 
@@ -19,7 +26,11 @@ public class TripleDES {
 	 * @param myMsg	Message to encrypt
 	 * @return		The encrypted message, or <code>null</code> on error.
 	 */
+
+	private static final String TAG = TripleDES.class.getName();
+
 	public static byte[] encrypt(byte[] myIV, byte[] myKey, byte[] myMsg) {
+		Log.d(TAG, "encrypt with " + printData("myIV", myIV) + printData(" myKey", myKey) + printData(" myMsg", myMsg));
 		byte[] cipherText = null;
 
 		try {
@@ -42,6 +53,7 @@ public class TripleDES {
 	
 	// ciphertext inside msg at offset and with length length
 	public static byte[] decrypt(byte[] myKey, byte[] myMsg, int offset, int length) {
+		Log.d(TAG, "decrypt with " + printData("myKey", myKey) + printData(" myMsg", myMsg) + " offset: " + offset + " length: " + length);
 		return decrypt(new byte[8], myKey, myMsg, offset, length);
 	}
 
@@ -54,10 +66,12 @@ public class TripleDES {
 	 * @return
 	 */
 	public static byte[] decrypt(byte[] myIV, byte[] myKey, byte[] myMsg) {
+		Log.d(TAG, "decrypt with " + printData("myIV", myIV) + printData(" myKey", myKey) + printData(" myMsg", myMsg));
 		return decrypt(myIV, myKey, myMsg, 0, myMsg.length);
 	}
 	
 	public static byte[] decrypt(byte[] myIV, byte[] myKey, byte[] myMsg, int offset, int length) {
+		Log.d(TAG, "decrypt with " + printData("myIV", myIV) + printData(" myKey", myKey) + printData(" myMsg", myMsg) + " offset: " + offset + " length: " + length);
 		byte[] plainText = null;
 
 		try {
