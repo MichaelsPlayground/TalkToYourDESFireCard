@@ -1,7 +1,5 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
-import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
-
 import android.nfc.tech.IsoDep;
 import android.util.Log;
 
@@ -16,6 +14,8 @@ public class DesfireAuthenticate {
      *
      * code taken from https://github.com/andrade/nfcjlib
      * LICENSE: https://github.com/andrade/nfcjlib/blob/master/LICENSE
+     *
+     * This class uses 2 other classes from the same project: TripleDES.class and AES.class. Please make sure they are in the same package
      *
      * Note: some minor modifications has been done by AndroidCrypto to run the code without the rest of the library
      */
@@ -243,23 +243,14 @@ public class DesfireAuthenticate {
         byte[] skey = generateSessionKey(randA, randB, type);
         log("authenticate", "step 17 generateSessionKey " + printData("skey", skey), false);
         //Log.d(TAG, "The random A is " + Dump.hex(randA));
-        log("authenticate", "The random A is " + Utils.bytesToHexNpeUpperCase(randA), false);
-        //Log.d(TAG, "The random A is " + Utils.bytesToHexNpeUpperCase(randA));
-        //Log.d(TAG, "The random B is " + Dump.hex(randB));
-        //Log.d(TAG, "The random B is " + Utils.bytesToHexNpeUpperCase(randB));
-        log("authenticate", "The random B is " + Utils.bytesToHexNpeUpperCase(randB), false);
-        //Log.d(TAG, "The skey     is " + Dump.hex(skey));
-        log("authenticate", "The skey     is " + Utils.bytesToHexNpeUpperCase(skey), false);
-        //Log.d(TAG, "The skey     is " + Utils.bytesToHexNpeUpperCase(skey));
-        //this.ktype = type;
+        log("authenticate", "The random A is " + bytesToHexNpeUpperCase(randA), false);
+        log("authenticate", "The random B is " + bytesToHexNpeUpperCase(randB), false);
+        log("authenticate", "The skey     is " + bytesToHexNpeUpperCase(skey), false);
         this.keyType = type;
-        //this.kno = keyNo;
         this.keyUsedForAuthentication = keyNo;
         log("authenticate", "The auth key is " + keyNo, false);
-        //this.iv = iv0;
         this.initializationVector = iv0;
         log("authenticate", "The iv0      is" + printData("", iv0), false);
-        //this.skey = skey;
         this.sessionKey = skey;
         log("authenticate", "sessionKey   is" + printData("", sessionKey), false);
         return true;
@@ -611,6 +602,41 @@ public class DesfireAuthenticate {
         initializationVector = null;
     }
 
+    private String printData(String dataName, byte[] data) {
+        int dataLength;
+        String dataString = "";
+        if (data == null) {
+            dataLength = 0;
+            dataString = "IS NULL";
+        } else {
+            dataLength = data.length;
+            dataString = bytesToHex(data);
+        }
+        StringBuilder sb = new StringBuilder();
+        sb
+                .append(dataName)
+                .append(" length: ")
+                .append(dataLength)
+                .append(" data: ")
+                .append(dataString);
+        return sb.toString();
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        if (bytes == null) return "";
+        StringBuffer result = new StringBuffer();
+        for (byte b : bytes)
+            result.append(Integer.toString((b & 0xff) + 0x100, 16).substring(1));
+        return result.toString();
+    }
+
+    private String bytesToHexNpeUpperCase(byte[] bytes) {
+        if (bytes == null) return "";
+        StringBuffer result = new StringBuffer();
+        for (byte b : bytes)
+            result.append(Integer.toString((b & 0xff) + 0x100, 16).substring(1));
+        return result.toString().toUpperCase();
+    }
 
     private void log(String methodName, String data, boolean isMethodHeader) {
         if (printToLog) {

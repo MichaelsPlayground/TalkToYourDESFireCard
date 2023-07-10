@@ -20,7 +20,7 @@ public class DesfireAuthenticationStatic {
 
     public boolean authenticateWithNfcjlibDes(byte[] key, byte keyNo) {
         try {
-            return authenticate(key, keyNo, MainActivity.KeyType.DES);
+            return authenticate(key, keyNo, KeyType.DES);
         } catch (IOException e) {
             Log.e(TAG, "IOException: " + e.getMessage());
             return false;
@@ -29,7 +29,7 @@ public class DesfireAuthenticationStatic {
 
     public boolean authenticateWithNfcjlibAes(byte[] key, byte keyNo) {
         try {
-            return authenticate(key, keyNo, MainActivity.KeyType.AES);
+            return authenticate(key, keyNo, KeyType.AES);
         } catch (IOException e) {
             Log.e(TAG, "IOException: " + e.getMessage());
             return false;
@@ -59,7 +59,7 @@ public class DesfireAuthenticationStatic {
     // vars
     public boolean Mprint = true; // print data to log
     public int Mcode; // takes the result code
-    public MainActivity.KeyType Mktype;
+    public KeyType Mktype;
     public Byte Mkno;
     public byte[] Miv;
     public byte[] Mskey;
@@ -74,16 +74,16 @@ public class DesfireAuthenticationStatic {
      * @return		true for success
      * @throws IOException
      */
-    public boolean authenticate(byte[] key, byte keyNo, MainActivity.KeyType type) throws IOException {
+    public boolean authenticate(byte[] key, byte keyNo, KeyType type) throws IOException {
         if (!validateKey(key, type)) {
             throw new IllegalArgumentException();
         }
-        if (type != MainActivity.KeyType.AES) {
+        if (type != KeyType.AES) {
             // remove version bits from Triple DES keys
             setKeyVersion(key, 0, key.length, (byte) 0x00);
         }
 
-        final byte[] iv0 = type == MainActivity.KeyType.AES ? new byte[16] : new byte[8];
+        final byte[] iv0 = type == KeyType.AES ? new byte[16] : new byte[8];
         byte[] apdu;
         byte[] responseAPDU;
 
@@ -192,11 +192,11 @@ public class DesfireAuthenticationStatic {
      * @return		{@code true} if the key matches the type,
      * 				{@code false} otherwise
      */
-    public static boolean validateKey(byte[] key, MainActivity.KeyType type) {
-        if (type == MainActivity.KeyType.DES && (key.length != 8)
-                || type == MainActivity.KeyType.TDES && (key.length != 16 || !isKey3DES(key))
-                || type == MainActivity.KeyType.TKTDES && key.length != 24
-                || type == MainActivity.KeyType.AES && key.length != 16) {
+    public static boolean validateKey(byte[] key, KeyType type) {
+        if (type == KeyType.DES && (key.length != 8)
+                || type == KeyType.TDES && (key.length != 16 || !isKey3DES(key))
+                || type == KeyType.TKTDES && key.length != 24
+                || type == KeyType.AES && key.length != 16) {
             Log.e(TAG, String.format("Key validation failed: length is %d and type is %s", key.length, type));
             return false;
         }
@@ -282,7 +282,7 @@ public class DesfireAuthenticationStatic {
      * @param type	the type of key
      * @return		the session key
      */
-    private static byte[] generateSessionKey(byte[] randA, byte[] randB, MainActivity.KeyType type) {
+    private static byte[] generateSessionKey(byte[] randA, byte[] randB, KeyType type) {
         byte[] skey = null;
 
         switch (type) {
@@ -321,7 +321,7 @@ public class DesfireAuthenticationStatic {
     }
 
     // Receiving data that needs decryption.
-    private static byte[] recv(byte[] key, byte[] data, MainActivity.KeyType type, byte[] iv) {
+    private static byte[] recv(byte[] key, byte[] data, KeyType type, byte[] iv) {
         switch (type) {
             case DES:
             case TDES:
@@ -389,7 +389,7 @@ public class DesfireAuthenticationStatic {
     // IV sent is the global one but it is better to be explicit about it: can be null for DES/3DES
     // if IV is null, then it is set to zeros
     // Sending data that needs encryption.
-    private static byte[] send(byte[] key, byte[] data, MainActivity.KeyType type, byte[] iv) {
+    private static byte[] send(byte[] key, byte[] data, KeyType type, byte[] iv) {
         switch (type) {
             case DES:
             case TDES:

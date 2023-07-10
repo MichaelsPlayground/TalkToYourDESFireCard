@@ -83,7 +83,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     private Button authDM0D, authD0D, authD1D, authD2D, authD3D, authD4D; // auth with default DES keys
-    private Button authD1DC; // auth with changed DES keys
+    private Button authDM0DC, authD0DC, authD1DC, authD2DC, authD3DC, authD4DC; // auth with changed DES keys
 
     private byte KEY_NUMBER_USED_FOR_AUTHENTICATION; // the key number used for a successful authentication
     private byte[] SESSION_KEY_DES; // filled in authenticate, simply the first (leftmost) 8 bytes of SESSION_KEY_TDES
@@ -156,8 +156,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
     private final byte GET_FILE_SETTINGS_COMMAND = (byte) 0xF5;
     private final byte CHANGE_FILE_SETTINGS_COMMAND = (byte) 0x5F;
-    private final byte AUTHENTICATE_LEGACY_DES_0A_COMMAND = (byte) 0x0A;
-    private final byte AUTHENTICATE_ISO_DES_1A_COMMAND = (byte) 0x1A;
+
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
 
 
@@ -228,8 +227,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         authD3D = findViewById(R.id.btnAuthD3D);
         authD4D = findViewById(R.id.btnAuthD4D);
         // authentication handling DES changed keys
+        authD0DC = findViewById(R.id.btnAuthD0DC);
         authD1DC = findViewById(R.id.btnAuthD1DC);
-
+        authD2DC = findViewById(R.id.btnAuthD2DC);
+        authD3DC = findViewById(R.id.btnAuthD3DC);
+        authD4DC = findViewById(R.id.btnAuthD4DC);
 
         // some presets
         applicationId.setText(Utils.bytesToHexNpeUpperCase(APPLICATION_IDENTIFIER));
