@@ -182,6 +182,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     // DesfireAuthentication is used for all authentication tasks. The constructor needs the isoDep object so it is initialized in 'onTagDiscovered'
     DesfireAuthenticate desfireAuthenticate;
 
+    // DesfireAuthenticationProximity is used for old DES d40 authenticate tasks. The constructor needs the isoDep object so it is initialized in 'onTagDiscovered'
+    DesfireAuthenticateProximity desfireAuthenticateProximity;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -562,21 +565,54 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 byte[] responseData = new byte[2];
                 // this is the authentication method from the NFCJLIB, working correctly
-                boolean success = desfireAuthenticate.authenticateWithNfcjlibDes(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES_DEFAULT);
+                //boolean success = desfireAuthenticate.authenticateWithNfcjlibDes(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES_DEFAULT);
+                boolean success = desfireAuthenticateProximity.authenticateD40(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES_DEFAULT);
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    SESSION_KEY_DES = desfireAuthenticate.getSessionKey();
+                    SESSION_KEY_DES = desfireAuthenticateProximity.getSessionKey();
                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
-                    showDialog(MainActivity.this, desfireAuthenticate.getLogData());
+                    showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(output, desfireAuthenticateProximity.getLogData());
                 }
             }
         });
 
+        // this method is using the Proximity class
+        authD2D.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // authenticate with the read&write access key = 01...
+                clearOutputFields();
+                String logString = "authenticate with DEFAULT DES key number 0x01 = read & write access key";
+                writeToUiAppend(output, logString);
+                if (selectedApplicationId == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
+                    return;
+                }
+                byte[] responseData = new byte[2];
+                // this is the authentication method from the NFCJLIB, working correctly
+                //boolean success = desfireAuthenticate.authenticateWithNfcjlibDes(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES_DEFAULT);
+                boolean success = desfireAuthenticateProximity.authenticateD40(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_DES_DEFAULT);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    SESSION_KEY_DES = desfireAuthenticateProximity.getSessionKey();
+                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
+                    vibrateShort();
+                    // show logData
+                    showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(output, desfireAuthenticateProximity.getLogData());
+                }
+            }
+        });
+/*
         authD2D.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -604,7 +640,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
             }
         });
-
+*/
         authD3D.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -1208,6 +1244,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private boolean changeFileSettings(TextView logTextView, byte fileNumber, byte[] methodResponse) {
         // NOTE: don't forget to authenticate with CAR key
+
+        if (SESSION_KEY_DES == null) {
+            writeToUiAppend(logTextView, "the SESSION KEY DES is null, did you forget to authenticate with a CAR key first ?");
+            return false;
+        }
+
         int selectedFileIdInt = Integer.parseInt(selectedFileId);
         byte selectedFileIdByte = Byte.parseByte(selectedFileId);
         Log.d(TAG, "changeTheFileSettings for selectedFileId " + selectedFileIdInt);
@@ -1317,13 +1359,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
             return false;
         }
-        if (fileSize < 1) {
-            Log.e(TAG, methodName + " fileSize is < 1, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (fileSize > MAXIMUM_FILE_SIZE) {
-            Log.e(TAG, methodName + " fileSize is > " + MAXIMUM_FILE_SIZE + ", aborted");
+        if (TextUtils.isEmpty(changeKeyName)) {
+            Log.e(TAG, methodName + " changeKeyNamr is empty, aborted");
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
             return false;
         }
@@ -1480,6 +1517,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
                 desfireAuthenticate = new DesfireAuthenticate(isoDep, true); // true means all data is logged
+
+                desfireAuthenticateProximity = new DesfireAuthenticateProximity(isoDep, true); // true means all data is logged
 
                 // setup the communication adapter
                 //adapter = new CommunicationAdapter(isoDep, true);
