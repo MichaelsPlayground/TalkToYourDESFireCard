@@ -517,7 +517,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         });
 
         /**
-         * section for authentication
+         * section for authentication with DEFAULT DES keys
          */
 
         authD0D.setOnClickListener(new View.OnClickListener() {
@@ -538,7 +538,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 if (success) {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    writeToUiAppend(output, desfireAuthenticate.getLogData());
                     writeToUiAppend(output, logString + " SUCCESS");
                     SESSION_KEY_DES = desfireAuthenticate.getSessionKey();
                     vibrateShort();
@@ -568,6 +567,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     SESSION_KEY_DES = desfireAuthenticate.getSessionKey();
+                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
                     showDialog(MainActivity.this, desfireAuthenticate.getLogData());
@@ -593,9 +593,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 boolean success = desfireAuthenticate.authenticateWithNfcjlibDes(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_DES_DEFAULT);
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
-                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     SESSION_KEY_DES = desfireAuthenticate.getSessionKey();
+                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
                     showDialog(MainActivity.this, desfireAuthenticate.getLogData());
@@ -623,6 +623,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     SESSION_KEY_DES = desfireAuthenticate.getSessionKey();
+                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
                     showDialog(MainActivity.this, desfireAuthenticate.getLogData());
@@ -650,6 +651,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     SESSION_KEY_DES = desfireAuthenticate.getSessionKey();
+                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
                     showDialog(MainActivity.this, desfireAuthenticate.getLogData());
@@ -681,6 +683,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     SESSION_KEY_DES = desfireAuthenticate.getSessionKey();
+                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
                     showDialog(MainActivity.this, desfireAuthenticate.getLogData());
@@ -708,6 +711,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     SESSION_KEY_DES = desfireAuthenticate.getSessionKey();
+                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
                     showDialog(MainActivity.this, desfireAuthenticate.getLogData());
@@ -735,6 +739,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     SESSION_KEY_DES = desfireAuthenticate.getSessionKey();
+                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
                     showDialog(MainActivity.this, desfireAuthenticate.getLogData());
@@ -762,6 +767,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     SESSION_KEY_DES = desfireAuthenticate.getSessionKey();
+                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
                     showDialog(MainActivity.this, desfireAuthenticate.getLogData());
@@ -789,6 +795,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     SESSION_KEY_DES = desfireAuthenticate.getSessionKey();
+                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
                     showDialog(MainActivity.this, desfireAuthenticate.getLogData());
@@ -798,7 +805,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
     }
-
 
     /**
      * section for application handling
@@ -1266,6 +1272,70 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for key handling
      */
 
+    private boolean changeDesKey(TextView logTextView, byte authenticationKeyNumber, byte[] authenticationKey, byte changeKeyNumber,
+                                 byte[] changeKeyNew, byte[] changeKeyOld, String changeKeyName, byte[] methodResponse) {
+        final String methodName = "changeDesKey";
+        Log.d(TAG, methodName);
+        // sanity checks
+        if (logTextView == null) {
+            Log.e(TAG, methodName + " logTextView is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (authenticationKeyNumber < 0) {
+            Log.e(TAG, methodName + " authenticationKeyNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (authenticationKeyNumber > 14) {
+            Log.e(TAG, methodName + " authenticationKeyNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if ((authenticationKey == null) || (authenticationKey.length != 8)) {
+            Log.e(TAG, methodName + " authenticationKey is NULL or of wrong length, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (changeKeyNumber < 0) {
+            Log.e(TAG, methodName + " changeKeyNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (changeKeyNumber > 14) {
+            Log.e(TAG, methodName + " changeKeyNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if ((changeKeyNew == null) || (changeKeyNew.length != 8)) {
+            Log.e(TAG, methodName + " changeKeyNew is NULL or of wrong length, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if ((changeKeyOld == null) || (changeKeyOld.length != 8)) {
+            Log.e(TAG, methodName + " changeKeyOld is NULL or of wrong length, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (fileSize < 1) {
+            Log.e(TAG, methodName + " fileSize is < 1, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (fileSize > MAXIMUM_FILE_SIZE) {
+            Log.e(TAG, methodName + " fileSize is > " + MAXIMUM_FILE_SIZE + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+
+        return false;
+    }
 
     /**
      * section for command and response handling
