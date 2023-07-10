@@ -188,6 +188,8 @@ public class DesfireAuthenticateProximity {
         log(methodName, printData("decryptedRndALeftRotated", decryptedRndALeftRotated), false);
         log(methodName, "step xx rotate decryptedRndALeftRotated to RIGHT", false);
         byte[] decryptedRndA = rotateRight(decryptedRndALeftRotated);
+        // todo check that both keys are equals
+
         log(methodName, printData("rndA received ", rndA), false);
         log(methodName, printData("rndA          ", rndA), false);
         log(methodName, printData("rndB          ", rndB), false);
