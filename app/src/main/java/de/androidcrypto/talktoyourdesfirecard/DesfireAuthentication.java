@@ -250,6 +250,7 @@ public class DesfireAuthentication {
         log("authenticate", "The iv0      is" + printData("", iv0), false);
         //this.skey = skey;
         this.sessionKey = skey;
+        log("authenticate", "sessionKey   is" + printData("", sessionKey), false);
         return true;
     }
 
@@ -460,7 +461,7 @@ public class DesfireAuthentication {
                     log("decrypt", "data after  XORing " + printData("data", data) + printData(" cipheredBlock", cipheredBlock), false);
                     log("decrypt", "calling TripleDES.decrypt with " + printData("modifiedKey", modifiedKey) + printData(" data", data) + " i: " + i + " length: " + 8, false);
                     cipheredBlock = TripleDES.decrypt(modifiedKey, data, i, 8);
-                    log("decrypt", "TripleDES.decrypt " + printData(" cipheredBlock", cipheredBlock), false);
+                    log("decrypt", "TripleDES.decrypt " + printData("cipheredBlock", cipheredBlock), false);
                     System.arraycopy(cipheredBlock, 0, ciphertext, i, 8);
                     log("decrypt", printData(" ciphertext", ciphertext), false);
                 }
@@ -471,7 +472,7 @@ public class DesfireAuthentication {
                 // decrypt --> XOR w/ previous plaintext block
                 log("decrypt", "calling TripleDES.decrypt with " + printData("modifiedKey", modifiedKey) + printData(" data", data) + " offset: " + 0 + " length: " + 8, false);
                 cipheredBlock = TripleDES.decrypt(modifiedKey, data, 0, 8);
-                log("decrypt", "TripleDES.decrypt " + printData(" cipheredBlock", cipheredBlock), false);
+                log("decrypt", "TripleDES.decrypt " + printData("cipheredBlock", cipheredBlock), false);
                 // implicitly XORed w/ IV all zeros
                 log("decrypt", "implicitly XORed w/ IV all zeros", false);
                 System.arraycopy(cipheredBlock, 0, ciphertext, 0, 8);
@@ -480,7 +481,7 @@ public class DesfireAuthentication {
                 for (int i = 8; i < data.length; i += 8) {
                     log("decrypt", "calling TripleDES.decrypt with " + printData("modifiedKey", modifiedKey) + printData(" data", data) + " i: " + i + " length: " + 8, false);
                     cipheredBlock = TripleDES.decrypt(modifiedKey, data, i, 8);
-                    log("decrypt", "TripleDES.decrypt " + printData(" cipheredBlock", cipheredBlock), false);
+                    log("decrypt", "TripleDES.decrypt " + printData("cipheredBlock", cipheredBlock), false);
                     log("decrypt", "now XORing cipheredBlock with data for bytes " + i + printData(" cipheredBlock", cipheredBlock) + printData(" data", data), false);
                     for (int j = 0; j < 8; j++) {
                         cipheredBlock[j] ^= data[i + j - 8];
@@ -538,15 +539,15 @@ public class DesfireAuthentication {
             Log.d(TAG, "<--- " + getHexString(response, true) + " (" + response.length + ")");
         }
         */
-        log("feedback", "---> " + getHexString(command, true) + " (" + command.length + ")", false);
-        log("feedback", "<--- " + getHexString(response, true) + " (" + response.length + ")", false);
+        log("feedback", " ---> " + getHexString(command, true) + " (" + command.length + ")", false);
+        log("feedback", " <--- " + getHexString(response, true) + " (" + response.length + ")", false);
     }
 
-    private String getHexString(byte[] a, boolean space) {
-        log("getHexString", printData("a", a) + " space: " + space, true);
+    private String getHexString(byte[] data, boolean space) {
+        log("getHexString", printData("data", data) + " space: " + space, true);
         //Log.d(TAG, "getHexString " + printData("a", a) + " space: " + space);
         StringBuilder sb = new StringBuilder();
-        for (byte b : a) {
+        for (byte b : data) {
             sb.append(String.format("%02x", b & 0xff));
             if(space) {
                 sb.append(' ');
@@ -602,8 +603,8 @@ public class DesfireAuthentication {
 
     private void log(String methodName, String data, boolean isMethodHeader) {
         if (printToLog) {
-            logData += "\n" + "method: " + methodName + ":" + data;
-            Log.d(TAG, "method: " + methodName + ":" + data);
+            logData += "\n" + "method: " + methodName + ": " + data;
+            Log.d(TAG, "method: " + methodName + ": " + data);
         }
     }
 
