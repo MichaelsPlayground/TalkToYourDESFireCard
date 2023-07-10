@@ -172,6 +172,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private IsoDep isoDep;
     private byte[] tagIdByte;
 
+    // DesfireAuthentication is used for all authentication tasks. The constructor needs the isoDep object so it is initialized in 'onTagDiscovered'
+    DesfireAuthentication desfireAuthentication;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -520,10 +522,18 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
                 byte[] responseData = new byte[2];
-                boolean success = authenticateApplicationDes1A(output, APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_DES_DEFAULT, true, responseData);
+
+                // this is the authentication method from the NFCJLIB, working correctly
+                boolean success = desfireAuthentication.authenticateWithNfcjlibDes(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_DES_DEFAULT);
+
+                // internal auth, works but the session key is wrong !
+                //boolean success = authenticateApplicationDes1A(output, APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_DES_DEFAULT, true, responseData);
+
                 if (success) {
-                    writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    writeToUiAppend(output, desfireAuthentication.getLogData());
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    SESSION_KEY_DES = desfireAuthentication.getSessionKey();
                     vibrateShort();
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
@@ -2151,6 +2161,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     isoDep.close();
                     return;
                 }
+                desfireAuthentication = new DesfireAuthentication(isoDep, true); // true means all data is logged
 
                 // setup the communication adapter
                 //adapter = new CommunicationAdapter(isoDep, true);

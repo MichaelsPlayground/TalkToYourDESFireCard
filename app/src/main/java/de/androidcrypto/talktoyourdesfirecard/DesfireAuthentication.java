@@ -35,7 +35,7 @@ public class DesfireAuthentication {
         this.printToLog = printToLog;
     }
 
-    public boolean authenticateWithNfcjlibDes(byte[] key, byte keyNo) {
+    public boolean authenticateWithNfcjlibDes(byte keyNo, byte[] key) {
         clearData();
         log("authenticateWithNfcjlibDes", printData("key", key) + " keyNo: " + keyNo, true);
         //Log.d(TAG, "authenticateWithNfcjlibDes " + printData("key", key) + " keyNo: " + keyNo);
@@ -47,7 +47,7 @@ public class DesfireAuthentication {
         }
     }
 
-    public boolean authenticateWithNfcjlibTDes(byte[] key, byte keyNo) {
+    public boolean authenticateWithNfcjlibTDes(byte keyNo, byte[] key) {
         log("authenticateWithNfcjlibTDes", printData("key", key) + " keyNo: " + keyNo, true);
         //Log.d(TAG, "authenticateWithNfcjlibTDes " + printData("key", key) + " keyNo: " + keyNo);
         try {
@@ -58,7 +58,7 @@ public class DesfireAuthentication {
         }
     }
 
-    public boolean authenticateWithNfcjlibTkTDes(byte[] key, byte keyNo) {
+    public boolean authenticateWithNfcjlibTkTDes(byte keyNo, byte[] key) {
         log("authenticateWithNfcjlibTkTDes", printData("key", key) + " keyNo: " + keyNo, true);
         //Log.d(TAG, "authenticateWithNfcjlibTkTDes " + printData("key", key) + " keyNo: " + keyNo);
         try {
@@ -69,7 +69,7 @@ public class DesfireAuthentication {
         }
     }
 
-    public boolean authenticateWithNfcjlibAes(byte[] key, byte keyNo) {
+    public boolean authenticateWithNfcjlibAes(byte keyNo, byte[] key) {
         log("authenticateWithNfcjlibAes", printData("key", key) + " keyNo: " + keyNo, true);
         //Log.d(TAG, "authenticateWithNfcjlibAes " + printData("key", key) + " keyNo: " + keyNo);
         try {
@@ -113,30 +113,39 @@ public class DesfireAuthentication {
      */
     private boolean authenticate(byte[] key, byte keyNo, KeyType type) throws IOException {
         log("authenticate", printData("key", key) + " keyNo: " + keyNo + " keyType: " + type.toString(), true);
+        log("authenticate", "the authentication is done in several steps shown here in detail", false);
         //Log.d(TAG, "authenticate " + printData("key", key) + " keyNo: " + keyNo + " keyType: " + type.toString());
+        log("authenticate", "step 01 validate that the key is valid", false);
         if (!validateKey(key, type)) {
             throw new IllegalArgumentException();
         }
+        log("authenticate", "step 02 setKeyVersion to 00 for all non AES keys", false);
         if (type != KeyType.AES) {
             // remove version bits from Triple DES keys
             setKeyVersion(key, 0, key.length, (byte) 0x00);
         }
+        log("authenticate", "step 02 key is now " + printData("key", key), false);
+        log("authenticate", "step 03 set the initVector0 to 16 bytes (AES) or 8 bytes (DES)", false);
         final byte[] iv0 = type == KeyType.AES ? new byte[16] : new byte[8];
         byte[] apdu;
         byte[] responseAPDU;
-
+        log("authenticate", "step 04 set the authCommand depending on keyType", false);
         // 1st message exchange
         apdu = new byte[7];
         apdu[0] = (byte) 0x90;
+
         switch (type) {
             case DES:
             case TDES:
+                log("authenticate", "step 04 authCommand: AUTHENTICATE_DES_2K3DES (0x0A)", false);
                 apdu[1] = AUTHENTICATE_DES_2K3DES;
                 break;
             case TKTDES:
+                log("authenticate", "step 04 authCommand: AUTHENTICATE_DES_3K3DES (0x1A)", false);
                 apdu[1] = AUTHENTICATE_3K3DES;
                 break;
             case AES:
+                log("authenticate", "step 04 authCommand: AUTHENTICATE_AES (0xAA)", false);
                 apdu[1] = AUTHENTICATE_AES;
                 break;
             default:
@@ -145,7 +154,9 @@ public class DesfireAuthentication {
         apdu[4] = 0x01;
         apdu[5] = keyNo;
         //responseAPDU = transmit(apdu);
+        log("authenticate", "step 05 send the APDU to the PICC and receive a response " + printData("apdu", apdu), false);
         responseAPDU = isoDep.transceive(apdu);
+        log("authenticate", "step 05 responseAPDU" + printData("responseAPDU", responseAPDU), false);
         //this.code = getSW2(responseAPDU);
         errorCode = getSW2(responseAPDU);
         feedback(apdu, responseAPDU);
@@ -154,27 +165,33 @@ public class DesfireAuthentication {
 
         //byte[] responseData = getData(responseAPDU);
         byte[] responseData = Arrays.copyOf(responseAPDU, responseAPDU.length - 2);
-
+        log("authenticate", "step 05 responseData" + printData("responseData", responseData), false);
         // step 3
+        log("authenticate", "step 06 decrypt the responseData to randB with iv0 " + printData("iv0", iv0), false);
         byte[] randB = recv(key, getData(responseAPDU), type, iv0);
         if (randB == null)
             return false;
+        log("authenticate", "step 06 randB" + printData("randB", randB), false);
         byte[] randBr = rotateLeft(randB);
+        log("authenticate", "step 07 rotate randB to the LEFT" + printData("randBr", randBr), false);
         byte[] randA = new byte[randB.length];
 
         //fillRandom(randA);
         randA = getRandomData(randA);
-
+        log("authenticate", "step 08 generate randA" + printData("randA", randA), false);
         // step 3: encryption
         byte[] plaintext = new byte[randA.length + randBr.length];
         System.arraycopy(randA, 0, plaintext, 0, randA.length);
         System.arraycopy(randBr, 0, plaintext, randA.length, randBr.length);
+        log("authenticate", "step 09 concatenate randA || randBr" + printData("plaintext", plaintext), false);
         byte[] iv1 = Arrays.copyOfRange(responseData,
                 responseData.length - iv0.length, responseData.length);
+        log("authenticate", "step 10 get iv1 from responseData " + printData("iv1", iv1), false);
+        log("authenticate", "step 11 encrypt plaintext with key and iv1", false);
         byte[] ciphertext = send(key, plaintext, type, iv1);
         if (ciphertext == null)
             return false;
-
+        log("authenticate", "step 11 " + printData("ciphertext", ciphertext), false);
         // 2nd message exchange
         apdu = new byte[5 + ciphertext.length + 1];
         apdu[0] = (byte) 0x90;
@@ -182,8 +199,9 @@ public class DesfireAuthentication {
         apdu[4] = (byte) ciphertext.length;
         System.arraycopy(ciphertext, 0, apdu, 5, ciphertext.length);
         //responseAPDU = transmit(apdu);
+        log("authenticate", "step 12 send the ciphertext to the PICC and receive a response " + printData("apdu", apdu), false);
         responseAPDU = isoDep.transceive(apdu);
-
+        log("authenticate", "step 12 responseAPDU" + printData("responseAPDU", responseAPDU), false);
         //this.code = getSW2(responseAPDU);
         errorCode = getSW2(responseAPDU);
         feedback(apdu, responseAPDU);
@@ -193,16 +211,22 @@ public class DesfireAuthentication {
         // step 5
         byte[] iv2 = Arrays.copyOfRange(ciphertext,
                 ciphertext.length - iv0.length, ciphertext.length);
+        log("authenticate", "step 13 get iv2 from ciphertext " + printData("iv2", iv2), false);
+        log("authenticate", "step 14 decrypt responseData to randAr with key and iv2 " + printData("responseData", getData(responseAPDU)), false);
         byte[] randAr = recv(key, getData(responseAPDU), type, iv2);
+        log("authenticate", "step 14 " + printData("randAr", randAr), false);
         if (randAr == null)
             return false;
         byte[] randAr2 = rotateLeft(randA);
+        log("authenticate", "step 15 rotate randAr to the LEFT " + printData("randAr2", randAr2), false);
+        log("authenticate", "step 16 equality check " + printData("randAr", randAr) + " " + printData("randAr2", randAr2), false);
         for (int i = 0; i < randAr2.length; i++)
             if (randAr[i] != randAr2[i])
                 return false;
 
         // step 6
         byte[] skey = generateSessionKey(randA, randB, type);
+        log("authenticate", "step 17 generateSessionKey " + printData("skey", skey), false);
         //Log.d(TAG, "The random A is " + Dump.hex(randA));
         Log.d(TAG, "The random A is " + Utils.bytesToHexNpeUpperCase(randA));
         //Log.d(TAG, "The random B is " + Dump.hex(randB));
@@ -291,11 +315,11 @@ public class DesfireAuthentication {
         return responseAPDU[responseAPDU.length - 1] & 0xff;
     }
 
-    private byte[] getRandomData(byte[] var) {
-        log("getRandomData", printData("var", var), true);
+    private byte[] getRandomData(byte[] key) {
+        log("getRandomData", printData("key", key), true);
         //Log.d(TAG, "getRandomData " + printData("var", var));
-        int varLength = var.length;
-        return getRandomData(varLength);
+        int keyLength = key.length;
+        return getRandomData(keyLength);
     }
 
     /**
@@ -313,11 +337,11 @@ public class DesfireAuthentication {
     }
 
     // rotate the array one byte to the left
-    private byte[] rotateLeft(byte[] a) {
-        log("rotateLeft", printData("a", a), true);
-        byte[] ret = new byte[a.length];
-        System.arraycopy(a, 1, ret, 0, a.length - 1);
-        ret[a.length - 1] = a[0];
+    private byte[] rotateLeft(byte[] data) {
+        log("rotateLeft", printData("data", data), true);
+        byte[] ret = new byte[data.length];
+        System.arraycopy(data, 1, ret, 0, data.length - 1);
+        ret[data.length - 1] = data[0];
         return ret;
     }
 
