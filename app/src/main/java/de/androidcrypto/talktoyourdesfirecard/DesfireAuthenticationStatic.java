@@ -1,7 +1,5 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
-import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
-
 import android.nfc.tech.IsoDep;
 import android.util.Log;
 
@@ -9,60 +7,20 @@ import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.Arrays;
 
-public class DesfireAuthentication {
+public class DesfireAuthenticationStatic {
 
     /**
      * authentication codes taken from DESFireEv1.java (NFCJLIB)
      * Note: some minor modifications has been done to run the code without the rest of the library
      */
 
-    private static final String TAG = DesfireAuthentication.class.getName();
+    private static final String TAG = DesfireAuthenticationStatic.class.getName();
 
-    private IsoDep isoDep;
-
-    // vars
-    private boolean printToLog = true; // print data to log
-    private int errorCode; // takes the result code
-    private KeyType keyType;
-    private Byte keyUsedForAuthentication;
-    private byte[] initializationVector;
-    private byte[] sessionKey;
-
-    private String logData;
-
-    public DesfireAuthentication(IsoDep isoDep, boolean printToLog) {
-        this.isoDep = isoDep;
-        this.printToLog = printToLog;
-    }
+    public static IsoDep isoDep; // you need to set this  value manually
 
     public boolean authenticateWithNfcjlibDes(byte[] key, byte keyNo) {
-        clearData();
-        log("authenticateWithNfcjlibDes", printData("key", key) + " keyNo: " + keyNo, true);
-        //Log.d(TAG, "authenticateWithNfcjlibDes " + printData("key", key) + " keyNo: " + keyNo);
         try {
-            return authenticate(key, keyNo, KeyType.DES);
-        } catch (IOException e) {
-            Log.e(TAG, "IOException: " + e.getMessage());
-            return false;
-        }
-    }
-
-    public boolean authenticateWithNfcjlibTDes(byte[] key, byte keyNo) {
-        log("authenticateWithNfcjlibTDes", printData("key", key) + " keyNo: " + keyNo, true);
-        //Log.d(TAG, "authenticateWithNfcjlibTDes " + printData("key", key) + " keyNo: " + keyNo);
-        try {
-            return authenticate(key, keyNo, KeyType.TDES);
-        } catch (IOException e) {
-            Log.e(TAG, "IOException: " + e.getMessage());
-            return false;
-        }
-    }
-
-    public boolean authenticateWithNfcjlibTkTDes(byte[] key, byte keyNo) {
-        log("authenticateWithNfcjlibTkTDes", printData("key", key) + " keyNo: " + keyNo, true);
-        //Log.d(TAG, "authenticateWithNfcjlibTkTDes " + printData("key", key) + " keyNo: " + keyNo);
-        try {
-            return authenticate(key, keyNo, KeyType.TKTDES);
+            return authenticate(key, keyNo, MainActivity.KeyType.DES);
         } catch (IOException e) {
             Log.e(TAG, "IOException: " + e.getMessage());
             return false;
@@ -70,17 +28,15 @@ public class DesfireAuthentication {
     }
 
     public boolean authenticateWithNfcjlibAes(byte[] key, byte keyNo) {
-        log("authenticateWithNfcjlibAes", printData("key", key) + " keyNo: " + keyNo, true);
-        //Log.d(TAG, "authenticateWithNfcjlibAes " + printData("key", key) + " keyNo: " + keyNo);
         try {
-            return authenticate(key, keyNo, KeyType.AES);
+            return authenticate(key, keyNo, MainActivity.KeyType.AES);
         } catch (IOException e) {
             Log.e(TAG, "IOException: " + e.getMessage());
             return false;
         }
     }
 
-    private enum KeyType {
+    public enum KeyType {
         DES,
         TDES,
         TKTDES,
@@ -100,6 +56,13 @@ public class DesfireAuthentication {
     private final byte AUTHENTICATE_3K3DES = (byte) 0x1A;
     private final byte AUTHENTICATE_AES	= (byte) 0xAA;
 
+    // vars
+    public boolean Mprint = true; // print data to log
+    public int Mcode; // takes the result code
+    public MainActivity.KeyType Mktype;
+    public Byte Mkno;
+    public byte[] Miv;
+    public byte[] Mskey;
 
     /**
      * Mutual authentication between PCD and PICC.
@@ -111,17 +74,16 @@ public class DesfireAuthentication {
      * @return		true for success
      * @throws IOException
      */
-    private boolean authenticate(byte[] key, byte keyNo, KeyType type) throws IOException {
-        log("authenticate", printData("key", key) + " keyNo: " + keyNo + " keyType: " + type.toString(), true);
-        //Log.d(TAG, "authenticate " + printData("key", key) + " keyNo: " + keyNo + " keyType: " + type.toString());
+    public boolean authenticate(byte[] key, byte keyNo, MainActivity.KeyType type) throws IOException {
         if (!validateKey(key, type)) {
             throw new IllegalArgumentException();
         }
-        if (type != KeyType.AES) {
+        if (type != MainActivity.KeyType.AES) {
             // remove version bits from Triple DES keys
             setKeyVersion(key, 0, key.length, (byte) 0x00);
         }
-        final byte[] iv0 = type == KeyType.AES ? new byte[16] : new byte[8];
+
+        final byte[] iv0 = type == MainActivity.KeyType.AES ? new byte[16] : new byte[8];
         byte[] apdu;
         byte[] responseAPDU;
 
@@ -147,13 +109,14 @@ public class DesfireAuthentication {
         //responseAPDU = transmit(apdu);
         responseAPDU = isoDep.transceive(apdu);
         //this.code = getSW2(responseAPDU);
-        errorCode = getSW2(responseAPDU);
+        Mcode = getSW2(responseAPDU);
         feedback(apdu, responseAPDU);
         if (getSW2(responseAPDU) != 0xAF)
             return false;
 
         //byte[] responseData = getData(responseAPDU);
         byte[] responseData = Arrays.copyOf(responseAPDU, responseAPDU.length - 2);
+
 
         // step 3
         byte[] randB = recv(key, getData(responseAPDU), type, iv0);
@@ -185,7 +148,7 @@ public class DesfireAuthentication {
         responseAPDU = isoDep.transceive(apdu);
 
         //this.code = getSW2(responseAPDU);
-        errorCode = getSW2(responseAPDU);
+        Mcode = getSW2(responseAPDU);
         feedback(apdu, responseAPDU);
         if (getSW2(responseAPDU) != 0x00)
             return false;
@@ -210,13 +173,13 @@ public class DesfireAuthentication {
         //Log.d(TAG, "The skey     is " + Dump.hex(skey));
         Log.d(TAG, "The skey     is " + Utils.bytesToHexNpeUpperCase(skey));
         //this.ktype = type;
-        this.keyType = type;
+        Mktype = type;
         //this.kno = keyNo;
-        this.keyUsedForAuthentication = keyNo;
+        Mkno = keyNo;
         //this.iv = iv0;
-        this.initializationVector = iv0;
+        Miv = iv0;
         //this.skey = skey;
-        this.sessionKey = skey;
+        Mskey = skey;
 
         return true;
     }
@@ -229,13 +192,11 @@ public class DesfireAuthentication {
      * @return		{@code true} if the key matches the type,
      * 				{@code false} otherwise
      */
-    private boolean validateKey(byte[] key, KeyType type) {
-        log("validateKey", printData("key", key) + " keyType: " + type.toString(), true);
-        //Log.d(TAG, "validateKey " + printData("key", key) + " keyType: " + type.toString());
-        if (type == KeyType.DES && (key.length != 8)
-                || type == KeyType.TDES && (key.length != 16 || !isKey3DES(key))
-                || type == KeyType.TKTDES && key.length != 24
-                || type == KeyType.AES && key.length != 16) {
+    public static boolean validateKey(byte[] key, MainActivity.KeyType type) {
+        if (type == MainActivity.KeyType.DES && (key.length != 8)
+                || type == MainActivity.KeyType.TDES && (key.length != 16 || !isKey3DES(key))
+                || type == MainActivity.KeyType.TKTDES && key.length != 24
+                || type == MainActivity.KeyType.AES && key.length != 16) {
             Log.e(TAG, String.format("Key validation failed: length is %d and type is %s", key.length, type));
             return false;
         }
@@ -252,9 +213,7 @@ public class DesfireAuthentication {
      * @param key	the 16-byte 3DES key to check
      * @return		<code>true</code> if the key is a 3DES key
      */
-    private boolean isKey3DES(byte[] key) {
-        log("isKey3DES", printData("key", key), true);
-        //Log.d(TAG, "isKey3DES " + printData("key", key));
+    public static boolean isKey3DES(byte[] key) {
         if (key.length != 16)
             return false;
         byte[] tmpKey = Arrays.copyOfRange(key, 0, key.length);
@@ -272,9 +231,7 @@ public class DesfireAuthentication {
      * @return a copy of the data bytes in the response body or the empty
      *    byte array if this APDU has no body.
      */
-    private byte[] getData(byte[] responseAPDU) {
-        log("getData", printData("responseAPDU", responseAPDU), true);
-        //Log.d(TAG, "getData " + printData("responseAPDU", responseAPDU));
+    private static byte[] getData(byte[] responseAPDU) {
         byte[] data = new byte[responseAPDU.length - 2];
         System.arraycopy(responseAPDU, 0, data, 0, data.length);
         return data;
@@ -285,15 +242,11 @@ public class DesfireAuthentication {
      *
      * @return the value of the status byte SW2 as a value between 0 and 255.
      */
-    private int getSW2(byte[] responseAPDU) {
-        log("getSW2", printData("responseAPDU", responseAPDU), true);
-        //Log.d(TAG, "getSW2 " + printData("responseAPDU", responseAPDU));
+    public static int getSW2(byte[] responseAPDU) {
         return responseAPDU[responseAPDU.length - 1] & 0xff;
     }
 
     private byte[] getRandomData(byte[] var) {
-        log("getRandomData", printData("var", var), true);
-        //Log.d(TAG, "getRandomData " + printData("var", var));
         int varLength = var.length;
         return getRandomData(varLength);
     }
@@ -303,9 +256,7 @@ public class DesfireAuthentication {
      *
      * @return 8 bytes long byte[]
      */
-    private byte[] getRandomData(int length) {
-        log("getRandomData", "length: " + length, true);
-        //Log.d(TAG, "getRandomData " + " length: " + length);
+    public static byte[] getRandomData(int length) {
         byte[] value = new byte[length];
         SecureRandom secureRandom = new SecureRandom();
         secureRandom.nextBytes(value);
@@ -313,11 +264,12 @@ public class DesfireAuthentication {
     }
 
     // rotate the array one byte to the left
-    private byte[] rotateLeft(byte[] a) {
-        log("rotateLeft", printData("a", a), true);
+    private static byte[] rotateLeft(byte[] a) {
         byte[] ret = new byte[a.length];
+
         System.arraycopy(a, 1, ret, 0, a.length - 1);
         ret[a.length - 1] = a[0];
+
         return ret;
     }
 
@@ -330,9 +282,7 @@ public class DesfireAuthentication {
      * @param type	the type of key
      * @return		the session key
      */
-    private byte[] generateSessionKey(byte[] randA, byte[] randB, KeyType type) {
-        log("generateSessionKey", printData("randA", randA) + printData(" randB", randB) + " keyType: " + type.toString(), true);
-        //Log.d(TAG, "generateSessionKey " + printData("randA", randA) + printData(" randB", randB) + " keyType: " + type.toString());
+    private static byte[] generateSessionKey(byte[] randA, byte[] randB, MainActivity.KeyType type) {
         byte[] skey = null;
 
         switch (type) {
@@ -371,9 +321,7 @@ public class DesfireAuthentication {
     }
 
     // Receiving data that needs decryption.
-    private byte[] recv(byte[] key, byte[] data, KeyType type, byte[] iv) {
-        log("recv", printData("key", key) + printData(" data", data) + " keyType: " + type.toString() + printData(" iv", iv), true);
-        //Log.d(TAG, "recv " + printData("key", key) + printData(" data", data) + " keyType: " + type.toString() + printData(" iv", iv));
+    private static byte[] recv(byte[] key, byte[] data, MainActivity.KeyType type, byte[] iv) {
         switch (type) {
             case DES:
             case TDES:
@@ -388,9 +336,7 @@ public class DesfireAuthentication {
     }
 
     // DES/3DES decryption: CBC send mode and CBC receive mode
-    private byte[] decrypt(byte[] key, byte[] data, DESMode mode) {
-        log("decrypt", printData("key", key) + printData(" data", data) + " DesMode: " + mode.toString(), true);
-        //Log.d(TAG, "decrypt " + printData("key", key) + printData(" data", data) + " DesMode: " + mode.toString());
+    private static byte[] decrypt(byte[] key, byte[] data, DESMode mode) {
         byte[] modifiedKey = new byte[24];
         System.arraycopy(key, 0, modifiedKey, 16, 8);
         System.arraycopy(key, 0, modifiedKey, 8, 8);
@@ -443,9 +389,7 @@ public class DesfireAuthentication {
     // IV sent is the global one but it is better to be explicit about it: can be null for DES/3DES
     // if IV is null, then it is set to zeros
     // Sending data that needs encryption.
-    private byte[] send(byte[] key, byte[] data, KeyType type, byte[] iv) {
-        log("send", printData("key", key) + printData(" data", data) + " keyType: " + type.toString() + printData(" iv", iv), true);
-        //Log.d(TAG, "send " + printData("key", key) + printData(" data", data) + " keyType: " + type.toString() + printData(" iv", iv));
+    private static byte[] send(byte[] key, byte[] data, MainActivity.KeyType type, byte[] iv) {
         switch (type) {
             case DES:
             case TDES:
@@ -461,25 +405,19 @@ public class DesfireAuthentication {
 
     // feedback/debug: a request-response round
     private void feedback(byte[] command, byte[] response) {
-        log("feedback", printData("command", command) + printData(" response", response), true);
-        //Log.d(TAG, "feedback " + printData("command", command) + printData(" response", response));
         //if(print) {
-        /*
         if(Mprint) {
             Log.d(TAG, "---> " + getHexString(command, true) + " (" + command.length + ")");
         }
+
         //if(print) {
         if(Mprint) {
+            //Log.d(TAG, "<--- " + getHexString(response, true) + " (" + command.length + ")"); // todo ERROR command.length is wrong, response.length is right
             Log.d(TAG, "<--- " + getHexString(response, true) + " (" + response.length + ")");
         }
-        */
-        log("feedback", "---> " + getHexString(command, true) + " (" + command.length + ")", false);
-        log("feedback", "<--- " + getHexString(response, true) + " (" + response.length + ")", false);
     }
 
-    private String getHexString(byte[] a, boolean space) {
-        log("getHexString", printData("a", a) + " space: " + space, true);
-        //Log.d(TAG, "getHexString " + printData("a", a) + " space: " + space);
+    public static String getHexString(byte[] a, boolean space) {
         StringBuilder sb = new StringBuilder();
         for (byte b : a) {
             sb.append(String.format("%02x", b & 0xff));
@@ -511,9 +449,7 @@ public class DesfireAuthentication {
      * @param version the 1-byte version
      */
     // source: nfcjLib
-    private void setKeyVersion(byte[] a, int offset, int length, byte version) {
-        log("setKeyVersion", printData("a", a) + " offset: " + offset + " length: " + length + " version: " + version, true);
-        //Log.d(TAG, "setKeyVersion " + printData("a", a) + " offset: " + offset + " length: " + length + " version: " + version);
+    private static void setKeyVersion(byte[] a, int offset, int length, byte version) {
         if (length == 8 || length == 16 || length == 24) {
             for (int i = offset + length - 1, j = 0; i >= offset; i--, j = (j + 1) % 8) {
                 a[i] &= 0xFE;
@@ -525,45 +461,5 @@ public class DesfireAuthentication {
     /**
      * END authentication codes taken from DESFireEv1.java (NFCJLIB)
      */
-
-    private void clearData() {
-        logData = "";
-        keyUsedForAuthentication = (byte) 0xff;
-        errorCode = -1;
-        sessionKey = null;
-        initializationVector = null;
-    }
-
-
-    private void log(String methodName, String data, boolean isMethodHeader) {
-        if (printToLog) {
-            logData += "\n" + "method: " + methodName + ":" + data;
-            Log.d(TAG, "method: " + methodName + ":" + data);
-        }
-    }
-
-    public String getLogData() {
-        return logData;
-    }
-
-    public int getErrorCode() {
-        return errorCode;
-    }
-
-    public Byte getKeyUsedForAuthentication() {
-        return keyUsedForAuthentication;
-    }
-
-    public String getKeyTypeString() {
-        return keyType.toString();
-    }
-
-    public byte[] getInitializationVector() {
-        return initializationVector;
-    }
-
-    public byte[] getSessionKey() {
-        return sessionKey;
-    }
 
 }
