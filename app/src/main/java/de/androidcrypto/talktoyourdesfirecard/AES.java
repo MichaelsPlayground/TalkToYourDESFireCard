@@ -16,6 +16,8 @@ import javax.crypto.spec.SecretKeySpec;
  *
  * code taken from https://github.com/andrade/nfcjlib
  * LICENSE: https://github.com/andrade/nfcjlib/blob/master/LICENSE
+ *
+ * Note: the code was modified by AndroidCrypto for logging purposes
  */
 public class AES {
 
