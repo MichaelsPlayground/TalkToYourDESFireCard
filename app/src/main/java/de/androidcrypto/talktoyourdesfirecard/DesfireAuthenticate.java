@@ -9,7 +9,7 @@ import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.Arrays;
 
-public class DesfireAuthentication {
+public class DesfireAuthenticate {
 
     /**
      * @author Daniel Andrade
@@ -20,7 +20,7 @@ public class DesfireAuthentication {
      * Note: some minor modifications has been done by AndroidCrypto to run the code without the rest of the library
      */
 
-    private static final String TAG = DesfireAuthentication.class.getName();
+    private static final String TAG = DesfireAuthenticate.class.getName();
 
     private IsoDep isoDep;
 
@@ -34,7 +34,7 @@ public class DesfireAuthentication {
 
     private String logData;
 
-    public DesfireAuthentication(IsoDep isoDep, boolean printToLog) {
+    public DesfireAuthenticate(IsoDep isoDep, boolean printToLog) {
         this.isoDep = isoDep;
         this.printToLog = printToLog;
     }
