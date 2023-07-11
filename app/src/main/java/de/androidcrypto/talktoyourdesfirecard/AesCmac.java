@@ -9,12 +9,20 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 public class AesCmac {
-    // by atom https://stackoverflow.com/questions/24874176/debugging-aes-cmac-generating-wrong-answer
-    // with answer by Maarten Bodewes https://stackoverflow.com/a/24875365/8166854
-    // https://csrc.nist.gov/publications/detail/sp/800-38b/final
-    // Examples for CMAC are available at the examples page on NIST’s Computer Security Resource
-    // Center (CSRC) website: http://csrc.nist.gov/groups/ST/toolkit/examples.html.
-    // https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/AES_CMAC.pdf
+
+    /**
+     * This code is taken from a Stackoverflow.com post:
+     * https://stackoverflow.com/questions/24874176/debugging-aes-cmac-generating-wrong-answer
+     * asked on Jul 21, 2014 by atom and answered on Jul 21, 2014 by Maarten Bodewes
+     * The codes is in compliance with https://csrc.nist.gov/publications/detail/sp/800-38b/final
+     * Examples are available here:
+     * https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/AES_CMAC.pdf
+     *
+     * The algorithm can be used successfully to calculate the the "SesAuthENCKey" and "SesAuthMACKey"
+     * used in authenticateEv2First for a Mifare DESFire EV2/EV3 card.
+     * The algorithm passed test vectors from NXP's datasheet:
+     * Mifare DESFire Light Features and Hints AN12343.pdf, see pages 33..35
+     */
 
 /*
 usage:
@@ -32,7 +40,7 @@ public byte[] calculateDiverseKey(byte [] input) throws InvalidKeyException, NoS
     private static final byte CONSTANT = (byte) 0x87;
     private static final int BLOCK_SIZE = 16;
 
-    private static final IvParameterSpec ZERO_IV = new IvParameterSpec(new byte[16]);
+    private static final IvParameterSpec ZERO_IV = new IvParameterSpec(new byte[16]); // added code line
 
     private int macLength;
     private Cipher aesCipher;
@@ -51,7 +59,6 @@ public byte[] calculateDiverseKey(byte [] input) throws InvalidKeyException, NoS
         if (length > BLOCK_SIZE) {
             throw new NoSuchAlgorithmException("AES CMAC maximum length is " + BLOCK_SIZE);
         }
-
         try {
             macLength = length;
             aesCipher = Cipher.getInstance("AES/CBC/NOPADDING");
@@ -84,7 +91,7 @@ public byte[] calculateDiverseKey(byte [] input) throws InvalidKeyException, NoS
         if (!((SecretKeySpec)key).getAlgorithm().equals("AES")) {
             throw new InvalidKeyException("Key is not an AES key.");
         }
-        //aesCipher.init(Cipher.ENCRYPT_MODE, key);
+        //aesCipher.init(Cipher.ENCRYPT_MODE, key); // wrong code line
         aesCipher.init(Cipher.ENCRYPT_MODE, key, ZERO_IV);
 
         // First calculate k0 from zero bytes
@@ -97,7 +104,7 @@ public byte[] calculateDiverseKey(byte [] input) throws InvalidKeyException, NoS
         k1 = doubleSubKey(k0);
         k2 = doubleSubKey(k1);
 
-        //aesCipher.init(Cipher.ENCRYPT_MODE, key);
+        //aesCipher.init(Cipher.ENCRYPT_MODE, key); // wrong code line
         aesCipher.init(Cipher.ENCRYPT_MODE, key, ZERO_IV);
         bufferCount = 0;
     }
@@ -150,7 +157,7 @@ public byte[] calculateDiverseKey(byte [] input) throws InvalidKeyException, NoS
             buffer[i] ^= subKey[i];
         }
 
-        // Calculate the final CMAC calue
+        // Calculate the final CMAC value
         try {
             aesCipher.doFinal(buffer, 0, BLOCK_SIZE, buffer, 0);
         }
