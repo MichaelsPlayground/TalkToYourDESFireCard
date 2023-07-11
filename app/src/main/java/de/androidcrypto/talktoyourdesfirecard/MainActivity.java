@@ -58,8 +58,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private com.google.android.material.textfield.TextInputEditText numberOfKeys, applicationId, applicationSelected;
     private Button applicationList, applicationCreate, applicationSelect;
-    private byte[] selectedApplicationId = null;
 
+    // experimental:
+
+    private byte[] selectedApplicationId = null;
+    private Button applicationCreateAes;
     /**
      * section for files
      */
@@ -207,6 +210,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         numberOfKeys = findViewById(R.id.etNumberOfKeys);
         applicationId = findViewById(R.id.etApplicationId);
 
+        // experimental:
+        applicationCreateAes = findViewById(R.id.btnCreateApplicationAes);
+
 
         // file handling
 
@@ -287,6 +293,38 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 writeToUiAppend(output, logString + " with id: " + applicationId.getText().toString());
                 byte[] responseData = new byte[2];
                 boolean success = createApplicationPlainCommunicationDes(output, applicationIdentifier, numberOfKeysByte, responseData);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        // experimental
+        applicationCreateAes.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "create a new AES application";
+                writeToUiAppend(output, logString);
+                byte numberOfKeysByte = Byte.parseByte(numberOfKeys.getText().toString());
+                byte[] applicationIdentifier = Utils.hexStringToByteArray(applicationId.getText().toString());
+                if (applicationIdentifier == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you entered a wrong application ID", COLOR_RED);
+                    return;
+                }
+                //Utils.reverseByteArrayInPlace(applicationIdentifier); // change to LSB = change the order
+                if (applicationIdentifier.length != 3) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you did not enter a 6 hex string application ID", COLOR_RED);
+                    return;
+                }
+                writeToUiAppend(output, logString + " with id: " + applicationId.getText().toString());
+                byte[] responseData = new byte[2];
+                boolean success = createApplicationPlainCommunicationAes(output, applicationIdentifier, numberOfKeysByte, responseData);
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
@@ -739,23 +777,23 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 // authenticate with the read&write access key = 01...
                 clearOutputFields();
                 //String logString = "authenticate with CHANGED DES key number 0x01 = read & write access key";
-                String logString = "authenticate with CHANGED DES key number 0x01 = read & write access key";
+                String logString = "authenticate with DEFAULT AES key number 0x02 = CAR key";
                 writeToUiAppend(output, logString);
                 if (selectedApplicationId == null) {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
                     return;
                 }
                 byte[] responseData = new byte[2];
-                // this is the authentication method from the NFCJLIB, working correctly
-                boolean success = desfireAuthenticate.authenticateWithNfcjlibDes(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES);
+
+                boolean success = desfireAuthenticateProximity.authenticateAes(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_AES_DEFAULT);
                  if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    SESSION_KEY_DES = desfireAuthenticate.getSessionKey();
+                    SESSION_KEY_DES = desfireAuthenticateProximity.getSessionKey();
                      writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
-                    showDialog(MainActivity.this, desfireAuthenticate.getLogData());
+                    showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                 }
@@ -989,7 +1027,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         baos.write(applicationIdentifier, 0, 3);
         baos.write(APPLICATION_MASTER_KEY_SETTINGS);
-        baos.write(numberOfKeys | APPLICATION_CRYPTO_AES);
+        baos.write(numberOfKeys | APPLICATION_CRYPTO_AES); // here we decide if the application is DES or AES
         byte[] parameter = baos.toByteArray();
         Log.d(TAG, methodName + printData(" parameter", parameter));
         byte[] response = new byte[0];
