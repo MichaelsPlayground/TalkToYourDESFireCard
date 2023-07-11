@@ -831,6 +831,35 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        // todo CHANGE: this is using AES EV2 First Authentication
+        authD3DC.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // authenticate with the read access key = 03...
+                clearOutputFields();
+                String logString = "authenticate with DEFAULT AES key number 0x02 = change access rights key";
+                writeToUiAppend(output, logString);
+                if (selectedApplicationId == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
+                    return;
+                }
+                byte[] responseData = new byte[2];
+
+                boolean success = desfireAuthenticateProximity.authenticateAesEv2First(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_AES_DEFAULT);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    SESSION_KEY_DES = desfireAuthenticateProximity.getSessionKey();
+                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
+                    vibrateShort();
+                    // show logData
+                    //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
 /*
         authD2DC.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -860,6 +889,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 */
+        /*
         authD3DC.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -887,6 +917,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
             }
         });
+
+         */
 
         authD4DC.setOnClickListener(new View.OnClickListener() {
             @Override

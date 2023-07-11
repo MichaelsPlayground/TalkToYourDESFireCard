@@ -30,6 +30,7 @@ public class DesfireAuthenticateProximity {
     // some constants
     private final byte AUTHENTICATE_DES_2K3DES_COMMAND = (byte) 0x0A;
     private final byte AUTHENTICATE_AES_COMMAND	= (byte) 0xAA;
+    private final byte AUTHENTICATE_AES_EV2_FIRST_COMMAND = (byte) 0x71;
 
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
@@ -209,6 +210,8 @@ public class DesfireAuthenticateProximity {
      * @param keyNo (00..14) but maximum is defined during application setup
      * @param key (AES key with length of 16 bytes)
      * @return TRUE when authentication was successful
+     *
+     * Note: the authentication seems to work but the correctness of the SESSION_KEY is NOT tested so far
      */
 
     public boolean authenticateAes(byte keyNo, byte[] key) {
@@ -291,7 +294,7 @@ public class DesfireAuthenticateProximity {
         byte[] iv1 = rndB_enc.clone();
         log(methodName, printData("iv1", iv1), false);
 
-        // Encypt RndAB_rot
+        // Encrypt RndAB_rot
         log(methodName, "step 08 encrypt rndArndB_leftRotated using AES.encrypt and iv1", false);
         byte[] rndArndB_leftRotated_enc = AES.encrypt(iv1, key, rndArndB_leftRotated);
         log(methodName, printData("rndArndB_leftRotated_enc", rndArndB_leftRotated_enc), false);
@@ -356,6 +359,212 @@ public class DesfireAuthenticateProximity {
         return rndAEqual;
 
     }
+
+    /**
+     * authenticateAes uses the EV2First authentication method with command 0x71
+     * @param keyNo (00..14) but maximum is defined during application setup
+     * @param key (AES key with length of 16 bytes)
+     * @return TRUE when authentication was successful
+     *
+     * Note: the authentication seems to work but the correctness of the SESSION_KEY is NOT tested so far
+     */
+
+    public boolean authenticateAesEv2First(byte keyNo, byte[] key) {
+        // see example in Mifare DESFire Light Features and Hints AN12343.pdf pages 33 ff
+        String methodName = "authenticateAesEv2First";
+        log( methodName, printData("key", key) + " keyNo: " + keyNo, true);
+        errorCode = new byte[2];
+        // sanity checks
+        if (keyNo < 0) {
+            Log.e(TAG, methodName + " keyNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (keyNo > 14) {
+            Log.e(TAG, methodName + " keyNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((key == null) || (key.length != 16)) {
+            Log.e(TAG, methodName + " data length is not 16, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0,errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        log(methodName, "step 01 get encrypted rndB from card", false);
+        log(methodName, "This method is using the AUTHENTICATE_AES_EV2_FIRST_COMMAND so it will work with AES-based application only", false);
+        // authenticate 1st part
+        byte[] apdu;
+        byte[] response = new byte[0];
+        try {
+            /**
+             * note: the parameter needs to be a 2 byte long value, the first one is the key number and the second
+             * one could any LEN capability ??
+             * I'm setting the byte[] to keyNo | 0x00
+             */
+            byte[] parameter = new byte[2];
+            parameter[0] = keyNo;
+            parameter[1] = (byte) 0x00; // is already 0x00
+            log(methodName, printData("parameter", parameter), false);
+            apdu = wrapMessage(AUTHENTICATE_AES_EV2_FIRST_COMMAND, parameter);
+            log(methodName, "get enc rndB " + printData("apdu", apdu), false);
+            response = isoDep.transceive(apdu);
+            log(methodName, "get enc rndB " + printData("response", response), false);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "IOException: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        // we are expecting that the status code is 0xAF means more data need to get exchanged
+        if (!checkResponseMoreData(responseBytes)) {
+            log(methodName, "expected to get get 0xAF as error code but  found: " + printData("errorCode", responseBytes) + ", aborted", false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        // now we know that we can work with the response, 16 bytes long
+        // R-APDU (Part 1) (E(Kx, RndB)) || SW1 || SW2
+        byte[] rndB_enc = getData(response);
+        log(methodName, printData("encryptedRndB", rndB_enc), false);
+
+        // start the decryption
+        //byte[] iv0 = new byte[8];
+        byte[] iv0 = new byte[16];
+        log(methodName, "step 02 initial iv0 is 16 zero bytes " + printData("iv0", iv0), false);
+        log(methodName, "step 03 decrypt the encryptedRndB using AES.decrypt with key " + printData("key", key) + printData(" iv0", iv0), false);
+        byte[] rndB = AES.decrypt(iv0, key, rndB_enc);
+        log(methodName, printData("rndB", rndB), false);
+
+        log(methodName, "step 04 rotate rndB to LEFT", false);
+        byte[] rndB_leftRotated = rotateLeft(rndB);
+        log(methodName, printData("rndB_leftRotated", rndB_leftRotated), false);
+
+        // authenticate 2nd part
+        log(methodName, "step 05 generate a random rndA", false);
+        byte[] rndA = new byte[16]; // this is an AES key
+        rndA = getRandomData(rndA);
+        log(methodName, printData("rndA", rndA), false);
+
+        log(methodName, "step 06 concatenate rndA | rndB_leftRotated", false);
+        byte[] rndArndB_leftRotated = concatenate(rndA, rndB_leftRotated);
+        log(methodName, printData("rndArndB_leftRotated", rndArndB_leftRotated), false);
+
+        // IV is now encrypted RndB received from the tag
+        log(methodName, "step 07 iv1 is 16 zero bytes", false);
+        byte[] iv1 = new byte[16];
+        log(methodName, printData("iv1", iv1), false);
+
+        // Encrypt RndAB_rot
+        log(methodName, "step 08 encrypt rndArndB_leftRotated using AES.encrypt and iv1", false);
+        byte[] rndArndB_leftRotated_enc = AES.encrypt(iv1, key, rndArndB_leftRotated);
+        log(methodName, printData("rndArndB_leftRotated_enc", rndArndB_leftRotated_enc), false);
+
+        // send encrypted data to PICC
+        log(methodName, "step 09 send the encrypted data to the PICC", false);
+        try {
+            apdu = wrapMessage(MORE_DATA_COMMAND, rndArndB_leftRotated_enc);
+            log(methodName, "send rndArndB_leftRotated_enc " + printData("apdu", apdu), false);
+            response = isoDep.transceive(apdu);
+            log(methodName, "send rndArndB_leftRotated_enc " + printData("response", response), false);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "IOException: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        // we are expecting that the status code is 0x00 means the exchange was OK
+        if (!checkResponse(responseBytes)) {
+            log(methodName, "expected to get get 0x00 as error code but  found: " + printData("errorCode", responseBytes) + ", aborted", false);
+            //System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        // now we know that we can work with the response, response is 32 bytes long
+        // R-APDU (Part 2) E(Kx, TI || RndA' || PDcap2 || PCDcap2) || Response Code
+        log(methodName, "step 10 received encrypted data from PICC", false);
+        byte[] data_enc = getData(response);
+        log(methodName, printData("data_enc", data_enc), false);
+
+        //IV is now reset to zero bytes
+        log(methodName, "step 11 iv2 is now reset to 16 zero bytes", false);
+        byte[] iv2 = new byte[16];
+        log(methodName, printData("iv2", iv2), false);
+
+        // Decrypt encrypted data
+        log(methodName, "step 12 decrypt data_enc with iv2 and key", false);
+        byte[] data = AES.decrypt(iv2, key, data_enc);
+        log(methodName, printData("data", data), false);
+        // data is 32 bytes long, e.g. a1487b61f69cef65a09742b481152325a7cb8fc6000000000000000000000000
+        /**
+         * structure of data
+         * full example a1487b61f69cef65a09742b481152325a7cb8fc6000000000000000000000000
+         *
+         * TI transaction information 04 bytes a1487b61
+         * rndA LEFT rotated          16 bytes f69cef65a09742b481152325a7cb8fc6
+         * PDcap2                     06 bytes 000000000000
+         * PCDcap2                    06 bytes 000000000000
+         */
+
+        // split data
+        byte[] ti = new byte[4];
+        byte[] rndA_leftRotated = new byte[16];
+        byte[] pDcap2 = new byte[6];
+        byte[] pCDcap2 = new byte[6];
+        System.arraycopy(data, 0, ti, 0, 4);
+        System.arraycopy(data, 4, rndA_leftRotated, 0, 16);
+        System.arraycopy(data, 20, pDcap2, 0, 6);
+        System.arraycopy(data, 26, pCDcap2, 0, 6);
+        log(methodName, "step 13 full data needs to get split up in 4 values", false);
+        log(methodName, printData("data", data), false);
+        log(methodName, printData("tia", ti), false);
+        log(methodName, printData("rndA_leftRotated", rndA_leftRotated), false);
+        log(methodName, printData("pDcap2", pDcap2), false);
+        log(methodName, printData("pCDcap2", pCDcap2), false);
+
+        // PCD compares send and received RndA
+        log(methodName, "step 14 rotate rndA_leftRotated to RIGHT", false);
+        byte[] rndA_received = rotateRight(rndA_leftRotated);
+        log(methodName, printData("rndA_received ", rndA_received), false);
+        boolean rndAEqual = Arrays.equals(rndA, rndA_received);
+
+        //log(methodName, printData("rndA received ", rndA_received), false);
+        log(methodName, printData("rndA          ", rndA), false);
+        log(methodName, "rndA and rndA received are equal: " + rndAEqual, false);
+        log(methodName, printData("rndB          ", rndB), false);
+        sessionKey = getSessionKeyAes(rndA, rndB);
+        log(methodName, printData("sessionKey    ", sessionKey), false);
+        log(methodName, "**** auth result ****", false);
+        if (rndAEqual) {
+            log(methodName, "*** AUTHENTICATED ***", false);
+        } else {
+            log(methodName, "****   FAILURE   ****", false);
+        }
+        log(methodName, "*********************", false);
+
+
+        byte[] SesAuthENCKey = getSesAuthEncKey(rndA, rndB, key);
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey), false);
+
+        return rndAEqual;
+
+        // CmdCounter (is reset to 0000 after a successful Cmd.AuthenticateEV2First command): 02 bytes 0000
+        // todo
+        // SesAuthENCKey 16 bytes
+        // todo check
+        // SesAuthMacKey 16 bytes
+        // todo
+
+    }
+
+
+
 
     public boolean authenticateAesOrg(byte keyNo, byte[] key) {
         // status WORKING
@@ -619,6 +828,61 @@ public class DesfireAuthenticateProximity {
         return sessKey;
     }
 
+    private byte[] getSesAuthEncKey(byte[] rndA, byte[] rndB, byte[] authenticationKey) {
+        // see
+        // see MIFARE DESFire Light contactless application IC pdf, page 28
+        String methodName = "getSesAuthEncKey";
+        log(methodName, printData("rndA", rndA) + printData(" rndB",rndB) + printData(" authenticationKey", authenticationKey),false);
+        // sanity checks
+        if ((rndA == null) || (rndA.length != 16)) {
+            log(methodName, "rndA is NULL or wrong length, aborted", false);
+            return null;
+        }
+        if ((rndB == null) || (rndB.length != 16)) {
+            log(methodName, "rndB is NULL or wrong length, aborted", false);
+            return null;
+        }
+        if ((authenticationKey == null) || (authenticationKey.length != 16)) {
+            log(methodName, "authenticationKey is NULL or wrong length, aborted", false);
+            return null;
+        }
+        // see Mifare DESFire Light Features and Hints AN12343.pdf page 35
+        byte[] cmacInput = new byte[32];
+        byte[] labelEnc = new byte[]{(byte) (0xA5), (byte) (0x5A)}; // fixed to 0xA55A
+        byte[] counter = new byte[]{(byte) (0x00), (byte) (0x01)}; // fixed to 0x0001
+        byte[] length = new byte[]{(byte) (0x00), (byte) (0x80)}; // fixed to 0x0080
+
+        System.arraycopy(labelEnc, 0, cmacInput, 0, 2);
+        System.arraycopy(counter, 0, cmacInput, 2, 2);
+        System.arraycopy(length, 0, cmacInput, 4, 2);
+/*
+        System.arraycopy(rndA, 0, cmacInput, 0, 8);
+        System.arraycopy(rndB, 0, cmacInput, 8, 10);
+
+        // todo we need to run any function for both values (xored)
+        byte[] rndA08to13 = new byte[6];
+        byte[] rndB10to15 = new byte[6];
+        System.arraycopy(rndA, 8, rndA08to13, 0, 6);
+        System.arraycopy(rndB, 10, rndB10to15, 0, 6);
+        byte[] xored = xor(rndA08to13, rndB10to15);
+        log(methodName, printData("rndA     ", rndA), false);
+        log(methodName, printData("rndA08to13", rndA08to13), false);
+        log(methodName, printData("rndB10to15", rndB10to15), false);
+        log(methodName, printData("xored     ", xored), false);
+        System.arraycopy(xored, 0, cmacInput, 18, 6);
+
+        System.arraycopy(rndA, 14, cmacInput, 24, 2);
+        System.arraycopy(length, 0, cmacInput, 26, 2);
+        System.arraycopy(counter, 0, cmacInput, 28, 2);
+        System.arraycopy(labelEnc, 0, cmacInput, 30, 2);
+*/
+        log(methodName, printData("rndA     ", rndA), false);
+        log(methodName, printData("rndB     ", rndB), false);
+        log(methodName, printData("cmacInput", cmacInput), false);
+
+        return null;
+    }
+
     private byte[] getSessionKeyAes(byte[] rndA, byte[] rndB) {
         log("getSessionKeyAes", printData("rndA", rndA) + printData(" rndB", rndB), true);
         byte[] sessKey = new byte[16];
@@ -752,6 +1016,24 @@ public class DesfireAuthenticateProximity {
             logData += "method: " + methodName + "\n" + data + "\n";
             Log.d(TAG, "method: " + methodName + ": " + data);
         }
+    }
+
+    private byte[] xor(byte[] dataA, byte[] dataB) {
+        if ((dataA == null) || (dataB == null)) {
+            Log.e(TAG, "xor - dataA or dataB is NULL, aborted");
+            return null;
+        }
+        // sanity check - both arrays need to be of the same length
+        int dataALength = dataA.length;
+        int dataBLength = dataB.length;
+        if (dataALength != dataBLength) {
+            Log.e(TAG, "xor - dataA and dataB lengths are different, aborted (dataA: " + dataALength + " dataB: " + dataBLength + " bytes)");
+            return null;
+        }
+        for (int i = 0; i < dataALength; i++) {
+            dataA[i] ^= dataB[i];
+        }
+        return dataA;
     }
 
     public String getLogData() {
