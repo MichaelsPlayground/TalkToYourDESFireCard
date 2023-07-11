@@ -216,7 +216,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
         // file handling
 
-        fileList = findViewById(R.id.btnListFiles);
+        fileList = findViewById(R.id.btnListFiles); // this is misused for getSesAuthEncKey
         fileSelect = findViewById(R.id.btnSelectFile);
         getFileSettings = findViewById(R.id.btnGetFileSettings);
         changeFileSettings = findViewById(R.id.btnChangeFileSettings);
@@ -370,6 +370,30 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         /**
          * section for files and standard files
          */
+
+        // this method is misused for getSesAuthEncKey
+        fileList.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "getSesAuthEncKeyMain";
+                writeToUiAppend(output, logString);
+                byte[] rndA = Utils.hexStringToByteArray("B04D0787C93EE0CC8CACC8E86F16C6FE");
+                byte[] rndB = Utils.hexStringToByteArray("FA659AD0DCA738DD65DC7DC38612AD81");
+                byte[] key = Utils.hexStringToByteArray("00000000000000000000000000000000");
+                // calculate the SesAuthENCKey
+                byte[] SesAuthENCKey_expected = Utils.hexStringToByteArray("63DC07286289A7A6C0334CA31C314A04");
+                DesfireAuthenticateProximity desfireAuthenticateProximity1 = new DesfireAuthenticateProximity(isoDep, true);
+                byte[] SesAuthENCKey = desfireAuthenticateProximity1.getSesAuthEncKey(rndA, rndB, key);
+                writeToUiAppend(output, printData("SesAuthENCKey_expected", SesAuthENCKey_expected));
+                writeToUiAppend(output, printData("SesAuthENCKey calcultd", SesAuthENCKey));
+                // calculate the SesAuthMACKey
+                byte[] SesAuthMACKey_expected = Utils.hexStringToByteArray("774F26743ECE6AF5033B6AE8522946F6");
+                byte[] SesAuthMACKey = desfireAuthenticateProximity1.getSesAuthMacKey(rndA, rndB, key);
+                writeToUiAppend(output, printData("SesAuthMACKey_expected", SesAuthMACKey_expected));
+                writeToUiAppend(output, printData("SesAuthMACKey calcultd", SesAuthMACKey));
+            }
+        });
 
         fileStandardCreate.setOnClickListener(new View.OnClickListener() {
             @Override

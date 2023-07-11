@@ -7,8 +7,14 @@ import androidx.annotation.NonNull;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Arrays;
+
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 
 
 /**
@@ -24,12 +30,15 @@ public class DesfireAuthenticateProximity {
     private boolean printToLog = true; // print data to log
     private String logData;
     private byte[] sessionKey;
+    private byte[] SesAuthENCKey; // filled by authenticateAesEv2First
+    private byte[] SesAuthMACKey; // filled by authenticateAesEv2First
+    private int CmdCounter = 0; // filled / resetted by authenticateAesEv2First
     private byte[] errorCode = new byte[2];
 
 
     // some constants
     private final byte AUTHENTICATE_DES_2K3DES_COMMAND = (byte) 0x0A;
-    private final byte AUTHENTICATE_AES_COMMAND	= (byte) 0xAA;
+    private final byte AUTHENTICATE_AES_COMMAND = (byte) 0xAA;
     private final byte AUTHENTICATE_AES_EV2_FIRST_COMMAND = (byte) 0x71;
 
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
@@ -45,15 +54,16 @@ public class DesfireAuthenticateProximity {
 
     /**
      * authenticateD40 uses the legacy authentication method with command 0x0A
+     *
      * @param keyNo (00..14) but maximum is defined during application setup
-     * @param key (DES key with length of 8 bytes)
+     * @param key   (DES key with length of 8 bytes)
      * @return TRUE when authentication was successful
      */
 
     public boolean authenticateD40(byte keyNo, byte[] key) {
         // status WORKING
         String methodName = "authenticateD40";
-        log( methodName, printData("key", key) + " keyNo: " + keyNo, true);
+        log(methodName, printData("key", key) + " keyNo: " + keyNo, true);
         errorCode = new byte[2];
         // sanity checks
         if (keyNo < 0) {
@@ -68,7 +78,7 @@ public class DesfireAuthenticateProximity {
         }
         if ((key == null) || (key.length != 8)) {
             Log.e(TAG, "data length is not 8, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0,errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return false;
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
@@ -106,7 +116,7 @@ public class DesfireAuthenticateProximity {
         // remove the keyVersion bits within a DES key
         log(methodName, "step 03 setKeyVersion to 00 for DES keys", false);
         setKeyVersion(key, 0, key.length, (byte) 0x00);
-        log( methodName, printData("new DES key", key), false);
+        log(methodName, printData("new DES key", key), false);
 
         log(methodName, "step 04 get the TDES key from DES key", false);
         byte[] tdesKey = getModifiedKey(key);
@@ -132,7 +142,7 @@ public class DesfireAuthenticateProximity {
         /**
          * section copied from DesfireAuthenticate
          */
-        byte[] iv1 = Arrays.copyOfRange(encryptedRndB,encryptedRndB.length - iv0.length, encryptedRndB.length);
+        byte[] iv1 = Arrays.copyOfRange(encryptedRndB, encryptedRndB.length - iv0.length, encryptedRndB.length);
         log(methodName, "step xx get iv1 from responseData " + printData("iv1", iv1), false);
         log("decrypt", "mode case SEND_MODE", false);
         log("decrypt", "XOR w/ previous ciphered block --> decrypt", false);
@@ -207,17 +217,18 @@ public class DesfireAuthenticateProximity {
 
     /**
      * authenticateAes uses the legacy authentication method with command 0xAA
-     * @param keyNo (00..14) but maximum is defined during application setup
-     * @param key (AES key with length of 16 bytes)
-     * @return TRUE when authentication was successful
      *
+     * @param keyNo (00..14) but maximum is defined during application setup
+     * @param key   (AES key with length of 16 bytes)
+     * @return TRUE when authentication was successful
+     * <p>
      * Note: the authentication seems to work but the correctness of the SESSION_KEY is NOT tested so far
      */
 
     public boolean authenticateAes(byte keyNo, byte[] key) {
         // status WORKING
         String methodName = "authenticateAes";
-        log( methodName, printData("key", key) + " keyNo: " + keyNo, true);
+        log(methodName, printData("key", key) + " keyNo: " + keyNo, true);
         errorCode = new byte[2];
         // sanity checks
         if (keyNo < 0) {
@@ -232,7 +243,7 @@ public class DesfireAuthenticateProximity {
         }
         if ((key == null) || (key.length != 16)) {
             Log.e(TAG, methodName + " data length is not 16, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0,errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return false;
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
@@ -362,17 +373,20 @@ public class DesfireAuthenticateProximity {
 
     /**
      * authenticateAes uses the EV2First authentication method with command 0x71
-     * @param keyNo (00..14) but maximum is defined during application setup
-     * @param key (AES key with length of 16 bytes)
-     * @return TRUE when authentication was successful
      *
+     * @param keyNo (00..14) but maximum is defined during application setup
+     * @param key   (AES key with length of 16 bytes)
+     * @return TRUE when authentication was successful
+     * <p>
      * Note: the authentication seems to work but the correctness of the SESSION_KEY is NOT tested so far
+     *
+     * This method is using the AesCmac class for CMAC calculations
      */
 
     public boolean authenticateAesEv2First(byte keyNo, byte[] key) {
         // see example in Mifare DESFire Light Features and Hints AN12343.pdf pages 33 ff
         String methodName = "authenticateAesEv2First";
-        log( methodName, printData("key", key) + " keyNo: " + keyNo, true);
+        log(methodName, printData("key", key) + " keyNo: " + keyNo, true);
         errorCode = new byte[2];
         // sanity checks
         if (keyNo < 0) {
@@ -387,7 +401,7 @@ public class DesfireAuthenticateProximity {
         }
         if ((key == null) || (key.length != 16)) {
             Log.e(TAG, methodName + " data length is not 16, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0,errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return false;
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
@@ -543,15 +557,15 @@ public class DesfireAuthenticateProximity {
         log(methodName, "**** auth result ****", false);
         if (rndAEqual) {
             log(methodName, "*** AUTHENTICATED ***", false);
+            SesAuthENCKey = getSesAuthEncKey(rndA, rndB, key);
+            SesAuthMACKey = getSesAuthMacKey(rndA, rndB, key);
+            CmdCounter = 0;
         } else {
             log(methodName, "****   FAILURE   ****", false);
+            SesAuthENCKey = null;
+            SesAuthMACKey = null;
         }
         log(methodName, "*********************", false);
-
-
-        byte[] SesAuthENCKey = getSesAuthEncKey(rndA, rndB, key);
-        log(methodName, printData("SesAuthENCKey", SesAuthENCKey), false);
-
         return rndAEqual;
 
         // CmdCounter (is reset to 0000 after a successful Cmd.AuthenticateEV2First command): 02 bytes 0000
@@ -564,14 +578,12 @@ public class DesfireAuthenticateProximity {
     }
 
 
-
-
     public boolean authenticateAesOrg(byte keyNo, byte[] key) {
         // status WORKING
         // see Mifare DESFire EV1 4K AES authentication issue
         // https://stackoverflow.com/questions/71029993/mifare-desfire-ev1-4k-aes-authentication-issue/71046137#71046137
         String methodName = "authenticateAes";
-        log( methodName, printData("key", key) + " keyNo: " + keyNo, true);
+        log(methodName, printData("key", key) + " keyNo: " + keyNo, true);
         errorCode = new byte[2];
         // sanity checks
         if (keyNo < 0) {
@@ -586,7 +598,7 @@ public class DesfireAuthenticateProximity {
         }
         if ((key == null) || (key.length != 16)) {
             Log.e(TAG, "data length is not 16, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0,errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return false;
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
@@ -823,16 +835,41 @@ public class DesfireAuthenticateProximity {
     private byte[] getSessionKeyDes(byte[] rndA, byte[] rndB) {
         log("getSessionKey", printData("rndA", rndA) + printData(" rndB", rndB), true);
         byte[] sessKey = new byte[8];
-        System.arraycopy(rndA, 0, sessKey, 0 ,4);
-        System.arraycopy(rndB, 0, sessKey, 4 ,4);
+        System.arraycopy(rndA, 0, sessKey, 0, 4);
+        System.arraycopy(rndB, 0, sessKey, 4, 4);
         return sessKey;
     }
 
-    private byte[] getSesAuthEncKey(byte[] rndA, byte[] rndB, byte[] authenticationKey) {
+    /**
+     * Test values for getSesAuthEncKey and getSesAuthMacKey
+     * byte[] rndA = Utils.hexStringToByteArray("B04D0787C93EE0CC8CACC8E86F16C6FE");
+     * byte[] rndB = Utils.hexStringToByteArray("FA659AD0DCA738DD65DC7DC38612AD81");
+     * byte[] key = Utils.hexStringToByteArray("00000000000000000000000000000000");
+     * byte[] SesAuthENCKey_expected = Utils.hexStringToByteArray("63DC07286289A7A6C0334CA31C314A04");
+     * byte[] SesAuthMACKey_expected = Utils.hexStringToByteArray("774F26743ECE6AF5033B6AE8522946F6");
+     *
+     * usage: byte[] SesAuthENCKey = getSesAuthEncKey(rndA, rndB, key);
+     * usage: byte[] SesAuthMACKey = getSesAuthMacKey(rndA, rndB, key);
+     */
+
+
+
+    /**
+     * calculate the SessionAuthEncryptionKey after a successful authenticateAesEv2First
+     * It uses the AesMac class for CMAC
+     * The code is tested with example values in Mifare DESFire Light Features and Hints AN12343.pdf
+     * on pages 33..35
+     * @param rndA is the random generated 16 bytes long key A from reader
+     * @param rndB is the random generated 16 bytes long key B from PICC
+     * @param authenticationKey is the 16 bytes long AES key used for authentication
+     * @return the 16 bytes long (AES) encryption key
+     */
+
+    public byte[] getSesAuthEncKey(byte[] rndA, byte[] rndB, byte[] authenticationKey) {
         // see
         // see MIFARE DESFire Light contactless application IC pdf, page 28
         String methodName = "getSesAuthEncKey";
-        log(methodName, printData("rndA", rndA) + printData(" rndB",rndB) + printData(" authenticationKey", authenticationKey),false);
+        log(methodName, printData("rndA", rndA) + printData(" rndB", rndB) + printData(" authenticationKey", authenticationKey), false);
         // sanity checks
         if ((rndA == null) || (rndA.length != 16)) {
             log(methodName, "rndA is NULL or wrong length, aborted", false);
@@ -855,41 +892,119 @@ public class DesfireAuthenticateProximity {
         System.arraycopy(labelEnc, 0, cmacInput, 0, 2);
         System.arraycopy(counter, 0, cmacInput, 2, 2);
         System.arraycopy(length, 0, cmacInput, 4, 2);
-/*
-        System.arraycopy(rndA, 0, cmacInput, 0, 8);
-        System.arraycopy(rndB, 0, cmacInput, 8, 10);
+        System.arraycopy(rndA, 0, cmacInput, 6, 2);
 
-        // todo we need to run any function for both values (xored)
-        byte[] rndA08to13 = new byte[6];
-        byte[] rndB10to15 = new byte[6];
-        System.arraycopy(rndA, 8, rndA08to13, 0, 6);
-        System.arraycopy(rndB, 10, rndB10to15, 0, 6);
-        byte[] xored = xor(rndA08to13, rndB10to15);
+        byte[] rndA02to07 = new byte[6];
+        byte[] rndB00to05 = new byte[6];
+        rndA02to07 = Arrays.copyOfRange(rndA, 2, 8);
         log(methodName, printData("rndA     ", rndA), false);
-        log(methodName, printData("rndA08to13", rndA08to13), false);
-        log(methodName, printData("rndB10to15", rndB10to15), false);
+        log(methodName, printData("rndA02to07", rndA02to07), false);
+        rndB00to05 = Arrays.copyOfRange(rndB, 0, 6);
+        log(methodName, printData("rndB     ", rndB), false);
+        log(methodName, printData("rndB00to05", rndB00to05), false);
+        byte[] xored = xor(rndA02to07, rndB00to05);
         log(methodName, printData("xored     ", xored), false);
-        System.arraycopy(xored, 0, cmacInput, 18, 6);
+        System.arraycopy(xored, 0, cmacInput, 8, 6);
+        System.arraycopy(rndB, 6, cmacInput, 14, 10);
+        System.arraycopy(rndA, 8, cmacInput, 24, 8);
 
-        System.arraycopy(rndA, 14, cmacInput, 24, 2);
-        System.arraycopy(length, 0, cmacInput, 26, 2);
-        System.arraycopy(counter, 0, cmacInput, 28, 2);
-        System.arraycopy(labelEnc, 0, cmacInput, 30, 2);
-*/
         log(methodName, printData("rndA     ", rndA), false);
         log(methodName, printData("rndB     ", rndB), false);
         log(methodName, printData("cmacInput", cmacInput), false);
+        byte[] iv = new byte[16];
+        log(methodName, printData("iv       ", iv), false);
+        byte[] cmac = calculateDiverseKey(authenticationKey, cmacInput);
+        log(methodName, printData("cmacOut ", cmac), false);
+        return cmac;
+    }
 
-        return null;
+    /**
+     * calculate the SessionAuthMacKey after a successful authenticateAesEv2First
+     * It uses the AesMac class for CMAC
+     * The code is tested with example values in Mifare DESFire Light Features and Hints AN12343.pdf
+     * on pages 33..35
+     * @param rndA is the random generated 16 bytes long key A from reader
+     * @param rndB is the random generated 16 bytes long key B from PICC
+     * @param authenticationKey is the 16 bytes long AES key used for authentication
+     * @return the 16 bytes long MAC key
+     */
+
+    public byte[] getSesAuthMacKey(byte[] rndA, byte[] rndB, byte[] authenticationKey) {
+        // see
+        // see MIFARE DESFire Light contactless application IC pdf, page 28
+        String methodName = "getSesAuthMacKey";
+        log(methodName, printData("rndA", rndA) + printData(" rndB", rndB) + printData(" authenticationKey", authenticationKey), false);
+        // sanity checks
+        if ((rndA == null) || (rndA.length != 16)) {
+            log(methodName, "rndA is NULL or wrong length, aborted", false);
+            return null;
+        }
+        if ((rndB == null) || (rndB.length != 16)) {
+            log(methodName, "rndB is NULL or wrong length, aborted", false);
+            return null;
+        }
+        if ((authenticationKey == null) || (authenticationKey.length != 16)) {
+            log(methodName, "authenticationKey is NULL or wrong length, aborted", false);
+            return null;
+        }
+        // see Mifare DESFire Light Features and Hints AN12343.pdf page 35
+        byte[] cmacInput = new byte[32];
+        byte[] labelEnc = new byte[]{(byte) (0x5A), (byte) (0xA5)}; // fixed to 0x5AA5
+        byte[] counter = new byte[]{(byte) (0x00), (byte) (0x01)}; // fixed to 0x0001
+        byte[] length = new byte[]{(byte) (0x00), (byte) (0x80)}; // fixed to 0x0080
+
+        System.arraycopy(labelEnc, 0, cmacInput, 0, 2);
+        System.arraycopy(counter, 0, cmacInput, 2, 2);
+        System.arraycopy(length, 0, cmacInput, 4, 2);
+        System.arraycopy(rndA, 0, cmacInput, 6, 2);
+
+        byte[] rndA02to07 = new byte[6];
+        byte[] rndB00to05 = new byte[6];
+        rndA02to07 = Arrays.copyOfRange(rndA, 2, 8);
+        log(methodName, printData("rndA     ", rndA), false);
+        log(methodName, printData("rndA02to07", rndA02to07), false);
+        rndB00to05 = Arrays.copyOfRange(rndB, 0, 6);
+        log(methodName, printData("rndB     ", rndB), false);
+        log(methodName, printData("rndB00to05", rndB00to05), false);
+        byte[] xored = xor(rndA02to07, rndB00to05);
+        log(methodName, printData("xored     ", xored), false);
+        System.arraycopy(xored, 0, cmacInput, 8, 6);
+        System.arraycopy(rndB, 6, cmacInput, 14, 10);
+        System.arraycopy(rndA, 8, cmacInput, 24, 8);
+
+        log(methodName, printData("rndA     ", rndA), false);
+        log(methodName, printData("rndB     ", rndB), false);
+        log(methodName, printData("cmacInput", cmacInput), false);
+        byte[] iv = new byte[16];
+        log(methodName, printData("iv       ", iv), false);
+        byte[] cmac = calculateDiverseKey(authenticationKey, cmacInput);
+        log(methodName, printData("cmacOut ", cmac), false);
+        return cmac;
+    }
+
+    public byte[] calculateDiverseKey(byte[] masterKey, byte[] input) {
+        AesCmac mac = null;
+        try {
+            mac = new AesCmac();
+            SecretKey key = new SecretKeySpec(masterKey, "AES");
+            mac.init(key);  //set master key
+            mac.updateBlock(input); //given input
+            //for (byte b : input) System.out.print(" " + b);
+        } catch (NoSuchAlgorithmException | InvalidAlgorithmParameterException |
+                 InvalidKeyException e) {
+            Log.e(TAG, "Exception on calculateDiverseKey: " + e.getMessage());
+            return null;
+        }
+        return mac.doFinal();
     }
 
     private byte[] getSessionKeyAes(byte[] rndA, byte[] rndB) {
         log("getSessionKeyAes", printData("rndA", rndA) + printData(" rndB", rndB), true);
         byte[] sessKey = new byte[16];
-        System.arraycopy(rndA, 0, sessKey, 0 ,4);
-        System.arraycopy(rndB, 0, sessKey, 4 ,4);
-        System.arraycopy(rndA, 12, sessKey, 8 ,4);
-        System.arraycopy(rndB, 12, sessKey, 12 ,4);
+        System.arraycopy(rndA, 0, sessKey, 0, 4);
+        System.arraycopy(rndB, 0, sessKey, 4, 4);
+        System.arraycopy(rndA, 12, sessKey, 8, 4);
+        System.arraycopy(rndB, 12, sessKey, 12, 4);
         return sessKey;
     }
 
@@ -960,7 +1075,7 @@ public class DesfireAuthenticateProximity {
      * no body, this method returns a byte array with a length of zero.
      *
      * @return a copy of the data bytes in the response body or the empty
-     *    byte array if this APDU has no body.
+     * byte array if this APDU has no body.
      */
     private byte[] getData(byte[] responseAPDU) {
         log("getData", printData("responseAPDU", responseAPDU), true);
@@ -1043,7 +1158,20 @@ public class DesfireAuthenticateProximity {
     public byte[] getErrorCode() {
         return errorCode;
     }
+
     public byte[] getSessionKey() {
         return sessionKey;
+    }
+
+    public byte[] getSesAuthENCKey() {
+        return SesAuthENCKey;
+    }
+
+    public byte[] getSesAuthMACKey() {
+        return SesAuthMACKey;
+    }
+
+    public int getCmdCounter() {
+        return CmdCounter;
     }
 }
