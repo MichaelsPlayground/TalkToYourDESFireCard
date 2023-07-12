@@ -1100,6 +1100,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             public void onClick(View view) {
 
                 // status: NOT working, wrong cardUID
+                // for CMAC see https://stackoverflow.com/questions/20503060/how-to-decrypt-the-first-message-sent-from-mifare-desfire-ev1
 
                 clearOutputFields();
                 String logString = "get card UID (AES encrypted)";
