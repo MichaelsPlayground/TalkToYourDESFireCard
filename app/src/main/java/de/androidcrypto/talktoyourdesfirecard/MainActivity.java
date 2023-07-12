@@ -1034,6 +1034,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         getCardUidDes.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+
+                // status: WORKING
+
                 clearOutputFields();
                 String logString = "get card UID (DES encrypted)";
                 writeToUiAppend(output, logString);
@@ -1095,6 +1098,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         getCardUidAes.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+
+                // status: NOT working, wrong cardUID
+
                 clearOutputFields();
                 String logString = "get card UID (AES encrypted)";
                 writeToUiAppend(output, logString);
