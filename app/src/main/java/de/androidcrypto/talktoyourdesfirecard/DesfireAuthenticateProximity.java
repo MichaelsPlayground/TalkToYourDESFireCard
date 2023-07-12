@@ -150,27 +150,44 @@ public class DesfireAuthenticateProximity {
         byte[] rndArndBLeftRotated = concatenate(rndA, rndBLeftRotated);
         log(methodName, printData("rndArndBLeftRotated", rndArndBLeftRotated), false);
 
-        /**
-         * section copied from DesfireAuthenticate
-         */
+        log(methodName, "copying iv1 from encryptedRndBm from " +
+                (encryptedRndB.length - iv0.length) + " to " + (encryptedRndB.length), false);
         byte[] iv1 = Arrays.copyOfRange(encryptedRndB, encryptedRndB.length - iv0.length, encryptedRndB.length);
         log(methodName, "step xx get iv1 from responseData " + printData("iv1", iv1), false);
-        log("decrypt", "mode case SEND_MODE", false);
-        log("decrypt", "XOR w/ previous ciphered block --> decrypt", false);
+        log(methodName, "mode case SEND_MODE", false);
+        log(methodName, "XOR w/ previous ciphered block --> decrypt", false);
         byte[] ciphertext = new byte[rndArndBLeftRotated.length];
         byte[] cipheredBlock = new byte[8];
         // XOR w/ previous ciphered block --> decrypt
         log(methodName, "XOR w/ previous ciphered block --> decrypt", false);
-        log("decrypt", "data before XORing " + printData("data", rndArndBLeftRotated) + printData(" cipheredBlock", cipheredBlock), false);
+        log(methodName, "data before XORing " + printData("data", rndArndBLeftRotated) + printData(" cipheredBlock", cipheredBlock), false);
+
+        log(methodName, "running a 2 round loop to XOR rndArndBLeftRotated with the previous cipheredBlock and DEcrypt the block using TripleDES", false);
+        log(methodName, printData("ciphertext", ciphertext) +
+                printData(" | rndArndBLeftRotated", rndArndBLeftRotated) +
+                printData(" | cipheredBlock", cipheredBlock), false);
         for (int i = 0; i < rndArndBLeftRotated.length; i += 8) {
+            log(methodName, "outer loop i: " + i, false);
             for (int j = 0; j < 8; j++) {
+                log(methodName, "outer loop i: " + i + " inner loop j: " + j, false);
                 rndArndBLeftRotated[i + j] ^= cipheredBlock[j];
+                log(methodName, printData("cipheredBlock", cipheredBlock) +
+                        printData(" | rndArndBLeftRotated", rndArndBLeftRotated) +
+                        printData(" | ciphertext", ciphertext), false);
             }
-            log("decrypt", "data after  XORing " + printData("data", rndArndBLeftRotated) + printData(" cipheredBlock", cipheredBlock), false);
-            log("decrypt", "calling TripleDES.decrypt with " + printData("modifiedKey", tdesKey) + printData(" data", rndArndBLeftRotated) + " i: " + i + " length: " + 8, false);
+            log(methodName, "data after  XORing " + printData("data", rndArndBLeftRotated) + printData(" cipheredBlock", cipheredBlock), false);
+            log(methodName, "calling TripleDES.decrypt with " + printData("modifiedKey", tdesKey) + printData(" data", rndArndBLeftRotated) + " i: " + i + " length: " + 8, false);
             cipheredBlock = TripleDES.decrypt(tdesKey, rndArndBLeftRotated, i, 8);
-            log("decrypt", "TripleDES.decrypt " + printData("cipheredBlock", cipheredBlock), false);
+            log(methodName, printData("cipheredBlock", cipheredBlock) +
+                    printData(" | rndArndBLeftRotated", rndArndBLeftRotated) +
+                    printData(" | ciphertext", ciphertext), false);
+            log(methodName, "TripleDES.decrypt " + printData("cipheredBlock", cipheredBlock), false);
+            log(methodName, " copying cipheredBlock to ciphertext from i = " + i + " length 8", false);
+            log(methodName, "before copy " + printData("cipheredBlock", cipheredBlock) +
+                    printData(" | ciphertext", ciphertext), false);
             System.arraycopy(cipheredBlock, 0, ciphertext, i, 8);
+            log(methodName, "after  copy " + printData("cipheredBlock", cipheredBlock) +
+                    printData(" | ciphertext", ciphertext), false);
             log("decrypt", printData(" ciphertext", ciphertext), false);
         }
         byte[] encryptedRndArndBLeftRotated = ciphertext.clone();
