@@ -316,6 +316,7 @@ public class DesfireAuthenticateProximity {
         log(methodName, "step 02 initial iv0 is 16 zero bytes " + printData("iv0", iv0), false);
         log(methodName, "step 03 decrypt the encryptedRndB using AES.decrypt with key " + printData("key", key) + printData(" iv0", iv0), false);
         byte[] rndB = AES.decrypt(iv0, key, rndB_enc);
+        byte[] rndBSession = rndB.clone();
         log(methodName, printData("rndB", rndB), false);
 
         log(methodName, "step 04 rotate rndB to LEFT", false);
@@ -327,6 +328,7 @@ public class DesfireAuthenticateProximity {
         byte[] rndA = new byte[16]; // this is an AES key
         rndA = getRandomData(rndA);
         log(methodName, printData("rndA", rndA), false);
+        byte[] rndASession = rndA.clone();
 
         log(methodName, "step 06 concatenate rndA | rndB_leftRotated", false);
         byte[] rndArndB_leftRotated = concatenate(rndA, rndB_leftRotated);
@@ -392,6 +394,8 @@ public class DesfireAuthenticateProximity {
         log(methodName, printData("rndB          ", rndB), false);
         SessionKey = getSessionKeyAes(rndA, rndB);
         log(methodName, printData("sessionKey    ", SessionKey), false);
+        byte[] sessKey = getSessionKeyAes(rndASession, rndBSession);
+        log(methodName, printData("sessKey       ", sessKey), false);
         log(methodName, "**** auth result ****", false);
         if (rndAEqual) {
             log(methodName, "*** AUTHENTICATED ***", false);

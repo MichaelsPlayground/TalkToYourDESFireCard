@@ -1101,6 +1101,32 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 // check that an authentication was done before ?
 
                 byte[] responseData = new byte[2];
+
+                // no parameter
+                byte[] response = new byte[0];
+                byte[] apdu = new byte[0];
+                try {
+                    apdu = wrapMessage(GET_CARD_UID_COMMAND, null);
+                    Log.d(TAG, logString + printData(" apdu", apdu));
+                    response = isoDep.transceive(apdu);
+                    Log.d(TAG, logString + printData(" response", response));
+                } catch (IOException e) {
+                    Log.e(TAG, logString + " transceive failed, IOException:\n" + e.getMessage());
+                    writeToUiAppend(output, "transceive failed: " + e.getMessage());
+                    System.arraycopy(RESPONSE_FAILURE, 0, responseData, 0, 2);
+                    return;
+                }
+                byte[] responseBytes = returnStatusBytes(response);
+                System.arraycopy(responseBytes, 0, responseData, 0, 2);
+                if (checkResponse(response)) {
+                    Log.d(TAG, logString + " SUCCESS");
+                    Arrays.copyOf(response, response.length - 2);
+                } else {
+                    Log.d(TAG, logString + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+                    Log.d(TAG, logString + " error code: " + EV3.getErrorCode(responseBytes));
+                    return;
+                }
+
                 byte[] result = getCardUid(output, responseData);
                 if (result == null) {
                     // something gone wrong
@@ -1124,9 +1150,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     byte[] encryptionKeyAes = SESSION_KEY_AES;
                     writeToUiAppend(output, printData("encryptionKey AES", encryptionKeyAes));
                     writeToUiAppend(output, printData("encrypted UID", result));
-                    byte[] iv = new byte[16]; // a DES IV is 8 bytes long
+                    byte[] iv = new byte[16]; // an AES IV is 16 bytes long
                     writeToUiAppend(output, printData("IV", iv));
-                    byte[] decryptedData = AES.decrypt(iv, encryptionKeyAes, result);
+                    byte[] cmacIv = calculateApduCMAC(apdu, encryptionKeyAes, iv);
+                    writeToUiAppend(output, printData("cmacIv", cmacIv));
+                    byte[] decryptedData = AES.decrypt(cmacIv, encryptionKeyAes, result);
                     writeToUiAppend(output, printData("decryptedData", decryptedData));
                     // decryptedData is 7 bytes UID || 2 bytes CRC16 || 7 bytes RFU = 00's
                     byte[] cardUid = Arrays.copyOfRange(decryptedData, 0, 7);
@@ -1139,6 +1167,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     byte[] crc16Data = new byte[cardUidLength];
                     System.arraycopy(decryptedData, 0, crc16Data, 0, cardUidLength);
                     byte[] crc16Calculated = CRC16.get(crc16Data);
+                    // iv = Arrays.copyOfRange(apdu, apdu.length - 2 - iv.length, apdu.length - 2);
+                    // crc = calculateApduCRC32R(plaintext, length);
+
                     writeToUiAppend(output, printData("crc16 calcultd", crc16Calculated));
                     if (Arrays.equals(crc16Received, crc16Calculated)) {
                         writeToUiAppend(output, "CRC16 matches calculated CRC16");
@@ -1146,6 +1177,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         writeToUiAppend(output, "CRC16 DOES NOT matches calculated CRC16");
                     }
                     vibrateShort();
+
+                    // original AES card: 045e0832501490
+                    // decr               046feadd1b0e57
                 }
             }
         });
@@ -1789,6 +1823,38 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
             return null;
         }
+    }
+
+
+    /**
+     * copied from DESFireEV1.java class
+     * necessary for calculation the  new IV for decryption of getCardUid
+     * @param apdu
+     * @param sessionKey
+     * @param iv
+     * @param type --> fixed to AES
+     * @return
+     */
+    private byte[] calculateApduCMAC(byte[] apdu, byte[] sessionKey, byte[] iv) {
+        Log.d(TAG, "calculateApduCMAC" + printData(" apdu", apdu) +
+                printData(" sessionKey", sessionKey) + printData(" iv", iv));
+        byte[] block;
+
+        if (apdu.length == 5) {
+            block = new byte[apdu.length - 4];
+        } else {
+            // trailing 00h exists
+            block = new byte[apdu.length - 5];
+            System.arraycopy(apdu, 5, block, 1, apdu.length - 6);
+        }
+        block[0] = apdu[1];
+        Log.d(TAG, "calculateApduCMAC" + printData(" block", block));
+        //byte[] newIv = desfireAuthenticateProximity.calculateDiverseKey(sessionKey, iv);
+        //return newIv;
+        byte[] cmacIv = CMAC.get(CMAC.Type.AES, sessionKey, block, iv);
+        Log.d(TAG, "calculateApduCMAC" + printData(" cmacIv", cmacIv));
+        return cmacIv;
+
     }
 
 
