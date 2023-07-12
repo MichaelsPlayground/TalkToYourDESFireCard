@@ -884,6 +884,42 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        // todo CHANGE: this is using AES EV2 Non First Authentication
+        authD4DC.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // authenticate with the read access key = 03...
+                clearOutputFields();
+                String logString = "authenticate with DEFAULT AES key number 0x02 = change access rights key";
+                writeToUiAppend(output, logString);
+                if (selectedApplicationId == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
+                    return;
+                }
+                // check that a previous successfull authentication with EV2First was run
+                boolean ev2FirstSuccess = desfireAuthenticateProximity.isAuthenticateEv2FirstSuccess();
+                if (!ev2FirstSuccess) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to successfully run an 'authenticate EV2 First' before, aborted", COLOR_RED);
+                    return;
+                }
+
+                byte[] responseData = new byte[2];
+
+                boolean success = desfireAuthenticateProximity.authenticateAesEv2NonFirst(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_AES_DEFAULT);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    SESSION_KEY_DES = desfireAuthenticateProximity.getSessionKey();
+                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
+                    vibrateShort();
+                    // show logData
+                    //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
 /*
         authD2DC.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -943,7 +979,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         });
 
          */
-
+/*
         authD4DC.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -971,6 +1007,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
             }
         });
+
+ */
     }
 
     /**
