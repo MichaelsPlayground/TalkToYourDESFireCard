@@ -146,7 +146,7 @@ public class DesfireAuthenticateProximity {
         log(methodName, "step 07 rotate rndB LEFT", false);
         byte[] rndBLeftRotated = rotateLeft(rndB);
         log(methodName, printData("rndBLeftRotated", rndBLeftRotated), false);
-        log(methodName, "step 08 concatenate rndA | rndBLeftRotated", false);
+        log(methodName, "step 08 concatenate rndA || rndBLeftRotated", false);
         byte[] rndArndBLeftRotated = concatenate(rndA, rndBLeftRotated);
         log(methodName, printData("rndArndBLeftRotated", rndArndBLeftRotated), false);
 
@@ -1019,7 +1019,7 @@ public class DesfireAuthenticateProximity {
         }
     }
 
-    private byte[] getModifiedKey(byte[] key) {
+    public byte[] getModifiedKey(byte[] key) {
         String methodName = "getModifiedKey";
         log(methodName, printData("key", key), true);
         if ((key == null) || (key.length != 8)) {

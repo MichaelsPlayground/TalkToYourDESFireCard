@@ -93,6 +93,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private byte[] SESSION_KEY_TDES; // filled in authenticate
 
     /**
+     * section for general
+     */
+
+    private Button getCardUid; // get cardUID * encrypted
+
+    /**
      * section for constants
      */
 
@@ -165,6 +171,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private final byte APPLICATION_CRYPTO_DES = 0x00; // add this to number of keys for DES
     private final byte APPLICATION_CRYPTO_AES = (byte) 0x80; // add this to number of keys for AES
+
+    private final byte GET_CARD_UID_COMMAND = (byte) 0x51;
+    private final byte GET_VERSION_COMMAND = (byte) 0x60;
 
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
     private final byte[] RESPONSE_AUTHENTICATION_ERROR = new byte[]{(byte) 0x91, (byte) 0xAE};
@@ -244,6 +253,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         authD2DC = findViewById(R.id.btnAuthD2DC);
         authD3DC = findViewById(R.id.btnAuthD3DC);
         authD4DC = findViewById(R.id.btnAuthD4DC);
+
+        // general handling
+        getCardUid = findViewById(R.id.btnGetCardUid);
 
         // some presets
         applicationId.setText(Utils.bytesToHexNpeUpperCase(APPLICATION_IDENTIFIER));
@@ -1009,6 +1021,75 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         });
 
  */
+
+
+        /**
+         * section for general handling
+         */
+
+
+        getCardUid.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "get card UID (DES encrypted)";
+                writeToUiAppend(output, logString);
+                // check that an authentication was done before ?
+
+                byte[] responseData = new byte[2];
+                byte[] result = getCardUid(output, responseData);
+                if (result == null) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkResponseMoreData(responseData)) {
+                        writeToUiAppend(output, "the data I'm receiving is too long to read, sorry");
+                    }
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with any key ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + printData(" UID", result));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+
+                    // correct result is 04597a32501490 (7 bytes)
+                    // encrypt result is length: 16 data: f3cea1277fde140b04513f15412904e9
+                    // decrypt result is length: 16 data: 04597a32501490074400000000000000
+                    // correct result is                  04597a32501490 (7 bytes)
+                    byte[] encryptionKeyDes = SESSION_KEY_DES;
+                    byte[] encryptionKeyTDes = desfireAuthenticateProximity.getModifiedKey(encryptionKeyDes);
+
+                    writeToUiAppend(output, printData("encryptionKey DES", encryptionKeyDes));
+                    writeToUiAppend(output, printData("encryptionKey TDES", encryptionKeyTDes));
+                    writeToUiAppend(output, printData("encrypted UID", result));
+                    byte[] iv = new byte[8]; // a DES IV is 8 bytes long
+                    writeToUiAppend(output, printData("IV", iv));
+                    byte[] decryptedData = TripleDES.decrypt(iv, encryptionKeyTDes, result);
+                    writeToUiAppend(output, printData("decryptedData", decryptedData));
+                    // decryptedData is 7 bytes UID || 2 bytes CRC16 || 7 bytes RFU = 00's
+                    byte[] cardUid = Arrays.copyOfRange(decryptedData, 0, 6);
+                    byte[] crc16Received = Arrays.copyOfRange(decryptedData, 7, 9);
+                    writeToUiAppend(output, printData("cardUid", cardUid));
+                    writeToUiAppend(output, printData("crc16 received", crc16Received));
+
+                    // check crc16 over received DATA (only)
+                    int cardUidLength = 7;
+                    byte[] crc16Data = new byte[cardUidLength];
+                    System.arraycopy(decryptedData, 0, crc16Data, 0, cardUidLength);
+                    byte[] crc16Calculated = CRC16.get(crc16Data);
+                    writeToUiAppend(output, printData("crc16 calcultd", crc16Calculated));
+                    if (Arrays.equals(crc16Received, crc16Calculated)) {
+                        writeToUiAppend(output, "CRC16 matches calculated CRC16");
+                    } else {
+                        writeToUiAppend(output, "CRC16 DOES NOT matches calculated CRC16");
+                    }
+
+                    vibrateShort();
+                }
+            }
+        });
+
     }
 
     /**
@@ -1607,14 +1688,49 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
             return false;
         }
-
-
-
-
-
-
         return false;
     }
+
+
+    /**
+     * section for general handling
+     */
+
+    private byte[] getCardUid(TextView logTextView, byte[] methodResponse) {
+        final String methodName = "getCardUid";
+        Log.d(TAG, methodName);
+        // sanity checks
+        if (logTextView == null) {
+            Log.e(TAG, methodName + " logTextView is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        // no parameter
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(GET_CARD_UID_COMMAND, null);
+            Log.d(TAG, methodName + printData(" apdu", apdu));
+            response = isoDep.transceive(apdu);
+            Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return Arrays.copyOf(response, response.length - 2);
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return null;
+        }
+    }
+
 
     /**
      * section for command and response handling
@@ -1768,6 +1884,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 // get tag ID
                 tagIdByte = tag.getId();
                 writeToUiAppend(output, "tag id: " + Utils.bytesToHex(tagIdByte));
+                Log.d(TAG, "tag id: " + Utils.bytesToHex(tagIdByte));
                 writeToUiAppend(output, "NFC tag connected");
                 writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The app and DESFire tag are ready to use", COLOR_GREEN);
             }

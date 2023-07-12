@@ -1451,6 +1451,14 @@
                         android:text="tag version" />
 
                     <Button
+                        android:id="@+id/btnGetCardUid"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="card UID" />
+
+                    <Button
                         android:id="@+id/btnGetKeySettings"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
