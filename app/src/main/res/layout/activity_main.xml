@@ -1456,7 +1456,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="card UID" />
+                        android:text="card UID DES" />
 
                     <Button
                         android:id="@+id/btnGetKeySettings"
