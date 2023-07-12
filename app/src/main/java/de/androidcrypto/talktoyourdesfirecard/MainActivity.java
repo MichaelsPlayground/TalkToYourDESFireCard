@@ -90,13 +90,14 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private byte KEY_NUMBER_USED_FOR_AUTHENTICATION; // the key number used for a successful authentication
     private byte[] SESSION_KEY_DES; // filled in authenticate, simply the first (leftmost) 8 bytes of SESSION_KEY_TDES
+    private byte[] SESSION_KEY_AES; // filled in authenticate
     private byte[] SESSION_KEY_TDES; // filled in authenticate
 
     /**
      * section for general
      */
 
-    private Button getCardUid; // get cardUID * encrypted
+    private Button getCardUidDes, getCardUidAes; // get cardUID * encrypted
 
     /**
      * section for constants
@@ -255,7 +256,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         authD4DC = findViewById(R.id.btnAuthD4DC);
 
         // general handling
-        getCardUid = findViewById(R.id.btnGetCardUid);
+        getCardUidDes = findViewById(R.id.btnGetCardUidDes);
+        getCardUidAes = findViewById(R.id.btnGetCardUidAes);
 
         // some presets
         applicationId.setText(Utils.bytesToHexNpeUpperCase(APPLICATION_IDENTIFIER));
@@ -825,8 +827,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                  if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    SESSION_KEY_DES = desfireAuthenticateProximity.getSessionKey();
-                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
+                    SESSION_KEY_AES = desfireAuthenticateProximity.getSessionKey();
+                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_AES));
                     vibrateShort();
                     // show logData
                     showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
@@ -856,8 +858,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    SESSION_KEY_DES = desfireAuthenticateProximity.getSessionKey();
-                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
+                    SESSION_KEY_AES = desfireAuthenticateProximity.getSessionKey();
+                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_AES));
                     vibrateShort();
                     // show logData
                     showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
@@ -885,8 +887,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    SESSION_KEY_DES = desfireAuthenticateProximity.getSessionKey();
-                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
+                    SESSION_KEY_AES = desfireAuthenticateProximity.getSessionKey();
+                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_AES));
                     vibrateShort();
                     // show logData
                     //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
@@ -921,8 +923,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    SESSION_KEY_DES = desfireAuthenticateProximity.getSessionKey();
-                    writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
+                    //SESSION_KEY_DES = desfireAuthenticateProximity.getSessionKey();
+                    // todo work with SesAuthENCKey
+                    //writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
                     //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
@@ -1028,7 +1031,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
          */
 
 
-        getCardUid.setOnClickListener(new View.OnClickListener() {
+        getCardUidDes.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 clearOutputFields();
@@ -1068,7 +1071,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     byte[] decryptedData = TripleDES.decrypt(iv, encryptionKeyTDes, result);
                     writeToUiAppend(output, printData("decryptedData", decryptedData));
                     // decryptedData is 7 bytes UID || 2 bytes CRC16 || 7 bytes RFU = 00's
-                    byte[] cardUid = Arrays.copyOfRange(decryptedData, 0, 6);
+                    byte[] cardUid = Arrays.copyOfRange(decryptedData, 0, 7);
                     byte[] crc16Received = Arrays.copyOfRange(decryptedData, 7, 9);
                     writeToUiAppend(output, printData("cardUid", cardUid));
                     writeToUiAppend(output, printData("crc16 received", crc16Received));
@@ -1084,7 +1087,64 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     } else {
                         writeToUiAppend(output, "CRC16 DOES NOT matches calculated CRC16");
                     }
+                    vibrateShort();
+                }
+            }
+        });
 
+        getCardUidAes.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "get card UID (AES encrypted)";
+                writeToUiAppend(output, logString);
+                // check that an authentication was done before ?
+
+                byte[] responseData = new byte[2];
+                byte[] result = getCardUid(output, responseData);
+                if (result == null) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkResponseMoreData(responseData)) {
+                        writeToUiAppend(output, "the data I'm receiving is too long to read, sorry");
+                    }
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with any key ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + printData(" UID", result));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+
+                    // correct result is 045e0832501490 (7 bytes)
+                    // encrypt result is length: 16 data: 359734583048c7ea0e6352f0478c6068
+                    // decrypt result is length: 16 data: 7a4f24afd255ab778cbc1b9fae1c6cad
+                    // correct result is                  045e0832501490 (7 bytes)
+                    byte[] encryptionKeyAes = SESSION_KEY_AES;
+                    writeToUiAppend(output, printData("encryptionKey AES", encryptionKeyAes));
+                    writeToUiAppend(output, printData("encrypted UID", result));
+                    byte[] iv = new byte[16]; // a DES IV is 8 bytes long
+                    writeToUiAppend(output, printData("IV", iv));
+                    byte[] decryptedData = AES.decrypt(iv, encryptionKeyAes, result);
+                    writeToUiAppend(output, printData("decryptedData", decryptedData));
+                    // decryptedData is 7 bytes UID || 2 bytes CRC16 || 7 bytes RFU = 00's
+                    byte[] cardUid = Arrays.copyOfRange(decryptedData, 0, 7);
+                    byte[] crc16Received = Arrays.copyOfRange(decryptedData, 7, 9);
+                    writeToUiAppend(output, printData("cardUid", cardUid));
+                    writeToUiAppend(output, printData("crc16 received", crc16Received));
+
+                    // check crc16 over received DATA (only)
+                    int cardUidLength = 7;
+                    byte[] crc16Data = new byte[cardUidLength];
+                    System.arraycopy(decryptedData, 0, crc16Data, 0, cardUidLength);
+                    byte[] crc16Calculated = CRC16.get(crc16Data);
+                    writeToUiAppend(output, printData("crc16 calcultd", crc16Calculated));
+                    if (Arrays.equals(crc16Received, crc16Calculated)) {
+                        writeToUiAppend(output, "CRC16 matches calculated CRC16");
+                    } else {
+                        writeToUiAppend(output, "CRC16 DOES NOT matches calculated CRC16");
+                    }
                     vibrateShort();
                 }
             }
