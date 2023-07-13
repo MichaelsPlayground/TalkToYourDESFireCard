@@ -25,6 +25,42 @@ import javax.crypto.spec.SecretKeySpec;
  * MIFARE DESFire Light contactless application IC MF2DLHX0.pdf
  */
 
+/**
+ * The following tables shows which commands are implemented in this class so far.
+ * Some commands depend of the file settings (e.g. read data from a Standard file can be done
+ * using Plain, MACed or Enciphered communication
+ *
+ *                                                              communication types
+ * active commands so far:                                   PLAIN  MACed  ENCIPHERED
+ * AUTHENTICATE_AES_EV2_FIRST_COMMAND = (byte) 0x71;          n.a.   n.a.     WORK
+ * AUTHENTICATE_AES_EV2_NON_FIRST_COMMAND = (byte) 0x77;      n.a.   n.a.     WORK
+ * GET_CARD_UID_COMMAND = (byte) 0x51;                        n.a.   n.a.     WORK
+ *
+ * CREATE_DATA_FILE_COMMAND = (byte) 0xxx;
+ * READ_DATA_COMMAND = (byte) 0xxx;
+ * WRITE_DATA_COMMAND = (byte) 0xxx;
+ *
+ * CREATE_VALUE_FILE_COMMAND = (byte) 0xxx;
+ * READ_VALUE_FILE_COMMAND = (byte) 0xxx;
+ * CREDIT_VALUE_FILE_COMMAND = (byte) 0xxx;
+ * DEBIT_VALUE_FILE_COMMAND = (byte) 0xxx;
+ *
+ * CREATE_RECORD_FILE_COMMAND = (byte) 0xxx;
+ * READ_RECORD_FILE_COMMAND = (byte) 0xxx;
+ * WRITE_RECORD_FILE_COMMAND = (byte) 0xxx;
+ *
+ * DELETE_FILE_COMMAND = (byte) 0xxx;
+ * GET_FILE_SETTINGS = (byte) 0xxx;
+ * GET_FILE_KEY_SETTINGS = (byte) 0xxx;
+ *
+ * CHANGE_KEY_COMMAND = (byte) 0xxx;
+ *
+ * GET_FREE_MEMORY_ON_CARD_COMMAND = (byte) 0xxx;
+ * FORMAT_PICC_COMMAND = (byte) 0xxx;
+ *
+ *
+ */
+
 public class DesfireAuthenticateEv2 {
 
     private static final String TAG = DesfireAuthenticateEv2.class.getName();

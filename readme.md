@@ -16,7 +16,20 @@ As the **Authentication** with a key is essentially for a successful transaction
 project. I copied all necessary code from the **NFCJLIB project** available here: https://github.com/andrade/nfcjlib which is provided 
 by **Daniel Andrade**, thanks a lot for his contribution. Please obey the LICENCE here: https://github.com/andrade/nfcjlib/blob/master/LICENSE.
 
+The only "official" informations on DESFire EVx can be found here: 
 
+Data sheet – MIFARE DESFire Light: https://www.nxp.com/docs/en/data-sheet/MF2DL_H_x0.pdf
+
+Application note – AN12343 MIFARE DESFire Light Features and Hints: https://www.nxp.com/docs/en/application-note/AN12343.pdf
+
+Leakage Resilient Primitive (LRP) Specification: https://www.nxp.com/docs/en/application-note/AN12304.pdf (test vectors)
+
+Type of messaging:
+- plain communication
+- MACed communication
+- fully enciphered communication using DES, TDES or AES keys
+- AES Secure Messaging
+- LRP Secure Messaging (Leakage Resilient Primitive)
 
 
 
