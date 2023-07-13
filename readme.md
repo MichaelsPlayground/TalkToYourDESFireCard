@@ -24,6 +24,12 @@ Application note – AN12343 MIFARE DESFire Light Features and Hints: https://ww
 
 Leakage Resilient Primitive (LRP) Specification: https://www.nxp.com/docs/en/application-note/AN12304.pdf (test vectors)
 
+Symmetric key diversifications: https://www.nxp.com/docs/en/application-note/AN10922.pdf
+
+System level security measures for MIFARE installations: https://www.nxp.com/docs/en/application-note/AN10969.pdf
+
+
+
 Type of messaging:
 - plain communication
 - MACed communication
