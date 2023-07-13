@@ -69,6 +69,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private FileSettings selectedFileSettings;
 
     /**
+     * section for EV2 authentication and communication
+     */
+
+    private Button authD1AEv2, getCardUidEv2;
+
+
+    /**
      * section for standard file handling
      */
 
@@ -88,6 +95,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private byte[] SESSION_KEY_AES; // filled in authenticate
     private byte[] SESSION_KEY_TDES; // filled in authenticate
     private byte[] IV; // gets updated on each new operation
+
+    // var used by EV2 auth
+    private byte[] SES_AUTH_ENC_KEY; // filled in by authenticateEv2
+    private byte[] SES_AUTH_MAC_KEY; // filled in by authenticateEv2
+    private byte[] TRANSACTION_IDENTIFIER; // filled in by authenticateEv2
+    private int CMD_COUNTER; // filled in by authenticateEv2, LSB encoded when in byte[
 
     /**
      * section for general
@@ -196,7 +209,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     DesfireAuthenticate desfireAuthenticate;
 
     // DesfireAuthenticationProximity is used for old DES d40 authenticate tasks. The constructor needs the isoDep object so it is initialized in 'onTagDiscovered'
-    DesfireAuthenticateProximity desfireAuthenticateProximity;
+    //DesfireAuthenticateProximity desfireAuthenticateProximity;
+    DesfireAuthenticateLegacy desfireAuthenticateLegacy;
+    DesfireAuthenticateEv2 desfireAuthenticateEv2;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -230,6 +245,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileSelected = findViewById(R.id.etSelectedFileId);
         rbFileFreeAccess = findViewById(R.id.rbFileAccessTypeFreeAccess);
         rbFileKeySecuredAccess = findViewById(R.id.rbFileAccessTypeKeySecuredAccess);
+
+        // section for EV2 auth & communication
+        authD1AEv2 = findViewById(R.id.btnAuthD1AEv2);
+        getCardUidEv2 = findViewById(R.id.btnGetCardUidEv2);
+
+
         // standard files
         fileStandardCreate = findViewById(R.id.btnCreateStandardFile);
         fileStandardRead = findViewById(R.id.btnReadStandardFile);
@@ -377,6 +398,62 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
             }
         });
+
+        /**
+         * section for EV2 authentication and communication
+         */
+
+        authD1AEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // authenticate with the read access key = 03...
+                clearOutputFields();
+                String logString = "EV2 First authenticate with DEFAULT AES key number 0x01 = read & write access key";
+                writeToUiAppend(output, logString);
+                if (selectedApplicationId == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
+                    return;
+                }
+
+                // run a self test
+                boolean getSesAuthKeyTestResult = desfireAuthenticateEv2.getSesAuthKeyTest();
+                writeToUiAppend(output, "getSesAuthKeyTestResult: " + getSesAuthKeyTestResult);
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_AES_DEFAULT);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    SES_AUTH_ENC_KEY = desfireAuthenticateEv2.getSesAuthENCKey();
+                    SES_AUTH_MAC_KEY = desfireAuthenticateEv2.getSesAuthMACKey();
+                    TRANSACTION_IDENTIFIER = desfireAuthenticateEv2.getTransactionIdentifier();
+                    CMD_COUNTER = desfireAuthenticateEv2.getCmdCounter();
+                    writeToUiAppend(output, printData("SES_AUTH_ENC_KEY", SES_AUTH_ENC_KEY));
+                    writeToUiAppend(output, printData("SES_AUTH_MAC_KEY", SES_AUTH_MAC_KEY));
+                    writeToUiAppend(output, printData("TRANSACTION_IDENTIFIER", TRANSACTION_IDENTIFIER));
+                    writeToUiAppend(output, "CMD_COUNTER: " + CMD_COUNTER);
+                    vibrateShort();
+                    // show logData
+                    //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        getCardUidEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "getCardUidEv2";
+                writeToUiAppend(output, logString);
+
+                byte[] cardUidReceived = desfireAuthenticateEv2.getCardUidEv2();
+                writeToUiAppend(output, printData("cardUidReceived", cardUidReceived));
+            }
+        });
+
+
 
         /**
          * section for files and standard files
@@ -642,18 +719,18 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte[] responseData = new byte[2];
                 // this is the authentication method from the NFCJLIB, working correctly
                 //boolean success = desfireAuthenticate.authenticateWithNfcjlibDes(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES_DEFAULT);
-                boolean success = desfireAuthenticateProximity.authenticateD40(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES_DEFAULT);
+                boolean success = desfireAuthenticateLegacy.authenticateD40(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES_DEFAULT);
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    SESSION_KEY_DES = desfireAuthenticateProximity.getSessionKey();
+                    SESSION_KEY_DES = desfireAuthenticateLegacy.getSessionKey();
                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
-                    showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
+                    showDialog(MainActivity.this, desfireAuthenticateLegacy.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
-                    writeToUiAppend(output, desfireAuthenticateProximity.getLogData());
+                    writeToUiAppend(output, desfireAuthenticateLegacy.getLogData());
                 }
             }
         });
@@ -673,18 +750,18 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte[] responseData = new byte[2];
                 // this is the authentication method from the NFCJLIB, working correctly
                 //boolean success = desfireAuthenticate.authenticateWithNfcjlibDes(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES_DEFAULT);
-                boolean success = desfireAuthenticateProximity.authenticateD40(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_DES_DEFAULT);
+                boolean success = desfireAuthenticateLegacy.authenticateD40(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_DES_DEFAULT);
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    SESSION_KEY_DES = desfireAuthenticateProximity.getSessionKey();
+                    SESSION_KEY_DES = desfireAuthenticateLegacy.getSessionKey();
                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
-                    showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
+                    showDialog(MainActivity.this, desfireAuthenticateLegacy.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
-                    writeToUiAppend(output, desfireAuthenticateProximity.getLogData());
+                    writeToUiAppend(output, desfireAuthenticateLegacy.getLogData());
                 }
             }
         });
@@ -821,16 +898,16 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 byte[] responseData = new byte[2];
 
-                boolean success = desfireAuthenticateProximity.authenticateAes(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_AES_DEFAULT);
+                boolean success = desfireAuthenticateLegacy.authenticateAes(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_AES_DEFAULT);
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    SESSION_KEY_AES = desfireAuthenticateProximity.getSessionKey();
+                    SESSION_KEY_AES = desfireAuthenticateLegacy.getSessionKey();
                     IV = new byte[16]; // after a successful authentication the  IV is resetted to 16 zero bytes
                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_AES));
                     vibrateShort();
                     // show logData
-                    showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
+                    showDialog(MainActivity.this, desfireAuthenticateLegacy.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                 }
@@ -853,15 +930,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 // this is the authentication method from the NFCJLIB, working correctly
                 //boolean success = desfireAuthenticate.authenticateWithNfcjlibDes(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_DES);
 
-                boolean success = desfireAuthenticateProximity.authenticateAes(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_AES_DEFAULT);
+                boolean success = desfireAuthenticateLegacy.authenticateAes(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_AES_DEFAULT);
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    SESSION_KEY_AES = desfireAuthenticateProximity.getSessionKey();
+                    SESSION_KEY_AES = desfireAuthenticateLegacy.getSessionKey();
                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_AES));
                     vibrateShort();
                     // show logData
-                    showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
+                    showDialog(MainActivity.this, desfireAuthenticateLegacy.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                 }
@@ -882,11 +959,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 byte[] responseData = new byte[2];
 
-                boolean success = desfireAuthenticateProximity.authenticateAesEv2First(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_AES_DEFAULT);
+                boolean success = desfireAuthenticateLegacy.authenticateAesEv2First(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_AES_DEFAULT);
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    SESSION_KEY_AES = desfireAuthenticateProximity.getSessionKey();
+                    SESSION_KEY_AES = desfireAuthenticateLegacy.getSessionKey();
                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_AES));
                     vibrateShort();
                     // show logData
@@ -910,7 +987,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
                 // check that a previous successfull authentication with EV2First was run
-                boolean ev2FirstSuccess = desfireAuthenticateProximity.isAuthenticateEv2FirstSuccess();
+                boolean ev2FirstSuccess = desfireAuthenticateLegacy.isAuthenticateEv2FirstSuccess();
                 if (!ev2FirstSuccess) {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to successfully run an 'authenticate EV2 First' before, aborted", COLOR_RED);
                     return;
@@ -918,7 +995,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 byte[] responseData = new byte[2];
 
-                boolean success = desfireAuthenticateProximity.authenticateAesEv2NonFirst(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_AES_DEFAULT);
+                boolean success = desfireAuthenticateLegacy.authenticateAesEv2NonFirst(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_AES_DEFAULT);
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
@@ -1093,7 +1170,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     // decrypt result is length: 16 data: 04597a32501490074400000000000000
                     // correct result is                  04597a32501490 (7 bytes)
                     byte[] encryptionKeyDes = SESSION_KEY_DES;
-                    byte[] encryptionKeyTDes = desfireAuthenticateProximity.getModifiedKey(encryptionKeyDes);
+                    byte[] encryptionKeyTDes = desfireAuthenticateLegacy.getModifiedKey(encryptionKeyDes);
 
                     writeToUiAppend(output, printData("encryptionKey DES", encryptionKeyDes));
                     writeToUiAppend(output, printData("encryptionKey TDES", encryptionKeyTDes));
@@ -2060,7 +2137,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 desfireAuthenticate = new DesfireAuthenticate(isoDep, true); // true means all data is logged
 
-                desfireAuthenticateProximity = new DesfireAuthenticateProximity(isoDep, true); // true means all data is logged
+                //desfireAuthenticateProximity = new DesfireAuthenticateProximity(isoDep, true); // true means all data is logged
+                desfireAuthenticateLegacy = new DesfireAuthenticateLegacy(isoDep, true); // true means all data is logged
+                desfireAuthenticateEv2 = new DesfireAuthenticateEv2(isoDep, true); // true means all data is logged
 
                 // setup the communication adapter
                 //adapter = new CommunicationAdapter(isoDep, true);
