@@ -723,7 +723,7 @@ public class DesfireAuthenticateEv2 {
 
     private byte[] truncateMAC(byte[] fullMAC) {
         String methodName = "truncateMAC";
-        log(methodName, printData(" fullMAC", fullMAC), true);
+        log(methodName, printData("fullMAC", fullMAC), true);
         if ((fullMAC == null) || (fullMAC.length < 2)) {
             log(methodName, "fullMAC is NULL or of wrong length, aborted");
             return null;
@@ -735,11 +735,9 @@ public class DesfireAuthenticateEv2 {
             truncatedMAC[truncatedMACPos] = fullMAC[i];
             truncatedMACPos ++;
         }
-        log(methodName, printData(" truncatedMAC", truncatedMAC));
+        log(methodName, printData("truncatedMAC", truncatedMAC));
         return truncatedMAC;
     }
-
-
 
     public boolean decryptDataTest() {
         /**
@@ -756,10 +754,11 @@ public class DesfireAuthenticateEv2 {
         byte[] padding = hexStringToByteArray("0000000000000000");
         byte[] ivInputResponse_expected = hexStringToByteArray("5AA5569D4B2401000000000000000000");
         byte[] IV_Response_expected = hexStringToByteArray("5A42ECB2111A9267FA5F2682523229AC");
-        byte[] x3 = hexStringToByteArray("");
-        byte[] x4 = hexStringToByteArray("");
-        byte[] x5 = hexStringToByteArray("");
-        byte[] x6 = hexStringToByteArray("");
+        byte[] DecryptedResponseData_expected = hexStringToByteArray("04DE5F1EACC040800000000000000000");
+        // DecryptedResponseData is cardUID 7 bytes || padding (starting with 80) 9 bytes
+        byte[] UID_expected = hexStringToByteArray("04DE5F1EACC040");
+        byte[] EncryptedResponseData = hexStringToByteArray("CDFFBF6D34231DA2789DA9D3AB15D560");
+        byte[] ResponseMACTruncated_expected = hexStringToByteArray("CE75E39EDBE94C2F");
 
         // build the IV_INPUT_RESPONSE
         // note: as this test starts after sending data to the card the commandCounter is increased by 1
@@ -789,9 +788,43 @@ public class DesfireAuthenticateEv2 {
             return false;
         }
 
-// todo run the test until the end
+        // Decrypting the Response Data with the SesAuthENCKeyTest
+        byte[] DecryptedResponseData = AES.decrypt(IV_Response, SesAuthENCKeyTest, EncryptedResponseData);
+        Log.d(TAG, printData("DecryptedResponseData         ", DecryptedResponseData));
+        Log.d(TAG, printData("DecryptedResponseData_expected", DecryptedResponseData_expected));
+        if (!Arrays.equals(DecryptedResponseData_expected, DecryptedResponseData)) {
+            Log.d(TAG, "DecryptedResponseData Test FAILURE, aborted");
+            return false;
+        }
+        // get the 7 bytes of card UID and skip the last 9 bytes padding
+        byte[] UID = Arrays.copyOfRange(DecryptedResponseData, 0, 7);
+        Log.d(TAG, printData("UID         ", UID));
+        Log.d(TAG, printData("UID_expected", UID_expected));
+        if (!Arrays.equals(UID_expected, UID)) {
+            Log.d(TAG, "UID Test FAILURE, aborted");
+            return false;
+        }
 
-return true;
+        // verify the responseMAC
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb, 0, commandCounterLsb.length);
+        responseMacBaos.write(TI, 0, TI.length);
+        responseMacBaos.write(EncryptedResponseData, 0, EncryptedResponseData.length);
+        byte[] macInput = responseMacBaos.toByteArray();
+        Log.d(TAG, printData("macInput", macInput));
+        byte[] ResponseMACCalculated = calculateDiverseKey(SesAuthMACKeyTest, macInput);
+        Log.d(TAG, printData("ResponseMACCalculated", ResponseMACCalculated));
+        byte[] ResponseMACTruncatedCalculated = truncateMAC(ResponseMACCalculated);
+        Log.d(TAG, printData("ResponseMACTruncatedCalculated", ResponseMACTruncatedCalculated));
+        Log.d(TAG, printData("ResponseMACTruncatedReceived  ", ResponseMACTruncated_expected));
+        if (!Arrays.equals(ResponseMACTruncated_expected, ResponseMACTruncatedCalculated)) {
+            Log.d(TAG, "ResponseMACTruncated FAILURE");
+            return false;
+        } else {
+            Log.d(TAG, "ResponseMACTruncated SUCCESS");
+            return true;
+        }
     }
 
 
