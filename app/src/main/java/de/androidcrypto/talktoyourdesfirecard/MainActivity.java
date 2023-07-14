@@ -73,6 +73,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     private Button authD1AEv2, getCardUidEv2;
+    private Button fileStandardCreateEv2, fileStandardWriteEv2, fileStandardReadEv2;
 
 
     /**
@@ -249,6 +250,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         // section for EV2 auth & communication
         authD1AEv2 = findViewById(R.id.btnAuthD1AEv2);
         getCardUidEv2 = findViewById(R.id.btnGetCardUidEv2);
+        fileStandardCreateEv2 = findViewById(R.id.btnCreateStandardFileEv2);
+        fileStandardReadEv2 = findViewById(R.id.btnReadStandardFileEv2);
+        fileStandardWriteEv2 = findViewById(R.id.btnWriteStandardFileEv2);
 
 
         // standard files
@@ -457,12 +461,86 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 // just for testing - test the decryptData
                 boolean decryptDataTestResult = desfireAuthenticateEv2.decryptDataTest();
                 writeToUiAppend(output, "decryptDataTestResult: " + decryptDataTestResult);
-
-
                 byte[] cardUidReceived = desfireAuthenticateEv2.getCardUidEv2();
                 writeToUiAppend(output, printData("cardUidReceived", cardUidReceived));
             }
         });
+
+        fileStandardCreateEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "create a new standard file EV2";
+                writeToUiAppend(output, logString);
+                writeToUiAppend(output, "Note: using a FIXED fileNumber 2 and fileSize of 32 for this method");
+                byte fileIdByte = (byte) 0x02; // fixed
+                int fileSizeInt = 32; // fixed
+                // check that an application was selected before
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                writeToUiAppend(output, logString + " with id: " + fileIdByte + " size: " + fileSizeInt);
+                byte[] responseData = new byte[2];
+                // create a Standard file with Encrypted communication
+                boolean success = desfireAuthenticateEv2.createStandardFileEv2(fileIdByte, fileSizeInt, true, true);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                //boolean success = createStandardFilePlainCommunicationDes(output, fileIdByte, fileSizeInt, rbFileFreeAccess.isChecked(), responseData);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        fileStandardReadEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "read from a standard file EV2";
+                writeToUiAppend(output, logString);
+                // todo skipped, using a fixed fileNumber
+                selectedFileId = "2";
+                fileSelected.setText(selectedFileId);
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                //byte fileIdByte = Byte.parseByte(selectedFileId);
+                byte fileIdByte = (byte) 0x02; // fixed
+
+                byte[] responseData = new byte[2];
+                //byte[] result = readFromAStandardFilePlainCommunicationDes(output, fileIdByte, selectedFileSize, responseData);
+                byte[] result = desfireAuthenticateEv2.readStandardFile(fileIdByte);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (result == null) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkResponseMoreData(responseData)) {
+                        writeToUiAppend(output, "the file is too long to read, sorry");
+                    }
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " ID: " + fileIdByte + printData(" data", result));
+                    writeToUiAppend(output, logString + " ID: " + fileIdByte + " data: " + new String(result, StandardCharsets.UTF_8));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }
+            }
+        });
+
 
 
 

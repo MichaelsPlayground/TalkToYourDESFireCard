@@ -5,6 +5,7 @@ import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
 
 import android.nfc.tech.IsoDep;
 import android.util.Log;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
@@ -85,6 +86,11 @@ public class DesfireAuthenticateEv2 {
     private final byte AUTHENTICATE_AES_EV2_FIRST_COMMAND = (byte) 0x71;
     private final byte AUTHENTICATE_AES_EV2_NON_FIRST_COMMAND = (byte) 0x77;
     private final byte GET_CARD_UID_COMMAND = (byte) 0x51;
+    private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
+    private final byte READ_STANDARD_FILE_COMMAND = (byte) 0xBD;
+    private final byte READ_STANDARD_FILE_SECURE_COMMAND = (byte) 0xAD;
+    private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
+    private final byte WRITE_STANDARD_FILE_SECURE_COMMAND = (byte) 0x8D;
 
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
@@ -95,28 +101,89 @@ public class DesfireAuthenticateEv2 {
     private final byte[] HEADER_ENC = new byte[]{(byte) (0x5A), (byte) (0xA5)}; // fixed to 0x5AA5
     private final byte[] HEADER_MAC = new byte[]{(byte) (0xA5), (byte) (0x5A)}; // fixed to 0x5AA5
 
+    private final byte FILE_COMMUNICATION_SETTINGS_PLAIN = (byte) 0x00; // plain communication
+    private final byte FILE_COMMUNICATION_SETTINGS_ENCIPHERED = (byte) 0x03; // enciphered communication
+    /**
+     * for explanations on File Communication Settings see M075031_desfire.pdf page 15:
+     * byte = 0: Plain communication
+     * byte = 1: Plain communication secured by DES/3DES/AES MACing
+     * byte = 3: Fully DES/3DES/AES enciphered communication
+     */
+
+    private final byte STANDARD_FILE_FREE_ACCESS_ID = (byte) 0x01; // file ID with free access
+    private final byte STANDARD_FILE_KEY_SECURED_ACCESS_ID = (byte) 0x02; // file ID with key secured access
+    // settings for key secured access depend on RadioButtons rbFileFreeAccess, rbFileKeySecuredAccess
+    // key 0 is the  Application Master Key
+    private final byte ACCESS_RIGHTS_RW_CAR_FREE = (byte) 0xEE; // Read&Write Access (free) & ChangeAccessRights (free)
+    private final byte ACCESS_RIGHTS_R_W_FREE = (byte) 0xEE; // Read Access (free) & Write Access (free)
+    private final byte ACCESS_RIGHTS_RW_CAR_SECURED = (byte) 0x12; // Read&Write Access (key 01) & ChangeAccessRights (key 02)
+    private final byte ACCESS_RIGHTS_R_W_SECURED = (byte) 0x34; // Read Access (key 03) & Write Access (key 04)
+
     public DesfireAuthenticateEv2(IsoDep isoDep, boolean printToLog) {
         this.isoDep = isoDep;
         this.printToLog = printToLog;
     }
 
-    public byte[] getCardUidEv2() {
-        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 15, 16, 17
+    public boolean createStandardFileEv2(byte fileNumber, int fileSize, boolean isStandardFile, boolean isEncrypted) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 83 - 85
+        // this is based on the creation of a TransactionMac file on a DESFire Light card
         String logData = "";
-        String methodName = "getCardUidEv2";
+        String methodName = "createStandardFileEv2";
         log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber + " fileSize: " + fileSize +
+                " isStandardFile: " + isStandardFile + " isEncrypted: " + isEncrypted);
         // sanity checks
-/*
-        if (!authenticateEv2FirstSuccess) {
-            if (!authenticateEv2NonFirstSuccess) {
-                Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-                System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-                return null;
-            }
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
         }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        // todo other sanity checks on values
 
- */
+        byte[] fileSizeArray = Utils.intTo3ByteArrayInversed(fileSize); // lsb order
+        byte[] paddingParameter = Utils.hexStringToByteArray("");
+        // generate the parameter
+        ByteArrayOutputStream baosParameter = new ByteArrayOutputStream();
+        baosParameter.write(CREATE_STANDARD_FILE_COMMAND);
+        baosParameter.write(fileNumber);
+        baosParameter.write(FILE_COMMUNICATION_SETTINGS_ENCIPHERED); // todo this should not be fixed
+        // the access rights depend on free access or not
+        /*
+        if (isFreeAccess) {
+            baos.write(ACCESS_RIGHTS_RW_CAR_FREE);
+            baos.write(ACCESS_RIGHTS_R_W_FREE);
+        } else {
+            baos.write(ACCESS_RIGHTS_RW_CAR_SECURED);
+            baos.write(ACCESS_RIGHTS_R_W_SECURED);
+        }*/
+        baosParameter.write(ACCESS_RIGHTS_RW_CAR_SECURED);
+        baosParameter.write(ACCESS_RIGHTS_R_W_SECURED);
+        baosParameter.write(fileSizeArray, 0, 3);
+        byte[] parameter = baosParameter.toByteArray();
+        Log.d(TAG, methodName + printData(" parameter", parameter));
 
+        //
+        // todo THIS IS NOT READY TO USE
+
+
+
+        return false;
+    }
+
+    public byte[] readStandardFile(byte fileNumber) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 57 + 58
+        // Cmd.ReadData in AES Secure Messaging using CommMode.Full
+        // this is based on the read of a data file on a DESFire Light card
+        String logData = "";
+        String methodName = "readStandardFileEv2";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
             Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
@@ -128,7 +195,192 @@ public class DesfireAuthenticateEv2 {
             return null;
         }
 
-        byte[] responseData = new byte[2];
+        // todo other sanity checks on values
+
+        // todo read the file settings to get e.g. the fileSize and communication mode
+
+        // Generating the MAC for the Command APDU
+
+        // CmdHeader (FileNo || Offset || DataLength)
+
+        // generate the parameter
+
+        // data in write example:
+        // 22222222222222222222222222222222222222222222222222 (25)
+
+        int fileSize = 32; // fixed
+        int offsetBytes = 0; // read from the beginning
+        byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
+        byte[] length = Utils.intTo3ByteArrayInversed(fileSize); // LSB order
+        ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
+        baosCmdHeader.write(fileNumber);
+        baosCmdHeader.write(offset, 0, 3);
+        baosCmdHeader.write(length, 0, 3);
+        byte[] cmdHeader = baosCmdHeader.toByteArray();
+        log(methodName, printData("cmdHeader", cmdHeader));
+        // example: 00000000300000
+        // MAC_Input
+        byte[] commandCounterLsb = intTo2ByteArrayInversed(CmdCounter);
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(READ_STANDARD_FILE_SECURE_COMMAND); // 0xAD
+        baosMacInput.write(commandCounterLsb, 0, commandCounterLsb.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+        // example: AD0100CD73D8E500000000300000
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, Utils.printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, Utils.printData("macTruncated", macTruncated));
+        // example: 7CF94F122B3DB05F
+
+        // Constructing the full ReadData Command APDU
+        ByteArrayOutputStream baosReadDataCommand = new ByteArrayOutputStream();
+        baosReadDataCommand.write(cmdHeader, 0, cmdHeader.length);
+        baosReadDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] readDataCommand = baosReadDataCommand.toByteArray();
+        log(methodName, Utils.printData("readDataCommand", readDataCommand));
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] fullEncryptedData;
+        byte[] encryptedData;
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(READ_STANDARD_FILE_SECURE_COMMAND, readDataCommand);
+            log(methodName, printData("apdu", apdu));
+            // example: 90AD00000F000000003000007CF94F122B3DB05F00 (21 bytes)
+            // example: 90AD0000 0F 00 000000 300000 7CF94F122B3DB05F 00 (21 bytes)
+            // my data: 90ad00000f020000002000007e23ca88e24b3e4100
+            // my data: 90ad0000 0f 02 000000 200000 7e23ca88e24b3e41 00
+
+
+
+            response = isoDep.transceive(apdu);
+            log(methodName, Utils.printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null ;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+            fullEncryptedData = Arrays.copyOf(response, response.length - 2);
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return null;
+        }
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter ++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
+
+        return null;
+    }
+
+    /*
+    private byte[] readFromAStandardFilePlainCommunicationDes(TextView logTextView, byte fileNumber, int fileSize, byte[] methodResponse) {
+        final String methodName = "createFilePlainCommunicationDes";
+        Log.d(TAG, methodName);
+        // sanity checks
+        if (logTextView == null) {
+            Log.e(TAG, methodName + " logTextView is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        if (fileNumber < 0) {
+            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        if (fileNumber > 14) {
+            Log.e(TAG, methodName + " fileNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        if ((fileSize < 1) || (fileSize > MAXIMUM_FILE_SIZE)) {
+            Log.e(TAG, methodName + " fileSize has to be in range 1.." + MAXIMUM_FILE_SIZE + " but found " + fileSize + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        // generate the parameter
+        int offsetBytes = 0; // read from the beginning
+        byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
+        byte[] length = Utils.intTo3ByteArrayInversed(fileSize); // LSB order
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(offset, 0, 3);
+        baos.write(length, 0, 3);
+        byte[] parameter = baos.toByteArray();
+        Log.d(TAG, methodName + printData(" parameter", parameter));
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(READ_STANDARD_FILE_COMMAND, parameter);
+            Log.d(TAG, methodName + printData(" apdu", apdu));
+            response = isoDep.transceive(apdu);
+            Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+
+            // now strip of the response bytes
+            // if the card responses more data than expected we truncate the data
+            int expectedResponse = fileSize - offsetBytes;
+            if (response.length == expectedResponse) {
+                return response;
+            } else if (response.length > expectedResponse) {
+                // more data is provided - truncated
+                return Arrays.copyOf(response, expectedResponse);
+            } else {
+                // less data is provided - we return as much as possible
+                return response;
+            }
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return null;
+        }
+    }
+     */
+
+    public byte[] getCardUidEv2() {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 15, 16, 17
+        String logData = "";
+        String methodName = "getCardUidEv2";
+        log(methodName, "started", true);
+        // sanity checks
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+
         // parameter
         byte[] cmdCounterLsb = intTo2ByteArrayInversed(CmdCounter);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -162,11 +414,11 @@ public class DesfireAuthenticateEv2 {
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, responseData, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return null ;
         }
         byte[] responseBytes = returnStatusBytes(response);
-        System.arraycopy(responseBytes, 0, responseData, 0, 2);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
             Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
             fullEncryptedData = Arrays.copyOf(response, response.length - 2);
@@ -219,9 +471,11 @@ public class DesfireAuthenticateEv2 {
         // compare the responseMAC's
         if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
             Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
             return cardUid;
         } else {
             Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
             return null;
         }
     }
