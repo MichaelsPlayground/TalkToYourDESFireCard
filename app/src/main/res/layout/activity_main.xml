@@ -466,7 +466,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="Rd Stand 2" />
+                        android:text="Rd Stand 3" />
 
                 </LinearLayout>
 
@@ -481,7 +481,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
-                        android:text="Cr Stand 2" />
+                        android:text="Cr Stand 3" />
 
                     <Button
                         android:id="@+id/btnWriteStandardFileEv2"
@@ -489,7 +489,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="Wr Stand 2" />
+                        android:text="Wr Stand 3" />
 
                     <Button
                         android:id="@+id/btnxxEv2"

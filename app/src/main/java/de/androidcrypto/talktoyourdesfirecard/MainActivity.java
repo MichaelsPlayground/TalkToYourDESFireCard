@@ -505,7 +505,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 String logString = "read from a standard file EV2";
                 writeToUiAppend(output, logString);
                 // todo skipped, using a fixed fileNumber
-                selectedFileId = "2";
+                selectedFileId = "3";
                 fileSelected.setText(selectedFileId);
 
                 // check that a file was selected before
@@ -515,7 +515,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
                 //byte fileIdByte = Byte.parseByte(selectedFileId);
-                byte fileIdByte = (byte) 0x02; // fixed
+
+                // just for testing - test the macOverCommand value
+                boolean readDataFullPart1TestResult = desfireAuthenticateEv2.readDataFullPart1Test();
+                writeToUiAppend(output, "readDataFullPart1TestResult: " + readDataFullPart1TestResult);
+
+
+                byte fileIdByte = (byte) 0x03; // fixed
 
                 byte[] responseData = new byte[2];
                 //byte[] result = readFromAStandardFilePlainCommunicationDes(output, fileIdByte, selectedFileSize, responseData);
@@ -538,9 +544,67 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     vibrateShort();
                 }
+
+
             }
         });
 
+        fileStandardWriteEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "write to a standard file EV2";
+                writeToUiAppend(output, logString);
+
+                // todo skipped, using a fixed fileNumber
+                selectedFileId = "3";
+                fileSelected.setText(selectedFileId);
+                int SELECTED_FILE_SIZE_FIXED = 32;
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                String dataToWrite = fileStandardData.getText().toString();
+                dataToWrite = "123 some data";
+
+                if (TextUtils.isEmpty(dataToWrite)) {
+                    //writeToUiAppend(errorCode, "please enter some data to write");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "please enter some data to write", COLOR_RED);
+                    return;
+                }
+
+                // just for testing - test the macOverCommand value
+                boolean writeDataFullPart1TestResult = desfireAuthenticateEv2.writeDataFullPart1Test();
+                writeToUiAppend(output, "writeDataFullPart1TestResult: " + writeDataFullPart1TestResult);
+
+                byte[] dataToWriteBytes = dataToWrite.getBytes(StandardCharsets.UTF_8);
+                // create an empty array and copy the dataToWrite to clear the complete standard file
+                //byte[] fullDataToWrite = new byte[selectedFileSize];
+                byte[] fullDataToWrite = new byte[SELECTED_FILE_SIZE_FIXED];
+                System.arraycopy(dataToWriteBytes, 0, fullDataToWrite, 0, dataToWriteBytes.length);
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                byte[] responseData = new byte[2];
+                //boolean success = writeToAStandardFilePlainCommunicationDes(output, fileIdByte, fullDataToWrite, responseData);
+                boolean success = desfireAuthenticateEv2.writeStandardFile(fileIdByte, fullDataToWrite);
+                //boolean success = false;
+                responseData = desfireAuthenticateEv2.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
 
 
 
