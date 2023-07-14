@@ -448,6 +448,17 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 String logString = "getCardUidEv2";
                 writeToUiAppend(output, logString);
 
+                // just for testing - test the macOverCommand value
+                boolean macOverCommandTestResult = desfireAuthenticateEv2.macOverCommandTest();
+                writeToUiAppend(output, "macOverCommandTestResult: " + macOverCommandTestResult);
+                // just for testing - test the truncateMAC
+                boolean truncateMACTestResult = desfireAuthenticateEv2.truncateMACTest();
+                writeToUiAppend(output, "truncateMACTestResult: " + truncateMACTestResult);
+                // just for testing - test the decryptData
+                boolean decryptDataTestResult = desfireAuthenticateEv2.decryptDataTest();
+                writeToUiAppend(output, "decryptDataTestResult: " + decryptDataTestResult);
+
+
                 byte[] cardUidReceived = desfireAuthenticateEv2.getCardUidEv2();
                 writeToUiAppend(output, printData("cardUidReceived", cardUidReceived));
             }
