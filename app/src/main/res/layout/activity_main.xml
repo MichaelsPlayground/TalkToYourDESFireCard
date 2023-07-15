@@ -507,6 +507,37 @@
                     android:orientation="horizontal">
 
                     <Button
+                        android:id="@+id/btnCreditValueFileEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:text="Credit" />
+
+                    <Button
+                        android:id="@+id/btnDebitValueFileEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="Debit" />
+
+                    <Button
+                        android:id="@+id/btnReadValueFileEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="Read" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <Button
                         android:id="@+id/btnCreateRecordFileEv2"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"

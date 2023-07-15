@@ -74,6 +74,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private Button authD1AEv2, getCardUidEv2, getFileSettingsEv2;
     private Button fileStandardCreateEv2, fileStandardWriteEv2, fileStandardReadEv2;
+    private Button fileValueCreditEv2, fileValueDebitEv2, fileValueReadEv2;
 
     private Button fileRecordCreateEv2, fileRecordWriteEv2, fileRecordReadEv2;
     private Button fileCreateEv2;
@@ -273,6 +274,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileStandardCreateEv2 = findViewById(R.id.btnCreateStandardFileEv2);
         fileStandardReadEv2 = findViewById(R.id.btnReadStandardFileEv2);
         fileStandardWriteEv2 = findViewById(R.id.btnWriteStandardFileEv2);
+
+        fileValueCreditEv2 = findViewById(R.id.btnCreditValueFileEv2);
+        fileValueDebitEv2 = findViewById(R.id.btnDebitValueFileEv2);
+        fileValueReadEv2 = findViewById(R.id.btnReadValueFileEv2);
 
         fileRecordCreateEv2 = findViewById(R.id.btnCreateRecordFileEv2);
         fileRecordReadEv2 = findViewById(R.id.btnReadRecordFileEv2);
@@ -713,6 +718,19 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
             }
         });
+
+        /**
+         * section for value files
+         */
+
+
+        fileValueCreditEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
+            }
+        });
+
 
         /**
         * section for record files
