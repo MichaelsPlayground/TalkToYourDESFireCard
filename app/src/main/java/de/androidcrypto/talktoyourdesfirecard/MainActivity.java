@@ -76,6 +76,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button fileStandardCreateEv2, fileStandardWriteEv2, fileStandardReadEv2;
 
     private Button fileRecordCreateEv2, fileRecordWriteEv2, fileRecordReadEv2;
+    private Button fileCreateEv2;
 
 
     private Button fileTransactionMacCreateEv2, fileTransactionMacDeleteEv2;
@@ -266,6 +267,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         authD1AEv2 = findViewById(R.id.btnAuthD1AEv2);
         getCardUidEv2 = findViewById(R.id.btnGetCardUidEv2);
         getFileSettingsEv2 = findViewById(R.id.btnGetFileSettingsEv2);
+
+        fileCreateEv2 = findViewById(R.id.btnCreateFilesEv2);
+
         fileStandardCreateEv2 = findViewById(R.id.btnCreateStandardFileEv2);
         fileStandardReadEv2 = findViewById(R.id.btnReadStandardFileEv2);
         fileStandardWriteEv2 = findViewById(R.id.btnWriteStandardFileEv2);
@@ -529,6 +533,41 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        fileCreateEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "create a set of files EV2";
+                writeToUiAppend(output, logString);
+                writeToUiAppend(output, "Note: using a FIXED fileNumber 2 and fileSize of 32 for this method");
+
+                int fileSizeInt = 32; // fixed
+                // check that an application was selected before
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+
+                byte fileIdByte = (byte) 0x08; // fixed for Value file encrypted
+
+                writeToUiAppend(output, logString + " with id: " + fileIdByte);
+                byte[] responseData = new byte[2];
+                // create a Standard file with Encrypted communication
+                boolean success = desfireAuthenticateEv2.createAFile(fileIdByte, DesfireAuthenticateEv2.DesfireFileType.Value, DesfireAuthenticateEv2.CommunicationSettings.Encrypted);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                //boolean success = createStandardFilePlainCommunicationDes(output, fileIdByte, fileSizeInt, rbFileFreeAccess.isChecked(), responseData);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
 
 
         /**
@@ -594,7 +633,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 byte[] responseData = new byte[2];
                 //byte[] result = readFromAStandardFilePlainCommunicationDes(output, fileIdByte, selectedFileSize, responseData);
-                byte[] result = desfireAuthenticateEv2.readStandardFile(fileIdByte);
+                byte[] result = desfireAuthenticateEv2.readStandardFileEv2(fileIdByte);
                 responseData = desfireAuthenticateEv2.getErrorCode();
                 if (result == null) {
                     // something gone wrong
@@ -657,7 +696,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte fileIdByte = Byte.parseByte(selectedFileId);
                 byte[] responseData = new byte[2];
                 //boolean success = writeToAStandardFilePlainCommunicationDes(output, fileIdByte, fullDataToWrite, responseData);
-                boolean success = desfireAuthenticateEv2.writeStandardFile(fileIdByte, fullDataToWrite);
+                boolean success = desfireAuthenticateEv2.writeStandardFileEv2(fileIdByte, fullDataToWrite);
                 //boolean success = false;
                 responseData = desfireAuthenticateEv2.getErrorCode();
 
@@ -731,7 +770,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 byte fileIdByte = Byte.parseByte(selectedFileId);
                 byte[] responseData = new byte[2];
-                boolean success = desfireAuthenticateEv2.writeRecordFile(fileIdByte, fullDataToWrite);
+                boolean success = desfireAuthenticateEv2.writeRecordFileEv2(fileIdByte, fullDataToWrite);
                 //boolean success = false;
                 responseData = desfireAuthenticateEv2.getErrorCode();
 
@@ -748,7 +787,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return; // don't submit a commit
                 }
 
-                boolean successCommit = desfireAuthenticateEv2.commitTransaction();
+                boolean successCommit = desfireAuthenticateEv2.commitTransactionEv2();
                 responseData = desfireAuthenticateEv2.getErrorCode();
                 writeToUiAppend(output, "commitSuccess: " + successCommit);
                 if (!successCommit) {
@@ -787,7 +826,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 byte[] responseData = new byte[2];
                 //byte[] result = readFromAStandardFilePlainCommunicationDes(output, fileIdByte, selectedFileSize, responseData);
-                byte[] result = desfireAuthenticateEv2.readRecordFile(fileIdByte);
+                byte[] result = desfireAuthenticateEv2.readRecordFileEv2(fileIdByte);
                 responseData = desfireAuthenticateEv2.getErrorCode();
                 if (result == null) {
                     // something gone wrong

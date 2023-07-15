@@ -2,6 +2,8 @@ package de.androidcrypto.talktoyourdesfirecard;
 
 import android.os.Build;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.text.SimpleDateFormat;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -185,6 +187,11 @@ public class Utils {
                 (byte) (value >>> 16),
                 (byte) (value >>> 8),
                 (byte) value};
+    }
+
+    // Little Endian = LSB order
+    public static byte[] intTo4ByteArrayInversed(int myInteger){
+        return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(myInteger).array();
     }
 
     // packing an array of 4 bytes to an int, big endian, minimal parentheses

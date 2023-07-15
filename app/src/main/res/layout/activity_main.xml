@@ -554,12 +554,12 @@
                         android:text="Del TMAC" />
 
                     <Button
-                        android:id="@+id/btnx2Ev2"
+                        android:id="@+id/btnCreateFilesEv2"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="xx" />
+                        android:text="Cr Files" />
 
                 </LinearLayout>
 

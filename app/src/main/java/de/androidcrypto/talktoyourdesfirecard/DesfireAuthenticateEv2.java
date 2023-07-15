@@ -1,5 +1,6 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
+import static de.androidcrypto.talktoyourdesfirecard.Utils.byteToHex;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
 
 import android.nfc.tech.IsoDep;
@@ -90,6 +91,8 @@ public class DesfireAuthenticateEv2 {
     private final byte READ_STANDARD_FILE_SECURE_COMMAND = (byte) 0xAD;
     private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
     private final byte WRITE_STANDARD_FILE_SECURE_COMMAND = (byte) 0x8D;
+    private final byte CREATE_VALUE_FILE_SECURE_COMMAND = (byte) 0xCC;
+
 
     private static final byte READ_RECORD_FILE_SECURE_COMMAND = (byte) 0xAB;
     private static final byte WRITE_RECORD_FILE_SECURE_COMMAND = (byte) 0x8B;
@@ -133,6 +136,18 @@ public class DesfireAuthenticateEv2 {
 
     private final byte[] IV_LABEL_ENC = new byte[]{(byte) 0xA5, (byte) 0x5A}; // use as header for AES encryption
     private final byte[] IV_LABEL_DEC = new byte[]{(byte) 0x5A, (byte) 0xA5}; // use as header for AES decryption
+
+    // predefined file numbers
+    private final byte STANDARD_FILE_PLAIN_NUMBER = (byte) 0x00;
+    private final byte STANDARD_FILE_MACED_NUMBER = (byte) 0x01;
+    private final byte STANDARD_FILE_ENCRYPTED_NUMBER = (byte) 0x02;
+    // backup 03, 04, 05
+    // value files 06, 07, 08
+    private final byte VALUE_FILE_ENCRYPTED_NUMBER = (byte) 0x0C; // 12
+
+    private final byte CYCLIC_RECORD_FILE_ENCRYPTED_NUMBER = (byte) 0x05;
+
+
 
     private final byte[] PADDING_FULL = hexStringToByteArray("80000000000000000000000000000000");
 
@@ -203,7 +218,7 @@ public class DesfireAuthenticateEv2 {
         return false;
     }
 
-    public boolean writeStandardFile(byte fileNumber, byte[] dataToWrite) {
+    public boolean writeStandardFileEv2(byte fileNumber, byte[] dataToWrite) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 55 - 58
         // Cmd.WriteData in AES Secure Messaging using CommMode.Full
         // this is based on the write to a data file on a DESFire Light card
@@ -404,7 +419,7 @@ public class DesfireAuthenticateEv2 {
     }
 
 
-    public byte[] readStandardFile(byte fileNumber) {
+    public byte[] readStandardFileEv2(byte fileNumber) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 55 - 58
         // Cmd.ReadData in AES Secure Messaging using CommMode.Full
         // this is based on the read of a data file on a DESFire Light card
@@ -569,7 +584,7 @@ public class DesfireAuthenticateEv2 {
      * section for record files
      */
 
-    public boolean writeRecordFile(byte fileNumber, byte[] dataToWrite) {
+    public boolean writeRecordFileEv2(byte fileNumber, byte[] dataToWrite) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 61 - 65
         // Cmd.WriteRecord in AES Secure Messaging using CommMode.Full
         // this is based on the write to a data file on a DESFire Light card
@@ -761,7 +776,7 @@ public class DesfireAuthenticateEv2 {
         }
     }
 
-    public byte[] readRecordFile(byte fileNumber) {
+    public byte[] readRecordFileEv2(byte fileNumber) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 65 - 67
         // Cmd.ReadRecords in AES Secure Messaging using CommMode.Full
         // this is based on the read of a record file on a DESFire Light card
@@ -929,7 +944,7 @@ public class DesfireAuthenticateEv2 {
      * section for commit
      */
 
-    public boolean commitTransaction() {
+    public boolean commitTransactionEv2() {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 61 - 65
         // Cmd.Commit in AES Secure Messaging using CommMode.MAC (see page 49)
         // this is based on the write of a record file on a DESFire Light card
@@ -1848,19 +1863,105 @@ public class DesfireAuthenticateEv2 {
          * CommunicationSettings
          * Plain:      the communication is in Plain *1)
          * MACed:      the communication for reading and writing of data is secured by a (AES-based) CMAC
-         * Enciphered: the communication for reading and writing of data is AES encrypted and
+         * Enciphered: the communication for reading and writing of data is AES-128 encrypted and
          *             additionally secured by a (AES-based) CMAC
          *
          * *1) Note when the file access is authenticated using AES Secure Messaging (initiated by using
          *     the AuthenticateEV2First or AuthenticateEV2NonFirst the communication is secured by a MAC
          *
+         * Access conditions:
+         * The file has 5 keys in use:
+         * Right for            key number
+         * Read & Write access    1
+         * Change access keys     2
+         * Read access            3
+         * Write access           4
+         * Application Master key 0
          */
 
+        byte commSettings;
+        if (communicationSettings == CommunicationSettings.Plain) {
+            commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+            Log.d(TAG, "the communicationSettings are PLAIN");
+        } else if (communicationSettings == CommunicationSettings.MACed) {
+            commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
+            Log.d(TAG, "the communicationSettings are MACed");
+        } else if (communicationSettings == CommunicationSettings.Encrypted) {
+            commSettings = FILE_COMMUNICATION_SETTINGS_ENCIPHERED;
+            Log.d(TAG, "the communicationSettings are ENCIPHERED");
+        } else {
+            // should never happen
+            Log.d(TAG, "wrong communicationSettings, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
 
-
-
-        return false;
+        // this is rough code for predefined files
+        ByteArrayOutputStream parameter = new ByteArrayOutputStream();
+        byte[] createFileParameter = new byte[0];
+        byte createFileCommand = -1;
+        if (fileType == DesfireFileType.Value) {
+            Log.d(TAG, "create a value file with default parameter");
+            // some default values
+            int lowerLimitInt = 0;
+            int upperLimitInt = 10000;
+            int initialValueInt = 0;
+            byte[] lowerLimit = Utils.intTo4ByteArrayInversed(lowerLimitInt);
+            byte[] upperLimit = Utils.intTo4ByteArrayInversed(upperLimitInt);
+            byte[] initialValue = Utils.intTo4ByteArrayInversed(initialValueInt);
+            byte limitedCreditOperationEnabledByte = (byte) 0x00; // 00 means not enabled feature
+            // build the parameter
+            parameter.write(fileNumber);
+            parameter.write(commSettings);
+            parameter.write(ACCESS_RIGHTS_RW_CAR_SECURED);
+            parameter.write(ACCESS_RIGHTS_R_W_SECURED);
+            parameter.write(lowerLimit, 0, lowerLimit.length);
+            parameter.write(upperLimit, 0, upperLimit.length);
+            parameter.write(initialValue, 0, initialValue.length);
+            parameter.write(limitedCreditOperationEnabledByte);
+            createFileParameter = parameter.toByteArray();
+            createFileCommand = CREATE_VALUE_FILE_SECURE_COMMAND;
+        }
+        Log.d(TAG, "createFileCommand: " + byteToHex(createFileCommand) + printData(" parameter", createFileParameter));
+        byte[] response;
+        try {
+            byte[] apdu = wrapMessage(createFileCommand, createFileParameter);
+            Log.d(TAG, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            Log.d(TAG, printData("response", response));
+        } catch (IOException e) {
+            Log.e(TAG, "IOException " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        // we are expecting that the status code is 0x00 means the exchange was OK
+        if (checkResponse(responseBytes)) {
+            Log.d(TAG, "file creation SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, "file creation FAILURE");
+            return false;
+        }
     }
+
+    private boolean createFileSetPlain() {
+        // creates 5 files with communication settings PLAIN
+
+        return true;
+    }
+
+    private boolean createFileSetEncrypted() {
+        // creates 5 files with communication settings ENCRYPTED
+        boolean createStandardFile = createAFile(STANDARD_FILE_ENCRYPTED_NUMBER, DesfireFileType.Standard, CommunicationSettings.Encrypted);
+        boolean createBackupFile;
+        boolean createValueFile = createAFile(VALUE_FILE_ENCRYPTED_NUMBER, DesfireFileType.Value, CommunicationSettings.Encrypted);
+        boolean createLinearRecordFile;
+        boolean createCyclicRecordFile;
+        return true;
+    }
+
 
     /**
      * authenticateAesEv2NonFirst uses the EV2NonFirst authentication method with command 0x77
