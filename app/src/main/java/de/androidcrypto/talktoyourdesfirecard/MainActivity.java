@@ -72,13 +72,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for EV2 authentication and communication
      */
 
-    private Button authD1AEv2, getCardUidEv2;
+    private Button authD1AEv2, getCardUidEv2, getFileSettingsEv2;
     private Button fileStandardCreateEv2, fileStandardWriteEv2, fileStandardReadEv2;
 
     private Button fileRecordCreateEv2, fileRecordWriteEv2, fileRecordReadEv2;
 
 
-    private Button fileTransactionMacCreateEv2;
+    private Button fileTransactionMacCreateEv2, fileTransactionMacDeleteEv2;
 
     /**
      * section for standard file handling
@@ -149,6 +149,14 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private int MAXIMUM_FILE_SIZE = 32; // do not increase this value to avoid framing !
 
     /**
+     * section for predefined EV2 authentication file numbers
+     */
+
+    private final byte STANDARD_FILE_ENCRYPTED_NUMBER = (byte) 0x03;
+    private final byte CYCLIC_RECORD_FILE_ENCRYPTED_NUMBER = (byte) 0x05;
+    private final byte TRANSACTION_MAC_FILE_NUMBER = (byte) 0x0F;
+
+    /**
      * section for application keys
      */
 
@@ -173,7 +181,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     // see Mifare DESFire Light Features and Hints AN12343.pdf, page 83-84
     private final byte[] TRANSACTION_MAC_KEY_AES = Utils.hexStringToByteArray("F7D23E0C44AFADE542BFDF2DC5C6AE02"); // taken from Mifare DESFire Light Features and Hints AN12343.pdf, pages 83-84
-    private final byte TRANSACTION_MAC_FILE_NUMBER = (byte) 0x0F;
 
     /**
      * section for commands and responses
@@ -258,6 +265,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         // section for EV2 auth & communication
         authD1AEv2 = findViewById(R.id.btnAuthD1AEv2);
         getCardUidEv2 = findViewById(R.id.btnGetCardUidEv2);
+        getFileSettingsEv2 = findViewById(R.id.btnGetFileSettingsEv2);
         fileStandardCreateEv2 = findViewById(R.id.btnCreateStandardFileEv2);
         fileStandardReadEv2 = findViewById(R.id.btnReadStandardFileEv2);
         fileStandardWriteEv2 = findViewById(R.id.btnWriteStandardFileEv2);
@@ -268,6 +276,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         
         
         fileTransactionMacCreateEv2 = findViewById(R.id.btnCreateTransactionMacFileEv2);
+        fileTransactionMacDeleteEv2 = findViewById(R.id.btnDeleteTransactionMacFileEv2);
 
         // standard files
         fileStandardCreate = findViewById(R.id.btnCreateStandardFile);
@@ -480,6 +489,52 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        getFileSettingsEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "getFileSettingsEv2";
+                writeToUiAppend(output, logString);
+                writeToUiAppend(output, "Reading the file settings for predefined files");
+
+
+                // just for testing - test the macOverCommand value
+                //boolean macOverCommandTestResult = desfireAuthenticateEv2.macOverCommandTest();
+                //writeToUiAppend(output, "macOverCommandTestResult: " + macOverCommandTestResult);
+                // just for testing - test the truncateMAC
+                //boolean truncateMACTestResult = desfireAuthenticateEv2.truncateMACTest();
+                //writeToUiAppend(output, "truncateMACTestResult: " + truncateMACTestResult);
+                // just for testing - test the decryptData
+                //boolean decryptDataTestResult = desfireAuthenticateEv2.decryptDataTest();
+                //writeToUiAppend(output, "decryptDataTestResult: " + decryptDataTestResult);
+
+
+                byte fileNumberByte = STANDARD_FILE_ENCRYPTED_NUMBER;
+                byte[] fileSettingsReceived = desfireAuthenticateEv2.getFileSettingsEv2(fileNumberByte);
+                if (fileSettingsReceived != null) {
+                    FileSettings fileSettingsStandardEncryptedFile = new FileSettings(fileNumberByte, fileSettingsReceived);
+                    writeToUiAppend(output, "read file settings:\n" + fileSettingsStandardEncryptedFile.dump());
+                } else {
+                    writeToUiAppend(output, "no file settings available (file not existed ?) for fileId: " + fileNumberByte);
+                }
+
+                fileNumberByte = CYCLIC_RECORD_FILE_ENCRYPTED_NUMBER;
+                fileSettingsReceived = desfireAuthenticateEv2.getFileSettingsEv2(fileNumberByte);
+                if (fileSettingsReceived != null) {
+                    FileSettings fileSettingsCyclicRecordEncryptedFile = new FileSettings(fileNumberByte, fileSettingsReceived);
+                    writeToUiAppend(output, "read file settings:\n" + fileSettingsCyclicRecordEncryptedFile.dump());
+                } else {
+                    writeToUiAppend(output, "no file settings available (file not existed ?) for fileId: " + fileNumberByte);
+                }
+            }
+        });
+
+
+
+        /**
+         * section for Standard files
+         */
+
         fileStandardCreateEv2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -690,14 +745,19 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
                     }
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
-                    return;
+                    return; // don't submit a commit
                 }
 
-                // todo now we need to submit the write
-
-
-
-
+                boolean successCommit = desfireAuthenticateEv2.commitTransaction();
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                writeToUiAppend(output, "commitSuccess: " + successCommit);
+                if (!successCommit) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit NOT Success, aborted", COLOR_RED);
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Did you forget to authenticate with a WRITE ACCESS Key first ?");
+                    return;
+                }
+                writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
             }
         });
 
@@ -776,6 +836,39 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte[] responseData = new byte[2];
                 // create a Standard file with Encrypted communication
                 boolean success = desfireAuthenticateEv2.createTransactionMacFileEv2(TRANSACTION_MAC_FILE_NUMBER, TRANSACTION_MAC_KEY_AES);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                //boolean success = createStandardFilePlainCommunicationDes(output, fileIdByte, fileSizeInt, rbFileFreeAccess.isChecked(), responseData);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        fileTransactionMacDeleteEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
+                // status WORKING
+
+                clearOutputFields();
+                String logString = "delete a Transaction MAC file EV2";
+                writeToUiAppend(output, logString);
+                writeToUiAppend(output, "Note: using a FIXED fileNumber 15 for this method");
+                // check that an application was selected before
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                writeToUiAppend(output, logString + " with id: " + TRANSACTION_MAC_FILE_NUMBER);
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.deleteTransactionMacFileEv2(TRANSACTION_MAC_FILE_NUMBER);
                 responseData = desfireAuthenticateEv2.getErrorCode();
                 //boolean success = createStandardFilePlainCommunicationDes(output, fileIdByte, fileSizeInt, rbFileFreeAccess.isChecked(), responseData);
                 if (success) {

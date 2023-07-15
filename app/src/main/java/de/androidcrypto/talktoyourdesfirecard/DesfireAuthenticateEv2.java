@@ -84,6 +84,7 @@ public class DesfireAuthenticateEv2 {
     private final byte AUTHENTICATE_AES_EV2_FIRST_COMMAND = (byte) 0x71;
     private final byte AUTHENTICATE_AES_EV2_NON_FIRST_COMMAND = (byte) 0x77;
     private final byte GET_CARD_UID_COMMAND = (byte) 0x51;
+    private final byte GET_FILE_SETTINGS_COMMAND = (byte) 0xF5;
     private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
     private final byte READ_STANDARD_FILE_COMMAND = (byte) 0xBD;
     private final byte READ_STANDARD_FILE_SECURE_COMMAND = (byte) 0xAD;
@@ -93,7 +94,10 @@ public class DesfireAuthenticateEv2 {
     private static final byte READ_RECORD_FILE_SECURE_COMMAND = (byte) 0xAB;
     private static final byte WRITE_RECORD_FILE_SECURE_COMMAND = (byte) 0x8B;
 
+    private static final byte COMMIT_TRANSACTION_SECURE_COMMAND = (byte) 0xC7;
+
     private final byte CREATE_TRANSACTION_MAC_FILE_COMMAND = (byte) 0xCE;
+    private final byte DELETE_TRANSACTION_MAC_FILE_COMMAND = (byte) 0xDF;
 
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
@@ -132,6 +136,13 @@ public class DesfireAuthenticateEv2 {
 
     private final byte[] PADDING_FULL = hexStringToByteArray("80000000000000000000000000000000");
 
+    public enum CommunicationSettings {
+        Plain, MACed, Encrypted
+    }
+
+    public enum DesfireFileType {
+        Standard, Backup, Value, LinearRecord, CyclicRecord
+    }
 
 
     public DesfireAuthenticateEv2(IsoDep isoDep, boolean printToLog) {
@@ -914,7 +925,139 @@ public class DesfireAuthenticateEv2 {
         }
     }
 
+    /**
+     * section for commit
+     */
 
+    public boolean commitTransaction() {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 61 - 65
+        // Cmd.Commit in AES Secure Messaging using CommMode.MAC (see page 49)
+        // this is based on the write of a record file on a DESFire Light card
+        // additionally see MIFARE DESFire Light contactless application IC MF2DLHX0.pdf pages 107 - 107
+
+        // status WORKING
+
+        String logData = "";
+        String methodName = "commitTransactionEv2";
+        log(methodName, "started", true);
+        // sanity checks
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        // here we are using just the commit command without preceding  commitReadId command
+        // Constructing the full CommitTransaction Command APDU
+        byte COMMIT_TRANSACTION_OPTON = (byte) 0x00; // 01 meaning TMC and TMV to be returned in the R-APDU
+        byte[] startingIv = new byte[16];
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader (=Option) )
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(COMMIT_TRANSACTION_SECURE_COMMAND); // 0xC7
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(COMMIT_TRANSACTION_OPTON);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // construction the commitTransactionData
+        ByteArrayOutputStream baosCommitTransactionCommand = new ByteArrayOutputStream();
+        baosCommitTransactionCommand.write(COMMIT_TRANSACTION_OPTON);
+        baosCommitTransactionCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] commitTransactionCommand = baosCommitTransactionCommand.toByteArray();
+        log(methodName, printData("commitTransactionCommand", commitTransactionCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] fullResponseData;
+        try {
+            apdu = wrapMessage(COMMIT_TRANSACTION_SECURE_COMMAND, commitTransactionCommand);
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+            fullResponseData = Arrays.copyOf(response, response.length - 2);
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
+        // the full response depends on an enabled TransactionMAC file option:
+        // TransactionMAC counter || TransactionMAC value || response MAC
+        // if not enabled just the response MAC is returned
+
+        // this does NOT work when a TransactionMAC file is present:
+        // commitTransactionEv2 error code: 9D Permission denied error
+
+        log(methodName, printData("fullResponseData", fullResponseData));
+        byte[] responseMACTruncatedReceived = new byte[8];
+        byte[] responseTmcv = new byte[0];
+        int fullResponseDataLength = fullResponseData.length;
+        if (fullResponseDataLength > 8) {
+            log(methodName, "the fullResponseData has a length of " + fullResponseDataLength + " bytes, so the TMC and TMV are included");
+            responseTmcv = Arrays.copyOfRange(fullResponseData, 0, (fullResponseDataLength - 8));
+            responseMACTruncatedReceived = Arrays.copyOfRange(fullResponseData, (fullResponseDataLength - 8), fullResponseDataLength);
+            log(methodName, printData("responseTmcv", responseTmcv));
+        } else {
+            responseMACTruncatedReceived = fullResponseData.clone();
+        }
+
+        // verifying the received MAC
+        // MAC_Input (RC || CmdCounter || TI || Response Data)
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        responseMacBaos.write(responseTmcv, 0, responseTmcv.length);
+        byte[] macInput2 = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput", macInput2));
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return true;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return false;
+        }
+    }
 
 
     /**
@@ -1051,6 +1194,120 @@ public class DesfireAuthenticateEv2 {
         byte[] responseMACTruncatedReceived;
         try {
             apdu = wrapMessage(CREATE_TRANSACTION_MAC_FILE_COMMAND, createTransactionMacFileCommand);
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+
+        // in Features and Hints is a 'short cutted' version what is done here
+
+        // verifying the received Response MAC
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        byte[] macInput2 = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput2", macInput2));
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return true;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return false;
+        }
+    }
+
+    public boolean deleteTransactionMacFileEv2(byte fileNumber) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 81 - 83
+        // this is based on the creation of a TransactionMac file on a DESFire Light card
+        // Cmd.DeleteTransactionMACFile
+        String logData = "";
+        String methodName = "deleteTransactionMacFileEv2";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        // sanity checks
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (fileNumber < 0) {
+            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        // todo is there any restriction on TMAC file numbers ?
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        // Generating the MAC for the Command APDU
+        // missing in Features and Hints
+        // CmdHeader, here just the fileNumber
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader = fileNumber)
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(DELETE_TRANSACTION_MAC_FILE_COMMAND); // 0xDF
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(fileNumber);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Data (CmdHeader = fileNumber || MAC)
+        ByteArrayOutputStream baosDeleteTransactionMacFileCommand = new ByteArrayOutputStream();
+        baosDeleteTransactionMacFileCommand.write(fileNumber);
+        baosDeleteTransactionMacFileCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] deleteTransactionMacFileCommand = baosDeleteTransactionMacFileCommand.toByteArray();
+        log(methodName, printData("deleteTransactionMacFileCommand", deleteTransactionMacFileCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(DELETE_TRANSACTION_MAC_FILE_COMMAND, deleteTransactionMacFileCommand);
             log(methodName, printData("apdu", apdu));
             response = isoDep.transceive(apdu);
             log(methodName, printData("response", response));
@@ -1298,6 +1555,53 @@ public class DesfireAuthenticateEv2 {
         }
     }
 
+    public byte[] getFileSettingsEv2(byte fileNumber) {
+        // this is using simple PLAIN communication without any encryption or MAC involved
+
+        String logData = "";
+        String methodName = "getFileSettingsEv2";
+        log(methodName, "started", true);
+        // sanity checks
+        if (fileNumber < 0) {
+            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+
+        byte[] getFileSettingsParameters = new byte[1];
+        getFileSettingsParameters[0] = fileNumber;
+        byte[] getFileSettingsResponse;
+        byte[] apdu;
+        byte[] response;
+        try {
+            apdu = wrapMessage(GET_FILE_SETTINGS_COMMAND, getFileSettingsParameters);
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+        } catch (Exception e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return null;
+        }
+        System.arraycopy(returnStatusBytes(response), 0, errorCode, 0, 2);
+        byte[] responseData = Arrays.copyOfRange(response, 0, response.length - 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, "response SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return responseData;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return null;
+        }
+    }
+
     /**
      * authenticateAesEv2First uses the EV2First authentication method with command 0x71
      *
@@ -1510,6 +1814,52 @@ public class DesfireAuthenticateEv2 {
         }
         log(methodName, "*********************", false);
         return rndAEqual;
+    }
+
+    /**
+     * create a file with file number 'fileNumber' of 'fileType' with 'communicationSettings'
+     * Note: the new file will get default settings (see below) for an easy setup of file to
+     * run a demonstration
+     *
+     * @param fileNumber
+     * @param fileType
+     * @param communicationSettings
+     * @return true on SUCCESS
+     */
+
+    public boolean createAFile(byte fileNumber, DesfireFileType fileType, CommunicationSettings communicationSettings) {
+        /**
+         * here are the default values that are used during file creation:
+         *
+         * File number:   allowed file numbers are in range of 00 .. 14
+         *
+         * File types
+         * Standard file: file size 32 bytes
+         * Backup file:   file size 32 bytes
+         * Value file:    minimum value limit 0
+         *                minimum value limit 10000
+         *                initial value 0
+         *                limited credit operation DISABLED
+         * Linear record file: record size 32 bytes
+         *                     maximum records 5
+         * Cyclic record file: record size 32 bytes
+         *                     maximum records 6 (as one is needed for spare/cycling purpose)
+         *
+         * CommunicationSettings
+         * Plain:      the communication is in Plain *1)
+         * MACed:      the communication for reading and writing of data is secured by a (AES-based) CMAC
+         * Enciphered: the communication for reading and writing of data is AES encrypted and
+         *             additionally secured by a (AES-based) CMAC
+         *
+         * *1) Note when the file access is authenticated using AES Secure Messaging (initiated by using
+         *     the AuthenticateEV2First or AuthenticateEV2NonFirst the communication is secured by a MAC
+         *
+         */
+
+
+
+
+        return false;
     }
 
     /**
@@ -2189,12 +2539,8 @@ public class DesfireAuthenticateEv2 {
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return false;
         }
-        byte[] responseBytes = returnStatusBytes(response);
-
-
         return false;
     }
-
 
     public boolean readDataFullPart1Test() {
         /**

@@ -461,12 +461,12 @@
                         android:text="card UID" />
 
                     <Button
-                        android:id="@+id/btnReadStandardFileEv2"
+                        android:id="@+id/btnGetFileSettingsEv2"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="Rd Stand 3" />
+                        android:text="file sett" />
 
                 </LinearLayout>
 
@@ -492,12 +492,12 @@
                         android:text="Wr Stand 3" />
 
                     <Button
-                        android:id="@+id/btnxxEv2"
+                        android:id="@+id/btnReadStandardFileEv2"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="xx" />
+                        android:text="Rd Stand 3" />
 
                 </LinearLayout>
 
@@ -546,12 +546,12 @@
                         android:text="Cr TMAC" />
 
                     <Button
-                        android:id="@+id/btnxEv2"
+                        android:id="@+id/btnDeleteTransactionMacFileEv2"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="xx" />
+                        android:text="Del TMAC" />
 
                     <Button
                         android:id="@+id/btnx2Ev2"
