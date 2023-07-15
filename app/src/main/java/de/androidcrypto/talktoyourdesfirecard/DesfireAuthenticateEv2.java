@@ -63,6 +63,8 @@ public class DesfireAuthenticateEv2 {
 
     private static final String TAG = DesfireAuthenticateEv2.class.getName();
 
+
+
     private IsoDep isoDep;
     private boolean printToLog = true; // print data to log
     private String logData;
@@ -88,6 +90,11 @@ public class DesfireAuthenticateEv2 {
     private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
     private final byte WRITE_STANDARD_FILE_SECURE_COMMAND = (byte) 0x8D;
 
+    private static final byte READ_RECORD_FILE_SECURE_COMMAND = (byte) 0xAB;
+    private static final byte WRITE_RECORD_FILE_SECURE_COMMAND = (byte) 0x8B;
+
+    private final byte CREATE_TRANSACTION_MAC_FILE_COMMAND = (byte) 0xCE;
+
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
     private final byte[] RESPONSE_AUTHENTICATION_ERROR = new byte[]{(byte) 0x91, (byte) 0xAE};
@@ -98,6 +105,7 @@ public class DesfireAuthenticateEv2 {
     private final byte[] HEADER_MAC = new byte[]{(byte) (0xA5), (byte) (0x5A)}; // fixed to 0x5AA5
 
     private final byte FILE_COMMUNICATION_SETTINGS_PLAIN = (byte) 0x00; // plain communication
+    private final byte FILE_COMMUNICATION_SETTINGS_MACED = (byte) 0x01; // mac'ed communication
     private final byte FILE_COMMUNICATION_SETTINGS_ENCIPHERED = (byte) 0x03; // enciphered communication
     /**
      * for explanations on File Communication Settings see M075031_desfire.pdf page 15:
@@ -114,6 +122,17 @@ public class DesfireAuthenticateEv2 {
     private final byte ACCESS_RIGHTS_R_W_FREE = (byte) 0xEE; // Read Access (free) & Write Access (free)
     private final byte ACCESS_RIGHTS_RW_CAR_SECURED = (byte) 0x12; // Read&Write Access (key 01) & ChangeAccessRights (key 02)
     private final byte ACCESS_RIGHTS_R_W_SECURED = (byte) 0x34; // Read Access (key 03) & Write Access (key 04)
+
+    // key settings for Transaction MAC file
+    private final byte ACCESS_RIGHTS_RW_CAR_TMAC = (byte) 0x10; // Read&Write Access (key 01) & ChangeAccessRights (key 00)
+    private final byte ACCESS_RIGHTS_R_W_TMAC = (byte) 0x1F; // Read Access (key 01) & Write Access (no access)
+
+    private final byte[] IV_LABEL_ENC = new byte[]{(byte) 0xA5, (byte) 0x5A}; // use as header for AES encryption
+    private final byte[] IV_LABEL_DEC = new byte[]{(byte) 0x5A, (byte) 0xA5}; // use as header for AES decryption
+
+    private final byte[] PADDING_FULL = hexStringToByteArray("80000000000000000000000000000000");
+
+
 
     public DesfireAuthenticateEv2(IsoDep isoDep, boolean printToLog) {
         this.isoDep = isoDep;
@@ -310,7 +329,7 @@ public class DesfireAuthenticateEv2 {
         // Data (FileNo || Offset || DataLenght || Data) is NOT correct, as well not the Data Message
         // correct is the following concatenation:
 
-        // Data (CmdHeader || Encrypted Data || MAC) ??
+        // Data (CmdHeader || Encrypted Data || MAC)
         ByteArrayOutputStream baosWriteDataCommand = new ByteArrayOutputStream();
         baosWriteDataCommand.write(cmdHeader, 0, cmdHeader.length);
         baosWriteDataCommand.write(encryptedData, 0, encryptedData.length);
@@ -531,6 +550,556 @@ public class DesfireAuthenticateEv2 {
             Log.d(TAG, "responseMAC FAILURE");
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
             return null;
+        }
+    }
+
+
+    /**
+     * section for record files
+     */
+
+    public boolean writeRecordFile(byte fileNumber, byte[] dataToWrite) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 61 - 65
+        // Cmd.WriteRecord in AES Secure Messaging using CommMode.Full
+        // this is based on the write to a data file on a DESFire Light card
+
+        // status
+        // todo add padding
+        // if data length is a multiple of AES block length (16 bytes) we need to add a complete
+        // block of padding data, beginning with 0x80 00 00...
+
+        /**
+         * Mifare DESFire Light Features and Hints AN12343.pdf page 30
+         * 7.1.2 Encryption and Decryption
+         * Encryption and decryption are done using the underlying block cipher (in this case
+         * the AES block cipher) according to the CBC mode of the NIST Special Publication
+         * 800-38A, see [6]. Padding is done according to Padding Method 2 (0x80 followed by zero
+         * bytes) of ISO/IEC 9797-1. Note that if the original data is already a multiple of 16 bytes,
+         * another additional padding block (16 bytes) is added. The only exception is during the
+         * authentication itself, where no padding is applied at all.
+         */
+
+        String logData = "";
+        String methodName = "writeRecordFileEv2";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, printData("dataToWrite", dataToWrite));
+        // sanity checks
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        // todo other sanity checks on values
+
+        // todo read the file settings to get e.g. the recordSize and communication mode
+        // NOTE we need to receive PRE PADDED DATA, not the full 32 data bytes for a record
+        // in the MainActivity we padded the data (length 30 bytes) with 0x80 0x00
+        int DATA_SIZE_FIXED = 30;
+
+
+        //int dataLength = 25;
+
+        // Encrypting the Command Data
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        // MAC_Input
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(IV_LABEL_ENC, 0, IV_LABEL_ENC.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        // create an empty array and copy the dataToWrite to clear the complete standard file
+        // this is done to avoid the padding
+        // todo work on this, this is rough coded
+        //byte[] fullDataToWrite = new byte[FILE_SIZE_FIXED];
+        //System.arraycopy(dataToWrite, 0, fullDataToWrite, 0, dataToWrite.length);
+
+        // here we are splitting up the data into 2 data blocks
+        byte[] dataBlock1 = Arrays.copyOfRange(dataToWrite, 0, 16);
+        byte[] dataBlock2 = Arrays.copyOfRange(dataToWrite, 16, 32);
+        log(methodName, printData("dataToWrite", dataToWrite));
+        log(methodName, printData("dataBlock1 ", dataBlock1));
+        log(methodName, printData("dataBlock2 ", dataBlock2));
+
+        // Encrypted Data Block 1 = E(KSesAuthENC, Data Input)
+        byte[] dataBlock1Encrypted = AES.encrypt(ivForCmdData, SesAuthENCKey, dataBlock1);
+        byte[] iv2 = dataBlock1Encrypted.clone();
+        log(methodName, printData("iv2", iv2));
+        byte[] dataBlock2Encrypted = AES.encrypt(iv2, SesAuthENCKey, dataBlock2); // todo is this correct ? or startingIv ?
+
+        //byte[] dataBlock2Encrypted = AES.encrypt(startingIv, SesAuthENCKey, dataBlock2); // todo is this correct ? or startingIv ?
+        log(methodName, printData("startingIv", startingIv));
+        log(methodName, printData("dataBlock1Encrypted", dataBlock1Encrypted));
+        log(methodName, printData("dataBlock2Encrypted", dataBlock2Encrypted));
+
+        // Encrypted Data (complete), concatenate 2 byte arrays
+        byte[] encryptedData = concatenate(dataBlock1Encrypted, dataBlock2Encrypted);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // Generating the MAC for the Command APDU
+        // CmdHeader (FileNo || Offset || DataLength)
+        int dataSizeInt = DATA_SIZE_FIXED;
+        int offsetBytes = 0; // read from the beginning
+        byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
+        byte[] dataSize = Utils.intTo3ByteArrayInversed(dataSizeInt); // LSB order
+        log(methodName, printData("dataSize", dataSize));
+        ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
+        baosCmdHeader.write(fileNumber);
+        baosCmdHeader.write(offset, 0, offset.length);
+        baosCmdHeader.write(dataSize, 0, dataSize.length);
+        byte[] cmdHeader = baosCmdHeader.toByteArray();
+        log(methodName, printData("cmdHeader", cmdHeader));
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted CmdData )
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(WRITE_RECORD_FILE_SECURE_COMMAND); // 0x8B
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Data (CmdHeader || Encrypted Data || MAC)
+        ByteArrayOutputStream baosWriteRecordCommand = new ByteArrayOutputStream();
+        baosWriteRecordCommand.write(cmdHeader, 0, cmdHeader.length);
+        baosWriteRecordCommand.write(encryptedData, 0, encryptedData.length);
+        baosWriteRecordCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] writeRecordCommand = baosWriteRecordCommand.toByteArray();
+        log(methodName, printData("writeRecordCommand", writeRecordCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(WRITE_RECORD_FILE_SECURE_COMMAND, writeRecordCommand);
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+
+        // verifying the received Response MAC
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        byte[] macInput2 = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput2", macInput2));
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return true;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return false;
+        }
+    }
+
+    public byte[] readRecordFile(byte fileNumber) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 65 - 67
+        // Cmd.ReadRecords in AES Secure Messaging using CommMode.Full
+        // this is based on the read of a record file on a DESFire Light card
+
+        // status WORKING but does not remove any padding from the data
+        // todo read file settings to get recordSize, actualRecords etc
+
+        // at the moment it is using a pre created Cyclic Record File with 5 records and
+        // 5 application keys (AES) in full enciphered communication mode
+        // reason: no examples for creating a record file in Features and Hints
+
+        String logData = "";
+        String methodName = "readRecordFileEv2";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        // sanity checks
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+
+        // todo other sanity checks on values
+
+        // todo read the file settings to get e.g. the recordSize, actual records and communication mode
+
+        int FILE_SIZE_FIXED = 32;
+        // Generating the MAC for the Command APDU
+
+        // CmdHeader (FileNo || RecordNo || RecordCount)
+        // setting recordNo and recordCount to 0 to read all records
+        int recordNoInt = 0;
+        int recordCountInt = 0;
+        byte[] recordNo = Utils.intTo3ByteArrayInversed(recordNoInt); // LSB order
+        byte[] recordCount = Utils.intTo3ByteArrayInversed(recordCountInt); // LSB order
+
+        ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
+        baosCmdHeader.write(fileNumber);
+        baosCmdHeader.write(recordNo, 0, recordNo.length);
+        baosCmdHeader.write(recordCount, 0, recordCount.length);
+        byte[] cmdHeader = baosCmdHeader.toByteArray();
+        log(methodName, printData("cmdHeader", cmdHeader));
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader )
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(READ_RECORD_FILE_SECURE_COMMAND); // 0xAB
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Constructing the full ReadRecords Command APDU
+        // todo is this correct, NO encryption ??
+        // Data (CmdHeader || MAC)
+
+        // Constructing the full ReadData Command APDU
+        ByteArrayOutputStream baosReadRecordCommand = new ByteArrayOutputStream();
+        baosReadRecordCommand.write(cmdHeader, 0, cmdHeader.length);
+        baosReadRecordCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] readDataCommand = baosReadRecordCommand.toByteArray();
+        log(methodName, printData("readRecordCommand", readDataCommand));
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] fullEncryptedData;
+        byte[] encryptedData;
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(READ_RECORD_FILE_SECURE_COMMAND, readDataCommand);
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+            fullEncryptedData = Arrays.copyOf(response, response.length - 2);
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return null;
+        }
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        // response length: 58 data: 8b61541d54f73901c8498c71dd45bae80578c4b1581aad439a806f37517c86ad4df8970279bbb8874ef279149aaa264c3e5eceb0e37a87699100
+
+        // the fullEncryptedData is 56 bytes long, the first 48 bytes are encryptedData and the last 8 bytes are the responseMAC
+        int encryptedDataLength = fullEncryptedData.length - 8;
+        log(methodName, "The fullEncryptedData is of length " + fullEncryptedData.length + " that includedes 8 bytes for MAC");
+        log(methodName, "The encryptedData length is " + encryptedDataLength);
+        encryptedData = Arrays.copyOfRange(fullEncryptedData, 0, encryptedDataLength);
+        responseMACTruncatedReceived = Arrays.copyOfRange(fullEncryptedData, encryptedDataLength, fullEncryptedData.length);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // start decrypting the data
+        byte[] header = new byte[]{(byte) (0x5A), (byte) (0xA5)}; // fixed to 0x5AA5
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+        byte[] padding = hexStringToByteArray("0000000000000000");
+        byte[] startingIv = new byte[16];
+        ByteArrayOutputStream decryptBaos = new ByteArrayOutputStream();
+        decryptBaos.write(header, 0, header.length);
+        decryptBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        decryptBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        decryptBaos.write(padding, 0, padding.length);
+        byte[] ivInputResponse = decryptBaos.toByteArray();
+        log(methodName, printData("ivInputResponse", ivInputResponse));
+        byte[] ivResponse = AES.encrypt(startingIv, SesAuthENCKey, ivInputResponse);
+        log(methodName, printData("ivResponse", ivResponse));
+        byte[] decryptedData = AES.decrypt(ivResponse, SesAuthENCKey, encryptedData);
+        log(methodName, printData("decryptedData", decryptedData)); // should be the cardUID || 9 zero bytes
+        byte[] readData = decryptedData.clone();
+        //byte[] readData = Arrays.copyOfRange(decryptedData, 0, fileSize); // todo work on this
+        log(methodName, printData("readData", readData));
+
+        // verifying the received MAC
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        responseMacBaos.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput2 = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput", macInput2));
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return readData;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return null;
+        }
+    }
+
+
+
+
+    /**
+     * section for transaction MAC files
+     */
+
+    public boolean createTransactionMacFileEv2(byte fileNumber, byte[] key) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 83 - 85
+        // this is based on the creation of a TransactionMac file on a DESFire Light card
+        String logData = "";
+        String methodName = "createTransactionMacFileEv2";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber + printData(" TransactionMacKey", key));
+        // sanity checks
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (fileNumber < 0) {
+            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        // todo is there any restriction on TMAC file numbers ?
+        if ((key == null) || (key.length != 16)) {
+            Log.e(TAG, methodName + " key length is not 16, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        byte TMACKeyOption = (byte) 0x02; // AES
+        byte TMACKeyVersion = (byte) 0x00;
+
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        log(methodName, printData("TransactionIdentifier", TransactionIdentifier));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(IV_LABEL_ENC, 0, IV_LABEL_ENC.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        // Data (New TMAC Key)
+        // taken from method header
+
+        // Encrypted Data = E(KSesAuthENC, Data)
+        byte[] keyEncrypted = AES.encrypt(ivForCmdData, SesAuthENCKey, key);
+        log(methodName, printData("keyEncrypted", keyEncrypted));
+        byte[] iv2 = keyEncrypted.clone();
+        log(methodName, printData("iv2", iv2));
+
+        // Data (TMACKeyVersion || Padding)
+        // don't forget to pad with 0x80..00
+        byte[] keyVersionPadded = new byte[16];
+        keyVersionPadded[0] = TMACKeyVersion;
+        // padding with full padding
+        System.arraycopy(PADDING_FULL, 0, keyVersionPadded, 1, (PADDING_FULL.length - 1));
+        log(methodName, printData("keyVersionPadded", keyVersionPadded));
+
+        // Encrypted Data = E(KSesAuthENC, Data)
+        byte[] keyVersionPaddedEncrypted = AES.encrypt(iv2, SesAuthENCKey, keyVersionPadded);
+        log(methodName, printData("keyVersionPaddedEncrypted", keyVersionPaddedEncrypted));
+
+        // Encrypted Data (both blocks)
+        byte[] encryptedData = concatenate(keyEncrypted, keyVersionPaddedEncrypted);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // Generating the MAC for the Command APDU
+        startingIv = new byte[16];
+
+        // this part is missing in the Feature & Hints document on page 84
+        // CmdHeader (FileNo || CommunicationSettings || RW_CAR keys || R_W keys || TMACKeyOption)
+        ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
+        baosCmdHeader.write(fileNumber);
+        baosCmdHeader.write(FILE_COMMUNICATION_SETTINGS_PLAIN);
+        baosCmdHeader.write(ACCESS_RIGHTS_RW_CAR_TMAC);
+        baosCmdHeader.write(ACCESS_RIGHTS_R_W_TMAC);
+        baosCmdHeader.write(TMACKeyOption);
+        byte[] cmdHeader = baosCmdHeader.toByteArray();
+        log(methodName, printData("cmdHeader", cmdHeader));
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted Data))
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(CREATE_TRANSACTION_MAC_FILE_COMMAND); // 0xCE
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Data (CmdHeader || MAC)
+        // error in Features and Hints, page 84, point 30:
+        // Data (CmdHeader || MAC) is NOT correct
+        // correct is the following concatenation:
+
+        // second error in point 32: Data Message shown is PLAIN data, not AES Secure Messaging data
+
+        // Data (CmdHeader || Encrypted Data || MAC)
+        ByteArrayOutputStream baosWriteDataCommand = new ByteArrayOutputStream();
+        baosWriteDataCommand.write(cmdHeader, 0, cmdHeader.length);
+        baosWriteDataCommand.write(encryptedData, 0, encryptedData.length);
+        baosWriteDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] createTransactionMacFileCommand = baosWriteDataCommand.toByteArray();
+        log(methodName, printData("createTransactionMacFileCommand", createTransactionMacFileCommand));
+        
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(CREATE_TRANSACTION_MAC_FILE_COMMAND, createTransactionMacFileCommand);
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+
+        // in Features and Hints is a 'short cutted' version what is done here
+
+        // verifying the received Response MAC
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        byte[] macInput2 = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput2", macInput2));
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return true;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return false;
         }
     }
 
@@ -1241,6 +1810,207 @@ public class DesfireAuthenticateEv2 {
         log(methodName, printData("truncatedMAC", truncatedMAC));
         return truncatedMAC;
     }
+
+    public boolean createTransactionMacFileFullPart1Test() {
+        /**
+         * this will test several function using test vectors from
+         * Mifare DESFire Light Features and Hints AN12343.pdf pages 83-85
+         * to get a full apdu for part 1, preparing the data writing
+         * test vectors are for Cmd.CreateTransactionMACFile
+         */
+
+        String methodName = "createTransactionMacFileFullPart1Test";
+        log(methodName, "started", true);
+
+        byte[] SesAuthENCKeyTest = hexStringToByteArray("CFD5F757E422144FE831842694AF69AF");
+        byte[] SesAuthMACKeyTest = hexStringToByteArray("390F25170E00278C62B718F3025FCA59");
+        byte[] TI = hexStringToByteArray("B350F7C9");
+        int commandCounter = 1;
+        byte[] startingIv = new byte[16];
+        byte fileNumber = (byte) 0x0F;
+        byte[] TMAC_KeyTest = hexStringToByteArray("F7D23E0C44AFADE542BFDF2DC5C6AE02");
+
+
+        byte TMACKeyOption = (byte) 0x02; // AES
+        byte TMACKeyVersion = (byte) 0x00;
+
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(commandCounter);
+        log(methodName, "CmdCounter: " + commandCounterLsb1);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        log(methodName, printData("TransactionIdentifier", TI));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(IV_LABEL_ENC, 0, IV_LABEL_ENC.length);
+        baosIvInput.write(TI, 0, TI.length);
+        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        byte[] ivInput_expected = hexStringToByteArray("A55AB350F7C901000000000000000000");
+        Log.d(TAG, printData("ivInput_expected", ivInput_expected));
+        if (!Arrays.equals(ivInput_expected, ivInput)) {
+            Log.d(TAG, "ivInput Test FAILURE, aborted");
+            return false;
+        }
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKeyTest));
+        startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKeyTest, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        byte[] ivForCmdData_expected = hexStringToByteArray("303DC814A2C7366D298C50DC8F90BB36");
+        Log.d(TAG, printData("ivForCmdData_expected", ivForCmdData_expected));
+        if (!Arrays.equals(ivForCmdData_expected, ivForCmdData)) {
+            Log.d(TAG, "ivForCmdData Test FAILURE, aborted");
+            return false;
+        }
+
+        // Data (New TMAC Key)
+        // taken from method header
+
+        // Encrypted Data = E(KSesAuthENC, Data)
+        byte[] keyEncrypted = AES.encrypt(ivForCmdData, SesAuthENCKeyTest, TMAC_KeyTest);
+        log(methodName, printData("keyEncrypted", keyEncrypted));
+
+        byte[] keyEncrypted_expected = hexStringToByteArray("E64CF1262C6B798B95C950FD7353EA87");
+        Log.d(TAG, printData("keyEncrypted_expected", keyEncrypted_expected));
+        if (!Arrays.equals(keyEncrypted_expected, keyEncrypted)) {
+            Log.d(TAG, "keyEncrypted Test FAILURE, aborted");
+            return false;
+        }
+
+        byte[] iv2 = keyEncrypted.clone();
+        log(methodName, printData("iv2", iv2));
+
+        // Data (TMACKeyVersion || Padding)
+        // don't forget to pad with 0x80..00
+        byte[] keyVersionPadded = new byte[16];
+        keyVersionPadded[0] = TMACKeyVersion;
+        // padding with full padding
+        System.arraycopy(PADDING_FULL, 0, keyVersionPadded, 1, (PADDING_FULL.length - 1));
+        log(methodName, printData("keyVersionPadded", keyVersionPadded));
+
+        byte[] keyVersionPadded_expected = hexStringToByteArray("00800000000000000000000000000000");
+        Log.d(TAG, printData("keyVersionPadded_expected", keyVersionPadded_expected));
+        if (!Arrays.equals(keyVersionPadded_expected, keyVersionPadded)) {
+            Log.d(TAG, "keyVersionPadded Test FAILURE, aborted");
+            return false;
+        }
+
+        // Encrypted Data = E(KSesAuthENC, Data)
+        byte[] keyVersionPaddedEncrypted = AES.encrypt(iv2, SesAuthENCKeyTest, keyVersionPadded);
+        log(methodName, printData("keyVersionPaddedEncrypted", keyVersionPaddedEncrypted));
+
+        byte[] keyVersionPaddedEncrypted_expected = hexStringToByteArray("64B1F4F4C69C4068F513715C486E18B3");
+        Log.d(TAG, printData("keyVersionPaddedEncrypted_expected", keyVersionPaddedEncrypted_expected));
+        if (!Arrays.equals(keyVersionPaddedEncrypted_expected, keyVersionPaddedEncrypted)) {
+            Log.d(TAG, "keyVersionPaddedEncrypted Test FAILURE, aborted");
+            return false;
+        }
+
+        // Encrypted Data (both blocks)
+        byte[] encryptedData = concatenate(keyEncrypted, keyVersionPaddedEncrypted);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        byte[] encryptedData_expected = hexStringToByteArray("E64CF1262C6B798B95C950FD7353EA8764B1F4F4C69C4068F513715C486E18B3");
+        Log.d(TAG, printData("encryptedData_expected", encryptedData_expected));
+        if (!Arrays.equals(encryptedData_expected, encryptedData)) {
+            Log.d(TAG, "encryptedData Test FAILURE, aborted");
+            return false;
+        }
+
+        // Generating the MAC for the Command APDU
+        startingIv = new byte[16];
+
+        // this part is missing in the Feature & Hints document on page 84
+        // CmdHeader (FileNo || CommunicationSettings || RW_CAR keys || R_W keys || TMACKeyOption)
+        ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
+        baosCmdHeader.write(fileNumber);
+        baosCmdHeader.write(FILE_COMMUNICATION_SETTINGS_PLAIN);
+        baosCmdHeader.write(ACCESS_RIGHTS_RW_CAR_TMAC);
+        baosCmdHeader.write(ACCESS_RIGHTS_R_W_TMAC);
+        baosCmdHeader.write(TMACKeyOption);
+        byte[] cmdHeader = baosCmdHeader.toByteArray();
+        log(methodName, printData("cmdHeader", cmdHeader));
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted Data))
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(CREATE_TRANSACTION_MAC_FILE_COMMAND); // 0xCE
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TI, 0, TI.length);
+        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        byte[] macInput_expected = hexStringToByteArray("CE0100B350F7C90F00101F02E64CF1262C6B798B95C950FD7353EA8764B1F4F4C69C4068F513715C486E18B3");
+        Log.d(TAG, printData("macInput_expected", macInput_expected));
+        if (!Arrays.equals(macInput_expected, macInput)) {
+            Log.d(TAG, "macInput Test FAILURE, aborted");
+            return false;
+        }
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKeyTest));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKeyTest, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        byte[] macTruncated_expected = hexStringToByteArray("B3BE705D3E1FB8DC");
+        Log.d(TAG, printData("macTruncated_expected", macTruncated_expected));
+        if (!Arrays.equals(macTruncated_expected, macTruncated)) {
+            Log.d(TAG, "macTruncated Test FAILURE, aborted");
+            return false;
+        }
+
+        // Data (CmdHeader || MAC)
+        // error in Features and Hints, page 84, point 30:
+        // Data (CmdHeader || MAC) is NOT correct
+        // correct is the following concatenation:
+
+        // Data (CmdHeader || Encrypted Data || MAC)
+        ByteArrayOutputStream baosWriteDataCommand = new ByteArrayOutputStream();
+        baosWriteDataCommand.write(cmdHeader, 0, cmdHeader.length);
+        baosWriteDataCommand.write(encryptedData, 0, encryptedData.length);
+        baosWriteDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] createTransactionMacFileCommand = baosWriteDataCommand.toByteArray();
+        log(methodName, printData("createTransactionMacFileCommand", createTransactionMacFileCommand));
+
+        byte[] createTransactionMacFileCommand_expected = hexStringToByteArray("0F00101F02E64CF1262C6B798B95C950FD7353EA8764B1F4F4C69C4068F513715C486E18B3B3BE705D3E1FB8DC");
+        Log.d(TAG, printData("createTransactionMacFileCommand_expected", createTransactionMacFileCommand_expected));
+        if (!Arrays.equals(createTransactionMacFileCommand_expected, createTransactionMacFileCommand)) {
+            Log.d(TAG, "createTransactionMacFileCommand Test FAILURE, aborted");
+            return false;
+        }
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(CREATE_TRANSACTION_MAC_FILE_COMMAND, createTransactionMacFileCommand);
+            log(methodName, printData("apdu", apdu));
+            //response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+
+            // cannot test the APDU, wrong data in document
+
+            return true;
+
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+    }
+
+
 
     public boolean writeDataFullPart1Test() {
         /**

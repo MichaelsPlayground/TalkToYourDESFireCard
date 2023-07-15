@@ -36,6 +36,7 @@ public class EV3 {
             case (byte) 0xAE: return "AE authentication error";
             case (byte) 0xAF: return "AF Additional frame (more data to follow before final status code)";
             case (byte) 0xDE: return "DE duplicate error";
+            case (byte) 0xF0: return "F0 File not found error";
             case (byte) 0xFF: return "FF undefined error";
         }
         return "undefined error code";

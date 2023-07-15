@@ -75,6 +75,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button authD1AEv2, getCardUidEv2;
     private Button fileStandardCreateEv2, fileStandardWriteEv2, fileStandardReadEv2;
 
+    private Button fileRecordCreateEv2, fileRecordWriteEv2, fileRecordReadEv2;
+
+
+    private Button fileTransactionMacCreateEv2;
 
     /**
      * section for standard file handling
@@ -167,6 +171,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private final byte[] APPLICATION_KEY_W_DES = Utils.hexStringToByteArray("D4100000000000000");
     private final byte APPLICATION_KEY_W_NUMBER = (byte) 0x04;
 
+    // see Mifare DESFire Light Features and Hints AN12343.pdf, page 83-84
+    private final byte[] TRANSACTION_MAC_KEY_AES = Utils.hexStringToByteArray("F7D23E0C44AFADE542BFDF2DC5C6AE02"); // taken from Mifare DESFire Light Features and Hints AN12343.pdf, pages 83-84
+    private final byte TRANSACTION_MAC_FILE_NUMBER = (byte) 0x0F;
+
     /**
      * section for commands and responses
      */
@@ -254,6 +262,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileStandardReadEv2 = findViewById(R.id.btnReadStandardFileEv2);
         fileStandardWriteEv2 = findViewById(R.id.btnWriteStandardFileEv2);
 
+        fileRecordCreateEv2 = findViewById(R.id.btnCreateRecordFileEv2);
+        fileRecordReadEv2 = findViewById(R.id.btnReadRecordFileEv2);
+        fileRecordWriteEv2 = findViewById(R.id.btnWriteRecordFileEv2);
+        
+        
+        fileTransactionMacCreateEv2 = findViewById(R.id.btnCreateTransactionMacFileEv2);
 
         // standard files
         fileStandardCreate = findViewById(R.id.btnCreateStandardFile);
@@ -606,6 +620,174 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        /**
+        * section for record files
+        */
+
+        fileRecordWriteEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "write to a record file EV2";
+                writeToUiAppend(output, logString);
+
+                // todo skipped, using a fixed fileNumber
+                selectedFileId = "5";
+                fileSelected.setText(selectedFileId);
+                int SELECTED_FILE_SIZE_FIXED = 32;
+
+                int recordSize = 32; // fixed at the moment
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                String dataToWrite = fileStandardData.getText().toString();
+                dataToWrite = "123 some data";
+
+                if (TextUtils.isEmpty(dataToWrite)) {
+                    //writeToUiAppend(errorCode, "please enter some data to write");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "please enter some data to write", COLOR_RED);
+                    return;
+                }
+
+                // just for testing - test the macOverCommand value
+                //boolean writeDataFullPart1TestResult = desfireAuthenticateEv2.writeDataFullPart1Test();
+                //writeToUiAppend(output, "writeDataFullPart1TestResult: " + writeDataFullPart1TestResult);
+
+                // limit the string
+                String dataToWriteString = Utils.getTimestamp() + " " + dataToWrite;
+
+                if (dataToWriteString.length() > recordSize) dataToWriteString = dataToWriteString.substring(0, recordSize);
+                byte[] dataToWriteStringBytes = dataToWriteString.getBytes(StandardCharsets.UTF_8);
+                byte[] fullDataToWrite = new byte[recordSize];
+                System.arraycopy(dataToWriteStringBytes, 0, fullDataToWrite, 0, dataToWriteStringBytes.length);
+                writeToUiAppend(output, printData("fullDataToWrite", fullDataToWrite));
+
+                // todo this is a hard coded padding to avoid any longer data because when the dataToWrite
+                // is a multiple of AES block size (16 bytes) we need to add a new data block for padding
+                // here the padding is added on the last 2 bytes of the  record size
+                fullDataToWrite[30] = (byte) 0x80;
+                fullDataToWrite[31] = (byte) 0x00;
+                writeToUiAppend(output, "## removed last 2 bytes of fullDataToWrite and added a padding ##");
+                writeToUiAppend(output, printData("fullDataToWrite", fullDataToWrite));
+
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.writeRecordFile(fileIdByte, fullDataToWrite);
+                //boolean success = false;
+                responseData = desfireAuthenticateEv2.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+
+                // todo now we need to submit the write
+
+
+
+
+            }
+        });
+
+        fileRecordReadEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "read from a record file EV2";
+                writeToUiAppend(output, logString);
+                // todo skipped, using a fixed fileNumber
+                selectedFileId = "5";
+                fileSelected.setText(selectedFileId);
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                //byte fileIdByte = Byte.parseByte(selectedFileId);
+
+                // just for testing - test the macOverCommand value
+                //boolean readDataFullPart1TestResult = desfireAuthenticateEv2.readDataFullPart1Test();
+                //writeToUiAppend(output, "readDataFullPart1TestResult: " + readDataFullPart1TestResult);
+
+                byte fileIdByte = (byte) 0x05; // fixed
+
+                byte[] responseData = new byte[2];
+                //byte[] result = readFromAStandardFilePlainCommunicationDes(output, fileIdByte, selectedFileSize, responseData);
+                byte[] result = desfireAuthenticateEv2.readRecordFile(fileIdByte);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (result == null) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkResponseMoreData(responseData)) {
+                        writeToUiAppend(output, "the file is too long to read, sorry");
+                    }
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " ID: " + fileIdByte + printData(" data", result));
+                    writeToUiAppend(output, logString + " ID: " + fileIdByte + " data: " + new String(result, StandardCharsets.UTF_8));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }
+            }
+        });
+
+
+        fileTransactionMacCreateEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
+                // status WORKING
+
+                clearOutputFields();
+                String logString = "create a new Transaction MAC file EV2";
+                writeToUiAppend(output, logString);
+                writeToUiAppend(output, "Note: using a FIXED fileNumber 15 for this method");
+                // check that an application was selected before
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                writeToUiAppend(output, logString + " with id: " + TRANSACTION_MAC_FILE_NUMBER);
+
+                // just for testing - test the macOverCommand value
+                boolean createTransactionMacFileFullPart1TestResult = desfireAuthenticateEv2.createTransactionMacFileFullPart1Test();
+                writeToUiAppend(output, "createTransactionMacFileFullPart1TestResult: " + createTransactionMacFileFullPart1TestResult);
+                if (!createTransactionMacFileFullPart1TestResult) return;
+
+                byte[] responseData = new byte[2];
+                // create a Standard file with Encrypted communication
+                boolean success = desfireAuthenticateEv2.createTransactionMacFileEv2(TRANSACTION_MAC_FILE_NUMBER, TRANSACTION_MAC_KEY_AES);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                //boolean success = createStandardFilePlainCommunicationDes(output, fileIdByte, fileSizeInt, rbFileFreeAccess.isChecked(), responseData);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
 
 
         /**
