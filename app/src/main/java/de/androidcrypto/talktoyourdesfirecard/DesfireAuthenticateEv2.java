@@ -1,7 +1,9 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
+import static de.androidcrypto.talktoyourdesfirecard.Utils.byteArrayLength4InversedToInt;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.byteToHex;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
+import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo3ByteArrayInversed;
 
 import android.nfc.tech.IsoDep;
 import android.util.Log;
@@ -37,7 +39,8 @@ import javax.crypto.spec.SecretKeySpec;
  * AUTHENTICATE_AES_EV2_NON_FIRST_COMMAND = (byte) 0x77;      n.a.   n.a.     WORK
  * GET_CARD_UID_COMMAND = (byte) 0x51;                        n.a.   n.a.     WORK
  * <p>
- * CREATE_DATA_FILE_COMMAND = (byte) 0xxx;
+ * CREATE_STANDARD_FILE_COMMAND = (byte) 0xxx;
+ * CREATE_BACKUP_FILE_COMMAND = (byte) 0xxx;
  * READ_DATA_COMMAND = (byte) 0xxx;
  * WRITE_DATA_COMMAND = (byte) 0xxx;
  * <p>
@@ -46,7 +49,8 @@ import javax.crypto.spec.SecretKeySpec;
  * CREDIT_VALUE_FILE_COMMAND = (byte) 0xxx;
  * DEBIT_VALUE_FILE_COMMAND = (byte) 0xxx;
  * <p>
- * CREATE_RECORD_FILE_COMMAND = (byte) 0xxx;
+ * CREATE_LINEAR_RECORD_FILE_COMMAND = (byte) 0xxx;
+ * CREATE_CYCLIC_RECORD_FILE_COMMAND = (byte) 0xxx;
  * READ_RECORD_FILE_COMMAND = (byte) 0xxx;
  * WRITE_RECORD_FILE_COMMAND = (byte) 0xxx;
  * <p>
@@ -86,16 +90,29 @@ public class DesfireAuthenticateEv2 {
     private final byte AUTHENTICATE_AES_EV2_NON_FIRST_COMMAND = (byte) 0x77;
     private final byte GET_CARD_UID_COMMAND = (byte) 0x51;
     private final byte GET_FILE_SETTINGS_COMMAND = (byte) 0xF5;
-    private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
+
+    // standard file
     private final byte READ_STANDARD_FILE_COMMAND = (byte) 0xBD;
     private final byte READ_STANDARD_FILE_SECURE_COMMAND = (byte) 0xAD;
     private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
     private final byte WRITE_STANDARD_FILE_SECURE_COMMAND = (byte) 0x8D;
-    private final byte CREATE_VALUE_FILE_SECURE_COMMAND = (byte) 0xCC;
 
+    // value file
+    private final byte GET_VALUE_COMMAND = (byte) 0x6C;
+    private final byte CREDIT_VALUE_COMMAND = (byte) 0x0C;
+    private final byte DEBIT_VALUE_COMMAND = (byte) 0xDC;
+
+    // record file
 
     private static final byte READ_RECORD_FILE_SECURE_COMMAND = (byte) 0xAB;
     private static final byte WRITE_RECORD_FILE_SECURE_COMMAND = (byte) 0x8B;
+
+    private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
+    private final byte CREATE_BACKUP_FILE_COMMAND = (byte) 0xCB;
+    private final byte CREATE_VALUE_FILE_COMMAND = (byte) 0xCC;
+    private final byte CREATE_LINEAR_RECORD_FILE_COMMAND = (byte) 0xC1;
+    private final byte CREATE_CYCLIC_RECORD_FILE_COMMAND = (byte) 0xC0;
+
 
     private static final byte COMMIT_TRANSACTION_SECURE_COMMAND = (byte) 0xC7;
 
@@ -142,10 +159,21 @@ public class DesfireAuthenticateEv2 {
     private final byte STANDARD_FILE_MACED_NUMBER = (byte) 0x01;
     private final byte STANDARD_FILE_ENCRYPTED_NUMBER = (byte) 0x02;
     // backup 03, 04, 05
+    private final byte BACKUP_FILE_PLAIN_NUMBER = (byte) 0x03;
+    private final byte BACKUP_FILE_MACED_NUMBER = (byte) 0x04;
+    private final byte BACKUP_FILE_ENCRYPTED_NUMBER = (byte) 0x05;
     // value files 06, 07, 08
-    private final byte VALUE_FILE_ENCRYPTED_NUMBER = (byte) 0x0C; // 12
-
-    private final byte CYCLIC_RECORD_FILE_ENCRYPTED_NUMBER = (byte) 0x05;
+    private final byte VALUE_FILE_PLAIN_NUMBER = (byte) 0x06; // 06
+    private final byte VALUE_FILE_MACED_NUMBER = (byte) 0x07; // 07
+    private final byte VALUE_FILE_ENCRYPTED_NUMBER = (byte) 0x08; // 08
+    // linear record 09, 10, 11
+    private final byte LINEAR_RECORD_FILE_PLAIN_NUMBER = (byte) 0x09; // 09
+    private final byte LINEAR_RECORD_FILE_MACED_NUMBER = (byte) 0x0A; // 10
+    private final byte LINEAR_RECORD_FILE_ENCRYPTED_NUMBER = (byte) 0x0B; // 11
+    // cyclic record 12, 13, 14
+    private final byte CYCLIC_RECORD_FILE_PLAIN_NUMBER = (byte) 0x0C; // 12
+    private final byte CYCLIC_RECORD_FILE_MACED_NUMBER = (byte) 0x0D; // 13
+    private final byte CYCLIC_RECORD_FILE_ENCRYPTED_NUMBER = (byte) 0x0E; // 14
 
 
 
@@ -217,6 +245,11 @@ public class DesfireAuthenticateEv2 {
 
         return false;
     }
+
+    /**
+     * section for Standard Files
+     */
+
 
     public boolean writeStandardFileEv2(byte fileNumber, byte[] dataToWrite) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 55 - 58
@@ -579,9 +612,136 @@ public class DesfireAuthenticateEv2 {
         }
     }
 
+    /**
+     * section for Value files
+     */
+
+    public int getValueFileEv2(byte fileNumber) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 67 - 70
+        // Cmd.GetValue in AES Secure Messaging using CommMode.Full
+        // this is based on the get value on a value file on a DESFire Light card
+        String logData = "";
+        String methodName = "getValueFileEv2";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader ( = File number) )
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(GET_VALUE_COMMAND); // 0x6C
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(fileNumber);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Data (CmdHeader = File number || MAC)
+        ByteArrayOutputStream baosGetValueCommand = new ByteArrayOutputStream();
+        baosGetValueCommand.write(fileNumber);
+        baosGetValueCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] getValueCommand = baosGetValueCommand.toByteArray();
+        log(methodName, printData("getValueCommand", getValueCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        byte[] fullEncryptedData;
+        byte[] encryptedData;
+        try {
+            apdu = wrapMessage(GET_VALUE_COMMAND, getValueCommand);
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return -1;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+            fullEncryptedData = Arrays.copyOf(response, response.length - 2);
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return -1;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+
+        // the fullEncryptedData is xx bytes long, the first xx bytes are encryptedData and the last 8 bytes are the responseMAC
+        int encryptedDataLength = fullEncryptedData.length - 8;
+        log(methodName, "The fullEncryptedData is of length " + fullEncryptedData.length + " that includedes 8 bytes for MAC");
+        log(methodName, "The encryptedData length is " + encryptedDataLength);
+        encryptedData = Arrays.copyOfRange(fullEncryptedData, 0, encryptedDataLength);
+        responseMACTruncatedReceived = Arrays.copyOfRange(fullEncryptedData, encryptedDataLength, fullEncryptedData.length);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // start decrypting the data
+        //byte[] header = new byte[]{(byte) (0x5A), (byte) (0xA5)}; // fixed to 0x5AA5
+        byte[] padding = hexStringToByteArray("0000000000000000"); // fixed 8 bytes
+        byte[] startingIv = new byte[16];
+        ByteArrayOutputStream decryptBaos = new ByteArrayOutputStream();
+        decryptBaos.write(IV_LABEL_DEC, 0, IV_LABEL_DEC.length);
+        decryptBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        decryptBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        decryptBaos.write(padding, 0, padding.length);
+        byte[] ivInputResponse = decryptBaos.toByteArray();
+        log(methodName, printData("ivInputResponse", ivInputResponse));
+        byte[] ivResponse = AES.encrypt(startingIv, SesAuthENCKey, ivInputResponse);
+        log(methodName, printData("ivResponse", ivResponse));
+        byte[] decryptedData = AES.decrypt(ivResponse, SesAuthENCKey, encryptedData);
+        log(methodName, printData("decryptedData", decryptedData)); // should be the cardUID || 9 zero bytes
+        // 00000000800000000000000000000000 should be like value (4 bytes LSB) || 12 padding bytes (0x80..00)
+        byte[] readData = Arrays.copyOfRange(decryptedData, 0, 4);
+        log(methodName, printData("readData", readData));
+
+        // verifying the received Response MAC
+        // MAC_Input (RC || CmdCounter || TI || Encrypted Response Data)
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        responseMacBaos.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput2 = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput2", macInput2));
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return byteArrayLength4InversedToInt(decryptedData);
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return -1;
+        }
+    }
+
+
 
     /**
-     * section for record files
+     * section for Record files
      */
 
     public boolean writeRecordFileEv2(byte fileNumber, byte[] dataToWrite) {
@@ -1896,12 +2056,32 @@ public class DesfireAuthenticateEv2 {
             return false;
         }
 
+        final int SIZE = 32; // standard & backup fileSize, record files recordSize
+        byte[] fileSizeByte = intTo3ByteArrayInversed(SIZE);
+
         // this is rough code for predefined files
         ByteArrayOutputStream parameter = new ByteArrayOutputStream();
         byte[] createFileParameter = new byte[0];
         byte createFileCommand = -1;
+
+        if ((fileType == DesfireFileType.Standard) || (fileType == DesfireFileType.Backup)) {
+            Log.d(TAG, "create a Standard or Backup file with default parameter");
+            // build the parameter
+            parameter.write(fileNumber);
+            parameter.write(commSettings);
+            parameter.write(ACCESS_RIGHTS_RW_CAR_SECURED);
+            parameter.write(ACCESS_RIGHTS_R_W_SECURED);
+            parameter.write(fileSizeByte, 0, fileSizeByte.length);
+            createFileParameter = parameter.toByteArray();
+            if (fileType == DesfireFileType.Standard) {
+                createFileCommand = CREATE_STANDARD_FILE_COMMAND;
+            } else {
+                createFileCommand = CREATE_BACKUP_FILE_COMMAND;
+            }
+        }
+
         if (fileType == DesfireFileType.Value) {
-            Log.d(TAG, "create a value file with default parameter");
+            Log.d(TAG, "create a Value file with default parameter");
             // some default values
             int lowerLimitInt = 0;
             int upperLimitInt = 10000;
@@ -1920,8 +2100,30 @@ public class DesfireAuthenticateEv2 {
             parameter.write(initialValue, 0, initialValue.length);
             parameter.write(limitedCreditOperationEnabledByte);
             createFileParameter = parameter.toByteArray();
-            createFileCommand = CREATE_VALUE_FILE_SECURE_COMMAND;
+            createFileCommand = CREATE_VALUE_FILE_COMMAND;
         }
+
+        if ((fileType == DesfireFileType.LinearRecord) || (fileType == DesfireFileType.CyclicRecord)) {
+            Log.d(TAG, "create a Linear or Cyclic Record file with default parameter");
+            int numberOfRecords;
+            if (fileType == DesfireFileType.LinearRecord) {
+                createFileCommand = CREATE_LINEAR_RECORD_FILE_COMMAND;
+                numberOfRecords = 5;
+            } else {
+                createFileCommand = CREATE_CYCLIC_RECORD_FILE_COMMAND;
+                numberOfRecords = 6; // the cycling mechanism requires an additional record that is not shown on reading
+            }
+            byte[] maximumNumberOfRecords = intTo3ByteArrayInversed(numberOfRecords);
+            // build the parameter
+            parameter.write(fileNumber);
+            parameter.write(commSettings);
+            parameter.write(ACCESS_RIGHTS_RW_CAR_SECURED);
+            parameter.write(ACCESS_RIGHTS_R_W_SECURED);
+            parameter.write(fileSizeByte, 0, fileSizeByte.length);
+            parameter.write(maximumNumberOfRecords, 0, maximumNumberOfRecords.length);
+            createFileParameter = parameter.toByteArray();
+        }
+
         Log.d(TAG, "createFileCommand: " + byteToHex(createFileCommand) + printData(" parameter", createFileParameter));
         byte[] response;
         try {
@@ -1952,14 +2154,20 @@ public class DesfireAuthenticateEv2 {
         return true;
     }
 
-    private boolean createFileSetEncrypted() {
+    public boolean createFileSetEncrypted() {
         // creates 5 files with communication settings ENCRYPTED
+        Log.d(TAG, "createFileSetEncrypted");
         boolean createStandardFile = createAFile(STANDARD_FILE_ENCRYPTED_NUMBER, DesfireFileType.Standard, CommunicationSettings.Encrypted);
-        boolean createBackupFile;
+        boolean createBackupFile = createAFile(BACKUP_FILE_ENCRYPTED_NUMBER, DesfireFileType.Backup, CommunicationSettings.Encrypted);
         boolean createValueFile = createAFile(VALUE_FILE_ENCRYPTED_NUMBER, DesfireFileType.Value, CommunicationSettings.Encrypted);
-        boolean createLinearRecordFile;
-        boolean createCyclicRecordFile;
-        return true;
+        boolean createLinearRecordFile = createAFile(LINEAR_RECORD_FILE_ENCRYPTED_NUMBER, DesfireFileType.LinearRecord, CommunicationSettings.Encrypted);
+        boolean createCyclicRecordFile = createAFile(CYCLIC_RECORD_FILE_ENCRYPTED_NUMBER, DesfireFileType.CyclicRecord, CommunicationSettings.Encrypted);
+        Log.d(TAG, "createStandardFile result: " + createStandardFile);
+        Log.d(TAG, "createBackupFile result: " + createBackupFile);
+        Log.d(TAG, "createValueFile result: " + createValueFile);
+        Log.d(TAG, "createLinearRecordFile result: " + createLinearRecordFile);
+        Log.d(TAG, "createCyclicRecordFile result: " + createCyclicRecordFile);
+        return true; // returns true independent of results
     }
 
 

@@ -79,6 +79,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button fileRecordCreateEv2, fileRecordWriteEv2, fileRecordReadEv2;
     private Button fileCreateEv2;
 
+    private Button fileCreateFileSetPlain, fileCreateFileSetMaced, fileCreateFileSetEnciphered;
+
 
     private Button fileTransactionMacCreateEv2, fileTransactionMacDeleteEv2;
 
@@ -282,7 +284,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileRecordCreateEv2 = findViewById(R.id.btnCreateRecordFileEv2);
         fileRecordReadEv2 = findViewById(R.id.btnReadRecordFileEv2);
         fileRecordWriteEv2 = findViewById(R.id.btnWriteRecordFileEv2);
-        
+
+        fileCreateFileSetEnciphered = findViewById(R.id.btnCreateFileSetEncipheredEv2);
         
         fileTransactionMacCreateEv2 = findViewById(R.id.btnCreateTransactionMacFileEv2);
         fileTransactionMacDeleteEv2 = findViewById(R.id.btnDeleteTransactionMacFileEv2);
@@ -618,7 +621,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 String logString = "read from a standard file EV2";
                 writeToUiAppend(output, logString);
                 // todo skipped, using a fixed fileNumber
-                selectedFileId = "3";
+                selectedFileId = "2";
                 fileSelected.setText(selectedFileId);
 
                 // check that a file was selected before
@@ -634,7 +637,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 writeToUiAppend(output, "readDataFullPart1TestResult: " + readDataFullPart1TestResult);
 
 
-                byte fileIdByte = (byte) 0x03; // fixed
+                byte fileIdByte = (byte) 0x02; // fixed
 
                 byte[] responseData = new byte[2];
                 //byte[] result = readFromAStandardFilePlainCommunicationDes(output, fileIdByte, selectedFileSize, responseData);
@@ -657,8 +660,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     vibrateShort();
                 }
-
-
             }
         });
 
@@ -670,7 +671,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 writeToUiAppend(output, logString);
 
                 // todo skipped, using a fixed fileNumber
-                selectedFileId = "3";
+                selectedFileId = "2";
                 fileSelected.setText(selectedFileId);
                 int SELECTED_FILE_SIZE_FIXED = 32;
 
@@ -723,6 +724,45 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
          * section for value files
          */
 
+        fileValueReadEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "get the value from a Value file EV2";
+                writeToUiAppend(output, logString);
+                // todo skipped, using a fixed fileNumber
+                selectedFileId = "8";
+                fileSelected.setText(selectedFileId);
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                //byte fileIdByte = Byte.parseByte(selectedFileId);
+
+                byte fileIdByte = (byte) 0x08; // fixed
+
+                byte[] responseData = new byte[2];
+                int result = desfireAuthenticateEv2.getValueFileEv2(fileIdByte);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (result < 0) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " ID: " + fileIdByte + " value: " + result);
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }
+            }
+        });
+
 
         fileValueCreditEv2.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -740,11 +780,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             @Override
             public void onClick(View view) {
                 clearOutputFields();
-                String logString = "write to a record file EV2";
+                String logString = "write to a cyclic record file EV2";
                 writeToUiAppend(output, logString);
 
                 // todo skipped, using a fixed fileNumber
-                selectedFileId = "5";
+                selectedFileId = "14";
                 fileSelected.setText(selectedFileId);
                 int SELECTED_FILE_SIZE_FIXED = 32;
 
@@ -822,10 +862,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             @Override
             public void onClick(View view) {
                 clearOutputFields();
-                String logString = "read from a record file EV2";
+                String logString = "read from a cyyclic record file EV2";
                 writeToUiAppend(output, logString);
                 // todo skipped, using a fixed fileNumber
-                selectedFileId = "5";
+                selectedFileId = "14";
                 fileSelected.setText(selectedFileId);
 
                 // check that a file was selected before
@@ -840,7 +880,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 //boolean readDataFullPart1TestResult = desfireAuthenticateEv2.readDataFullPart1Test();
                 //writeToUiAppend(output, "readDataFullPart1TestResult: " + readDataFullPart1TestResult);
 
-                byte fileIdByte = (byte) 0x05; // fixed
+                byte fileIdByte = (byte) 0x0E; // fixed
 
                 byte[] responseData = new byte[2];
                 //byte[] result = readFromAStandardFilePlainCommunicationDes(output, fileIdByte, selectedFileSize, responseData);
@@ -1153,6 +1193,39 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     // NOTE: don't forget to authenticate with CAR key
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                     writeToUiAppend(errorCode, "Did you forget to authenticate with the CAR key ?");
+                }
+            }
+        });
+
+        /**
+         * section for file sets
+         */
+
+        fileCreateFileSetEnciphered.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "create a file set (5 files) ENCIPHERED EV2";
+                writeToUiAppend(output, logString);
+                writeToUiAppend(output, "Note: this will create a set of 5 files (Standard, Backup, Value, Linear Record and Cyclic Record type)");
+                // check that an application was selected before
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte[] responseData = new byte[2];
+                // create a file set with Encrypted communication
+                boolean success = desfireAuthenticateEv2.createFileSetEncrypted(); // returns true in any case !
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                //boolean success = createStandardFilePlainCommunicationDes(output, fileIdByte, fileSizeInt, rbFileFreeAccess.isChecked(), responseData);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                 }
             }
         });

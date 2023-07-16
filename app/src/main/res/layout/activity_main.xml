@@ -481,7 +481,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
-                        android:text="Cr Stand 3" />
+                        android:text="Cr Stand 2" />
 
                     <Button
                         android:id="@+id/btnWriteStandardFileEv2"
@@ -489,7 +489,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="Wr Stand 3" />
+                        android:text="Wr Stand 2" />
 
                     <Button
                         android:id="@+id/btnReadStandardFileEv2"
@@ -497,7 +497,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="Rd Stand 3" />
+                        android:text="Rd Stand 2" />
 
                 </LinearLayout>
 
@@ -512,7 +512,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
-                        android:text="Credit" />
+                        android:text="Credit 8" />
 
                     <Button
                         android:id="@+id/btnDebitValueFileEv2"
@@ -520,7 +520,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="Debit" />
+                        android:text="Debit 8" />
 
                     <Button
                         android:id="@+id/btnReadValueFileEv2"
@@ -528,7 +528,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="Read" />
+                        android:text="Read 8" />
 
                 </LinearLayout>
 
@@ -543,7 +543,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
-                        android:text="Cr CyRec 5" />
+                        android:text="Cr CyRec 14" />
 
                     <Button
                         android:id="@+id/btnWriteRecordFileEv2"
@@ -551,7 +551,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="Wr CyRec 5" />
+                        android:text="Wr CyRec 14" />
 
                     <Button
                         android:id="@+id/btnReadRecordFileEv2"
@@ -559,9 +559,63 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="Rd CyRec 5" />
+                        android:text="Rd CyRec 14" />
 
                 </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv2Ev2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="10dp"
+                    android:text="create file sets (no auth required)"
+                    android:textAlignment="center"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnCreateFileSetPlainEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:enabled="false"
+                        android:text="Cr FS plain" />
+
+                    <Button
+                        android:id="@+id/btnFileSetMacedEv2Ev2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:enabled="false"
+                        android:text="Cr FS mac" />
+
+                    <Button
+                        android:id="@+id/btnCreateFileSetEncipheredEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:enabled="true"
+                        android:text="CR FS enciph" />
+
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv3Ev2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="10dp"
+                    android:text="Transaction MAC file"
+                    android:textAlignment="center"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
