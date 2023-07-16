@@ -2093,6 +2093,10 @@ public class DesfireAuthenticateEv2 {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 76 - 80
         // this is based on the key change of an application key on a DESFire Light card
         // Cmd.ChangeKey Case 1: Key number to be changed ≠ Key number for currently authenticated session.
+
+        // todo implement case 2
+        // Case 2: Key number to be changed == Key number for currently authenticated session.
+
         String logData = "";
         String methodName = "changeApplicationKeyEv2";
         log(methodName, "started", true);
