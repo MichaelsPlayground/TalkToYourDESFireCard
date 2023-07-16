@@ -767,7 +767,105 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileValueCreditEv2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                clearOutputFields();
+                String logString = "credit the value on a Value file EV2";
+                writeToUiAppend(output, logString);
+                // todo skipped, using a fixed fileNumber
+                selectedFileId = "8";
+                fileSelected.setText(selectedFileId);
 
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                //byte fileIdByte = Byte.parseByte(selectedFileId);
+
+                byte fileIdByte = (byte) 0x08; // fixed
+
+                int changeValue = 7; // fixed
+                writeToUiAppend(output, "The value file will get CREDITED by " + changeValue);
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.creditValueFileEv2(fileIdByte, changeValue);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return; // don't submit a commit
+                }
+                boolean successCommit = desfireAuthenticateEv2.commitTransactionEv2();
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                writeToUiAppend(output, "commitSuccess: " + successCommit);
+                if (!successCommit) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit NOT Success, aborted", COLOR_RED);
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Did you forget to authenticate with a WRITE ACCESS Key first ?");
+                    return;
+                }
+                writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
+                vibrateShort();
+
+            }
+        });
+
+        fileValueDebitEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "debit the value on a Value file EV2";
+                writeToUiAppend(output, logString);
+                // todo skipped, using a fixed fileNumber
+                selectedFileId = "8";
+                fileSelected.setText(selectedFileId);
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                //byte fileIdByte = Byte.parseByte(selectedFileId);
+
+                byte fileIdByte = (byte) 0x08; // fixed
+
+                int changeValue = 7; // fixed
+                writeToUiAppend(output, "The value file will get DEBITED by " + changeValue);
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.debitValueFileEv2(fileIdByte, changeValue);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return; // don't submit a commit
+                }
+                boolean successCommit = desfireAuthenticateEv2.commitTransactionEv2();
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                writeToUiAppend(output, "commitSuccess: " + successCommit);
+                if (!successCommit) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit NOT Success, aborted", COLOR_RED);
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Did you forget to authenticate with a WRITE ACCESS Key first ?");
+                    return;
+                }
+                writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
+                vibrateShort();
             }
         });
 
@@ -854,6 +952,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(errorCode, "Did you forget to authenticate with a WRITE ACCESS Key first ?");
                     return;
                 }
+                vibrateShort();
                 writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
             }
         });
