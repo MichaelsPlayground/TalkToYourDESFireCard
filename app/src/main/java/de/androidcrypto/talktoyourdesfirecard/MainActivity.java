@@ -72,7 +72,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for EV2 authentication and communication
      */
 
-    private Button authD1AEv2, getCardUidEv2, getFileSettingsEv2;
+    private Button authD0AEv2, authD1AEv2, authD3ACEv2;
+    private Button getCardUidEv2, getFileSettingsEv2;
     private Button fileStandardCreateEv2, fileStandardWriteEv2, fileStandardReadEv2;
     private Button fileValueCreditEv2, fileValueDebitEv2, fileValueReadEv2;
 
@@ -80,6 +81,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button fileCreateEv2;
 
     private Button fileCreateFileSetPlain, fileCreateFileSetMaced, fileCreateFileSetEnciphered;
+
+    private Button changeKeyD3AtoD3AC, changeKeyD3ACtoD3A;
 
 
     private Button fileTransactionMacCreateEv2, fileTransactionMacDeleteEv2;
@@ -166,6 +169,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private final byte[] APPLICATION_KEY_MASTER_DES_DEFAULT = Utils.hexStringToByteArray("0000000000000000"); // default DES key with 8 nulls
     private final byte[] APPLICATION_KEY_MASTER_DES = Utils.hexStringToByteArray("D000000000000000");
+    private final byte[] APPLICATION_KEY_MASTER_AES_DEFAULT = Utils.hexStringToByteArray("00000000000000000000000000000000"); // default AES key with 16 nulls
     private final byte APPLICATION_KEY_MASTER_NUMBER = (byte) 0x00;
 
     private final byte[] APPLICATION_KEY_RW_DES_DEFAULT = Utils.hexStringToByteArray("0000000000000000"); // default DES key with 8 nulls
@@ -175,12 +179,16 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private final byte[] APPLICATION_KEY_CAR_DES_DEFAULT = Utils.hexStringToByteArray("0000000000000000"); // default DES key with 8 nulls
     private final byte[] APPLICATION_KEY_CAR_DES = Utils.hexStringToByteArray("D2100000000000000");
     private final byte[] APPLICATION_KEY_CAR_AES_DEFAULT = Utils.hexStringToByteArray("00000000000000000000000000000000"); // default AES key with 16 nulls
+    private final byte[] APPLICATION_KEY_CAR_AES = Utils.hexStringToByteArray("A2000000000000000000000000000000");
     private final byte APPLICATION_KEY_CAR_NUMBER = (byte) 0x02;
     private final byte[] APPLICATION_KEY_R_DES_DEFAULT = Utils.hexStringToByteArray("0000000000000000"); // default DES key with 8 nulls
     private final byte[] APPLICATION_KEY_R_DES = Utils.hexStringToByteArray("D3100000000000000");
+    private final byte[] APPLICATION_KEY_R_AES_DEFAULT = Utils.hexStringToByteArray("00000000000000000000000000000000"); // default AES key with 16 nulls
+    private final byte[] APPLICATION_KEY_R_AES = Utils.hexStringToByteArray("A3000000000000000000000000000000");
     private final byte APPLICATION_KEY_R_NUMBER = (byte) 0x03;
     private final byte[] APPLICATION_KEY_W_DES_DEFAULT = Utils.hexStringToByteArray("0000000000000000"); // default DES key with 8 nulls
     private final byte[] APPLICATION_KEY_W_DES = Utils.hexStringToByteArray("D4100000000000000");
+
     private final byte APPLICATION_KEY_W_NUMBER = (byte) 0x04;
 
     // see Mifare DESFire Light Features and Hints AN12343.pdf, page 83-84
@@ -267,7 +275,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         rbFileKeySecuredAccess = findViewById(R.id.rbFileAccessTypeKeySecuredAccess);
 
         // section for EV2 auth & communication
+        authD0AEv2 = findViewById(R.id.btnAuthD0AEv2);
         authD1AEv2 = findViewById(R.id.btnAuthD1AEv2);
+        authD3ACEv2 = findViewById(R.id.btnAuthD3ACEv2);
         getCardUidEv2 = findViewById(R.id.btnGetCardUidEv2);
         getFileSettingsEv2 = findViewById(R.id.btnGetFileSettingsEv2);
 
@@ -289,6 +299,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         
         fileTransactionMacCreateEv2 = findViewById(R.id.btnCreateTransactionMacFileEv2);
         fileTransactionMacDeleteEv2 = findViewById(R.id.btnDeleteTransactionMacFileEv2);
+
+        changeKeyD3AtoD3AC = findViewById(R.id.btnChangeKeyD3AtoD3ACEv2); // change AES key 03 from DEFAULT to CHANGED
+        changeKeyD3ACtoD3A = findViewById(R.id.btnChangeKeyD3ACtoD3AEv2); // change AES key 03 from CHANGED to DEFAULT
 
         // standard files
         fileStandardCreate = findViewById(R.id.btnCreateStandardFile);
@@ -442,6 +455,45 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
          * section for EV2 authentication and communication
          */
 
+        authD0AEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // authenticate with the read access key = 03...
+                clearOutputFields();
+                String logString = "EV2 First authenticate with DEFAULT AES key number 0x00 = application master key";
+                writeToUiAppend(output, logString);
+                if (selectedApplicationId == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
+                    return;
+                }
+
+                // run a self test
+                //boolean getSesAuthKeyTestResult = desfireAuthenticateEv2.getSesAuthKeyTest();
+                //writeToUiAppend(output, "getSesAuthKeyTestResult: " + getSesAuthKeyTestResult);
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    SES_AUTH_ENC_KEY = desfireAuthenticateEv2.getSesAuthENCKey();
+                    SES_AUTH_MAC_KEY = desfireAuthenticateEv2.getSesAuthMACKey();
+                    TRANSACTION_IDENTIFIER = desfireAuthenticateEv2.getTransactionIdentifier();
+                    CMD_COUNTER = desfireAuthenticateEv2.getCmdCounter();
+                    writeToUiAppend(output, printData("SES_AUTH_ENC_KEY", SES_AUTH_ENC_KEY));
+                    writeToUiAppend(output, printData("SES_AUTH_MAC_KEY", SES_AUTH_MAC_KEY));
+                    writeToUiAppend(output, printData("TRANSACTION_IDENTIFIER", TRANSACTION_IDENTIFIER));
+                    writeToUiAppend(output, "CMD_COUNTER: " + CMD_COUNTER);
+                    vibrateShort();
+                    // show logData
+                    //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
         authD1AEv2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -460,6 +512,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 byte[] responseData = new byte[2];
                 boolean success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_AES_DEFAULT);
+                responseData = desfireAuthenticateEv2.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
@@ -475,6 +528,46 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     // show logData
                     //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
                 } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        authD3ACEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // authenticate with the read access key = 03...
+                clearOutputFields();
+                String logString = "EV2 First authenticate with CHANGED AES key number 0x03 = read access key";
+                writeToUiAppend(output, logString);
+                if (selectedApplicationId == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
+                    return;
+                }
+
+                // run a self test
+                //boolean getSesAuthKeyTestResult = desfireAuthenticateEv2.getSesAuthKeyTest();
+                //writeToUiAppend(output, "getSesAuthKeyTestResult: " + getSesAuthKeyTestResult);
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_R_NUMBER, APPLICATION_KEY_R_AES);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    SES_AUTH_ENC_KEY = desfireAuthenticateEv2.getSesAuthENCKey();
+                    SES_AUTH_MAC_KEY = desfireAuthenticateEv2.getSesAuthMACKey();
+                    TRANSACTION_IDENTIFIER = desfireAuthenticateEv2.getTransactionIdentifier();
+                    CMD_COUNTER = desfireAuthenticateEv2.getCmdCounter();
+                    writeToUiAppend(output, printData("SES_AUTH_ENC_KEY", SES_AUTH_ENC_KEY));
+                    writeToUiAppend(output, printData("SES_AUTH_MAC_KEY", SES_AUTH_MAC_KEY));
+                    writeToUiAppend(output, printData("TRANSACTION_IDENTIFIER", TRANSACTION_IDENTIFIER));
+                    writeToUiAppend(output, "CMD_COUNTER: " + CMD_COUNTER);
+                    vibrateShort();
+                    // show logData
+                    //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                 }
             }
@@ -1077,6 +1170,65 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
             }
         });
+
+        /**
+         * section  for changing keys
+         */
+
+        changeKeyD3AtoD3AC.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "change AES application key 03 (READ) from DEFAULT to CHANGED EV2";
+                writeToUiAppend(output, logString);
+                // check that an application was selected before
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.changeApplicationKeyEv2(APPLICATION_KEY_R_NUMBER, APPLICATION_KEY_R_AES, APPLICATION_KEY_R_AES_DEFAULT);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        changeKeyD3ACtoD3A.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "change AES application key 03 (READ) from CHANGED to DEFAULT EV2";
+                writeToUiAppend(output, logString);
+                // check that an application was selected before
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.changeApplicationKeyEv2(APPLICATION_KEY_R_NUMBER, APPLICATION_KEY_R_AES_DEFAULT, APPLICATION_KEY_R_AES);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
 
 
         /**

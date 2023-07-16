@@ -120,10 +120,16 @@ public class DesfireAuthenticateEv2 {
     private final byte CREATE_TRANSACTION_MAC_FILE_COMMAND = (byte) 0xCE;
     private final byte DELETE_TRANSACTION_MAC_FILE_COMMAND = (byte) 0xDF;
 
+    private final byte CHANGE_KEY_SECURE_COMMAND = (byte) 0xC4;
+
+
+
+
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
     private final byte[] RESPONSE_AUTHENTICATION_ERROR = new byte[]{(byte) 0x91, (byte) 0xAE};
     private final byte[] RESPONSE_MORE_DATA_AVAILABLE = new byte[]{(byte) 0x91, (byte) 0xAF};
+    private final byte[] RESPONSE_FAILURE_MISSING_AUTHENTICATION = new byte[]{(byte) 0x91, (byte) 0xFE};
     private final byte[] RESPONSE_FAILURE = new byte[]{(byte) 0x91, (byte) 0xFF};
 
     private final byte[] HEADER_ENC = new byte[]{(byte) (0x5A), (byte) (0xA5)}; // fixed to 0x5AA5
@@ -176,7 +182,7 @@ public class DesfireAuthenticateEv2 {
     private final byte CYCLIC_RECORD_FILE_MACED_NUMBER = (byte) 0x0D; // 13
     private final byte CYCLIC_RECORD_FILE_ENCRYPTED_NUMBER = (byte) 0x0E; // 14
 
-
+    private static final byte MAXIMUM_NUMBER_OF_KEYS = 5;
 
     private final byte[] PADDING_FULL = hexStringToByteArray("80000000000000000000000000000000");
 
@@ -208,7 +214,7 @@ public class DesfireAuthenticateEv2 {
         // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
             Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
             return false;
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
@@ -282,7 +288,7 @@ public class DesfireAuthenticateEv2 {
         // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
             Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
             return false;
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
@@ -467,7 +473,7 @@ public class DesfireAuthenticateEv2 {
         // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
             Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
             return null;
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
@@ -629,7 +635,7 @@ public class DesfireAuthenticateEv2 {
         // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
             Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
             return -1;
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
@@ -764,7 +770,7 @@ public class DesfireAuthenticateEv2 {
         // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
             Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
             return false;
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
@@ -912,7 +918,7 @@ public class DesfireAuthenticateEv2 {
         // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
             Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
             return false;
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
@@ -1079,7 +1085,7 @@ public class DesfireAuthenticateEv2 {
         // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
             Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
             return false;
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
@@ -1261,7 +1267,7 @@ public class DesfireAuthenticateEv2 {
         // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
             Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
             return null;
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
@@ -1424,7 +1430,7 @@ public class DesfireAuthenticateEv2 {
         // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
             Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
             return false;
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
@@ -1555,7 +1561,7 @@ public class DesfireAuthenticateEv2 {
         // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
             Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
             return false;
         }
         if (fileNumber < 0) {
@@ -1738,7 +1744,7 @@ public class DesfireAuthenticateEv2 {
         // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
             Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
             return false;
         }
         if (fileNumber < 0) {
@@ -1928,7 +1934,7 @@ public class DesfireAuthenticateEv2 {
         // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
             Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
             return null;
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
@@ -2083,6 +2089,182 @@ public class DesfireAuthenticateEv2 {
         }
     }
 
+    public boolean changeApplicationKeyEv2(byte keyNumber, byte[] keyNew, byte[] keyOld) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 76 - 80
+        // this is based on the key change of an application key on a DESFire Light card
+        // Cmd.ChangeKey Case 1: Key number to be changed ≠ Key number for currently authenticated session.
+        String logData = "";
+        String methodName = "changeApplicationKeyEv2";
+        log(methodName, "started", true);
+        log(methodName, "keyNumber: " + keyNumber);
+        log(methodName, printData("keyNew", keyNew));
+        log(methodName, printData("keyOld", keyOld));
+        // sanity checks
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((keyNumber < 0) || (keyNumber > MAXIMUM_NUMBER_OF_KEYS)) {
+            Log.e(TAG, methodName + " keyNumber is not in range 0.." + MAXIMUM_NUMBER_OF_KEYS + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((keyNew == null) || (keyNew.length != 16)) {
+            Log.e(TAG, methodName + " keyNew is NULL or not of length 16, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((keyOld == null) || (keyOld.length != 16)) {
+            Log.e(TAG, methodName + " keyOld is NULL or not of length 16, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        final byte KEY_VERSION = (byte) 0x00; // fixed
+
+        // Encrypting the Command Data
+
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(IV_LABEL_ENC, 0, IV_LABEL_ENC.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        // Data (New KeyValue || New KeyVersion || CRC32 of New KeyValue || Padding)
+        // 0123456789012345678901234567890100A0A608688000000000000000000000
+        // 01234567890123456789012345678901 00 A0A60868 8000000000000000000000
+        // keyNew 16 byte              keyVers crc32 4  padding 11 bytes
+
+        // error: this is missing in Feature & Hints
+        // see MIFARE DESFire Light contactless application IC MF2DLHX0.pdf page 71
+        // 'if key 1 to 4 are to be changed (NewKey XOR OldKey) || KeyVer || CRC32NK'
+        // if the keyNumber of the key to change is not the keyNumber that authenticated
+        // we need to xor the new key with the old key, the CRC32 is run over the real new key (not the  XORed one)
+        byte[] keyNewXor = keyNew.clone();
+        for (int i = 0; i < keyOld.length; i++) {
+            keyNewXor[i] ^= keyOld[i % keyOld.length];
+        }
+        log(methodName, printData("keyNewXor", keyNewXor));
+        byte[] crc32 = CRC32.get(keyNew);
+        log(methodName, printData("crc32 of keyNew", crc32));
+        byte[] padding = hexStringToByteArray("8000000000000000000000");
+        ByteArrayOutputStream baosData = new ByteArrayOutputStream();
+        baosData.write(keyNewXor, 0, keyNewXor.length);
+        baosData.write(KEY_VERSION);
+        baosData.write(crc32, 0, crc32.length);
+        baosData.write(padding, 0, padding.length);
+        byte[] data = baosData.toByteArray();
+        log(methodName, printData("data", data));
+
+        // Encrypt the Command Data = E(KSesAuthENC, Data)
+        byte[] encryptedData = AES.encrypt(ivForCmdData, SesAuthENCKey, data);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader = keyNumber || Encrypted CmdData )
+        // C40000BC354CD50180D40DB52D5D8CA136249A0A14154DBA1BE0D67C408AB24CF0F3D3B4FE333C6A
+        // C4 0000 BC354CD5 01 80D40DB52D5D8CA136249A0A14154DBA1BE0D67C408AB24CF0F3D3B4FE333C6A
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(CHANGE_KEY_SECURE_COMMAND); // 0xC4
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(keyNumber);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Data (CmdHeader = keyNumber || Encrypted Data || MAC)
+        ByteArrayOutputStream baosChangeKeyCommand = new ByteArrayOutputStream();
+        baosChangeKeyCommand.write(keyNumber);
+        baosChangeKeyCommand.write(encryptedData, 0, encryptedData.length);
+        baosChangeKeyCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] changeKeyCommand = baosChangeKeyCommand.toByteArray();
+        log(methodName, printData("changeKeyCommand", changeKeyCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(CHANGE_KEY_SECURE_COMMAND, changeKeyCommand);
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+
+        // verifying the received Response MAC
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        byte[] macInput2 = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput2", macInput2));
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return true;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return false;
+        }
+    }
+
+
+
+
     /**
      * authenticateAesEv2First uses the EV2First authentication method with command 0x71
      *
@@ -2223,7 +2405,7 @@ public class DesfireAuthenticateEv2 {
         // we are expecting that the status code is 0x00 means the exchange was OK
         if (!checkResponse(responseBytes)) {
             log(methodName, "expected to get get 0x00 as error code but  found: " + printData("errorCode", responseBytes) + ", aborted", false);
-            //System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return false;
         }
         // now we know that we can work with the response, response is 32 bytes long
@@ -2519,7 +2701,7 @@ public class DesfireAuthenticateEv2 {
         if (!authenticateEv2FirstSuccess) {
             Log.e(TAG, methodName + " please run an authenticateEV2First before, aborted");
             log(methodName, "missing previous successfull authenticateEv2First, aborted", false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
             return false;
         }
 
