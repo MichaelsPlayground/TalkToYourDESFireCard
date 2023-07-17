@@ -86,7 +86,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button fileValueCreditEv2, fileValueDebitEv2, fileValueReadEv2;
 
     private Button fileRecordCreateEv2, fileRecordWriteEv2, fileRecordReadEv2;
-    private Button fileCreateEv2;
+    //private Button fileCreateEv2;
 
     private Button fileCreateFileSetPlain, fileCreateFileSetMaced, fileCreateFileSetEnciphered;
 
@@ -94,6 +94,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
 
     private Button fileTransactionMacCreateEv2, fileTransactionMacDeleteEv2;
+    private Button completeTransactionMacFileEv2;
 
     /**
      * section for standard file handling
@@ -293,7 +294,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         getCardUidEv2 = findViewById(R.id.btnGetCardUidEv2);
         getFileSettingsEv2 = findViewById(R.id.btnGetFileSettingsEv2);
 
-        fileCreateEv2 = findViewById(R.id.btnCreateFilesEv2);
+        //fileCreateEv2 = findViewById(R.id.btnCreateFilesEv2);
 
         fileStandardCreateEv2 = findViewById(R.id.btnCreateStandardFileEv2);
         fileStandardReadEv2 = findViewById(R.id.btnReadStandardFileEv2);
@@ -311,6 +312,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         
         fileTransactionMacCreateEv2 = findViewById(R.id.btnCreateTransactionMacFileEv2);
         fileTransactionMacDeleteEv2 = findViewById(R.id.btnDeleteTransactionMacFileEv2);
+        completeTransactionMacFileEv2 = findViewById(R.id.btnCompleteTransactionMacFileEv2);
+
 
         changeKeyD3AtoD3AC = findViewById(R.id.btnChangeKeyD3AtoD3ACEv2); // change AES key 03 from DEFAULT to CHANGED
         changeKeyD3ACtoD3A = findViewById(R.id.btnChangeKeyD3ACtoD3AEv2); // change AES key 03 from CHANGED to DEFAULT
@@ -667,6 +670,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        /*
         fileCreateEv2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -701,7 +705,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
             }
         });
-
+*/
 
 
         /**
@@ -1204,6 +1208,90 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        completeTransactionMacFileEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "complete Transaction MAC file EV2";
+                writeToUiAppend(output, logString);
+                writeToUiAppend(output, "Note: the app will run a complete session using the TMAC file:\n" +
+                        "1. write a new record to the enciphered Cyclic Record file (file id 14\n" +
+                        "2. commit the transaction with commitTMACTransactionEv2\n" +
+                        "3. read the TMAC file content\n\n" +
+                        "Note: this will FAIL when no TMAC file is present in application !");
+
+                // check that an application was selected before
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                writeToUiAppend(output, logString + " with id: " + TRANSACTION_MAC_FILE_NUMBER);
+
+                // step 1: write a new record
+                selectedFileId = "14";
+                fileSelected.setText(selectedFileId);
+                int recordSize = 32; // fixed at the moment
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                String dataToWrite = "123 some data";
+
+                // limit the string
+                String dataToWriteString = Utils.getTimestamp() + " " + dataToWrite;
+                if (dataToWriteString.length() > recordSize) dataToWriteString = dataToWriteString.substring(0, recordSize);
+                byte[] dataToWriteStringBytes = dataToWriteString.getBytes(StandardCharsets.UTF_8);
+                byte[] fullDataToWrite = new byte[recordSize];
+                System.arraycopy(dataToWriteStringBytes, 0, fullDataToWrite, 0, dataToWriteStringBytes.length);
+                writeToUiAppend(output, printData("fullDataToWrite", fullDataToWrite));
+
+                // todo this is a hard coded padding to avoid any longer data because when the dataToWrite
+                // is a multiple of AES block size (16 bytes) we need to add a new data block for padding
+                // here the padding is added on the last 2 bytes of the  record size
+                fullDataToWrite[30] = (byte) 0x80;
+                fullDataToWrite[31] = (byte) 0x00;
+                writeToUiAppend(output, "## removed last 2 bytes of fullDataToWrite and added a padding ##");
+                writeToUiAppend(output, printData("fullDataToWrite", fullDataToWrite));
+
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.writeRecordFileEv2(fileIdByte, fullDataToWrite);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return; // don't submit a commit
+                }
+
+                writeToUiAppend(output, "now we are running the commitTMACTransactionEv2");
+
+                boolean successCommit = desfireAuthenticateEv2.commitTMACTransactionEv2();
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                writeToUiAppend(output, "commitSuccess: " + successCommit);
+                if (!successCommit) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit NOT Success, aborted", COLOR_RED);
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Did you forget to authenticate with a WRITE ACCESS Key first ?");
+                    return;
+                }
+                vibrateShort();
+                writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
+
+                // TODO READ THE TMAC file content
+            }
+        });
+
         /**
          * section  for changing keys
          */
@@ -1589,13 +1677,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
-        // this method is using the Proximity class
+        // this method is using the Legacy/Proximity class
         authD2D.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 // authenticate with the read&write access key = 01...
                 clearOutputFields();
-                String logString = "authenticate with DEFAULT DES key number 0x01 = read & write access key";
+                String logString = "authenticate with DEFAULT DES key number 0x02 = change access rights key";
                 writeToUiAppend(output, logString);
                 if (selectedApplicationId == null) {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
