@@ -1554,7 +1554,7 @@ public class DesfireAuthenticateEv2 {
         // this is based on the write of a record file on a DESFire Light card
         // additionally see MIFARE DESFire Light contactless application IC MF2DLHX0.pdf pages 106 - 107
 
-        // status ?
+        // status WORKING
 
         String logData = "";
         String methodName = "commitTMACTransactionEv2";
