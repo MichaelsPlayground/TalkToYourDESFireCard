@@ -16,8 +16,8 @@
         app:showAsAction="never"/>
 
     <item
-        android:id="@+id/action_export_file"
-        android:title="Export File"
+        android:id="@+id/action_export_text_file"
+        android:title="Export text File"
         app:showAsAction="never"/>
 
     <item

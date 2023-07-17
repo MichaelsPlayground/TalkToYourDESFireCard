@@ -5,8 +5,10 @@ import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
 import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.net.Uri;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.tech.IsoDep;
@@ -25,7 +27,12 @@ import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.RadioButton;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -34,6 +41,7 @@ import com.google.android.material.textfield.TextInputLayout;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
@@ -232,6 +240,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     //private CommunicationAdapter adapter;
     private IsoDep isoDep;
     private byte[] tagIdByte;
+
+    private String exportString = ""; // takes the log data for export
+    private String exportStringFileName = "auth.html"; // takes the log data for export
+
 
     // DesfireAuthentication is used for all authentication tasks. The constructor needs the isoDep object so it is initialized in 'onTagDiscovered'
     DesfireAuthenticate desfireAuthenticate;
@@ -471,6 +483,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 //boolean getSesAuthKeyTestResult = desfireAuthenticateEv2.getSesAuthKeyTest();
                 //writeToUiAppend(output, "getSesAuthKeyTestResult: " + getSesAuthKeyTestResult);
 
+                exportString = "";
+                exportStringFileName = "auth.html";
+
                 byte[] responseData = new byte[2];
                 boolean success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
                 responseData = desfireAuthenticateEv2.getErrorCode();
@@ -487,6 +502,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, "CMD_COUNTER: " + CMD_COUNTER);
                     vibrateShort();
                     // show logData
+
+                    // prepare data for export
+                    exportString = desfireAuthenticateEv2.getLogData();
+                    exportStringFileName = "auth0a_ev2.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
                     //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
@@ -526,6 +547,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, "CMD_COUNTER: " + CMD_COUNTER);
                     vibrateShort();
                     // show logData
+
+                    // prepare data for export
+                    exportString = desfireAuthenticateEv2.getLogData();
+                    exportStringFileName = "auth1a_ev2.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
                     //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
@@ -565,6 +592,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, "CMD_COUNTER: " + CMD_COUNTER);
                     vibrateShort();
                     // show logData
+
+                    // prepare data for export
+                    exportString = desfireAuthenticateEv2.getLogData();
+                    exportStringFileName = "auth3ac_ev2.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
                     //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
                 } else {
                     writeToUiAppend(output, logString + " FAILURE");
@@ -1507,7 +1540,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     SESSION_KEY_DES = desfireAuthenticate.getSessionKey();
                     vibrateShort();
                     // show logData
-                    showDialog(MainActivity.this, desfireAuthenticate.getLogData());
+
+                    // prepare data for export
+                    exportString = desfireAuthenticate.getLogData();
+                    exportStringFileName = "auth0d_ev2.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
+                    //showDialog(MainActivity.this, desfireAuthenticate.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                 }
@@ -1536,7 +1575,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
-                    showDialog(MainActivity.this, desfireAuthenticateLegacy.getLogData());
+
+                    // prepare data for export
+                    exportString = desfireAuthenticate.getLogData();
+                    exportStringFileName = "auth1d_ev2.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
+                    //showDialog(MainActivity.this, desfireAuthenticateLegacy.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                     writeToUiAppend(output, desfireAuthenticateLegacy.getLogData());
@@ -1567,7 +1612,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
-                    showDialog(MainActivity.this, desfireAuthenticateLegacy.getLogData());
+
+                    // prepare data for export
+                    exportString = desfireAuthenticate.getLogData();
+                    exportStringFileName = "auth2d_ev2.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
+                    //showDialog(MainActivity.this, desfireAuthenticateLegacy.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                     writeToUiAppend(output, desfireAuthenticateLegacy.getLogData());
@@ -1624,7 +1675,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
-                    showDialog(MainActivity.this, desfireAuthenticate.getLogData());
+
+                    // prepare data for export
+                    exportString = desfireAuthenticate.getLogData();
+                    exportStringFileName = "auth3d_ev2.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
+                    //showDialog(MainActivity.this, desfireAuthenticate.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                 }
@@ -1652,7 +1709,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
-                    showDialog(MainActivity.this, desfireAuthenticate.getLogData());
+
+                    // prepare data for export
+                    exportString = desfireAuthenticate.getLogData();
+                    exportStringFileName = "auth4d_ev2.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
+                    //showDialog(MainActivity.this, desfireAuthenticate.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                 }
@@ -1685,7 +1748,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_AES));
                     vibrateShort();
                     // show logData
-                    showDialog(MainActivity.this, desfireAuthenticate.getLogData());
+
+                    // prepare data for export
+                    exportString = desfireAuthenticate.getLogData();
+                    exportStringFileName = "auth2a_nfcJ.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
+                    //showDialog(MainActivity.this, desfireAuthenticate.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                 }
@@ -1716,7 +1785,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_AES));
                     vibrateShort();
                     // show logData
-                    showDialog(MainActivity.this, desfireAuthenticateLegacy.getLogData());
+
+                    // prepare data for export
+                    exportString = desfireAuthenticateLegacy.getLogData();
+                    exportStringFileName = "auth2d_leg.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
+                    //showDialog(MainActivity.this, desfireAuthenticateLegacy.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                 }
@@ -1747,7 +1822,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_AES));
                     vibrateShort();
                     // show logData
-                    showDialog(MainActivity.this, desfireAuthenticateLegacy.getLogData());
+
+                    // prepare data for export
+                    exportString = desfireAuthenticateLegacy.getLogData();
+                    exportStringFileName = "auth2a_leg.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
+                    //showDialog(MainActivity.this, desfireAuthenticateLegacy.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                 }
@@ -1776,6 +1857,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, printData("the session key is", SESSION_KEY_AES));
                     vibrateShort();
                     // show logData
+
+                    // prepare data for export
+                    exportString = desfireAuthenticateLegacy.getLogData();
+                    exportStringFileName = "auth2a_ev2.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
                     //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
@@ -1813,6 +1900,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     //writeToUiAppend(output, printData("the session key is", SESSION_KEY_DES));
                     vibrateShort();
                     // show logData
+
+                    // prepare data for export
+                    exportString = desfireAuthenticate.getLogData();
+                    exportStringFileName = "auth2a_ev2.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
                     //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
@@ -3066,6 +3159,14 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         });
     }
 
+    private void writeToUiToast(String message) {
+        runOnUiThread(() -> {
+            Toast.makeText(getApplicationContext(),
+                    message,
+                    Toast.LENGTH_SHORT).show();
+        });
+    }
+
     private void clearOutputFields() {
         runOnUiThread(() -> {
             output.setText("");
@@ -3118,6 +3219,79 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     }
 
     /**
+     * section OptionsMenu export text file methods
+     */
+
+    private void exportTextFile() {
+        //provideTextViewDataForExport(etLog);
+        if (exportString.isEmpty()) {
+            writeToUiToast("Log some data before writing files :-)");
+            return;
+        }
+        writeStringToExternalSharedStorage();
+    }
+
+    private void writeStringToExternalSharedStorage() {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        // Optionally, specify a URI for the file that should appear in the
+        // system file picker when it loads.
+        // boolean pickerInitialUri = false;
+        // intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, pickerInitialUri);
+        // get filename from edittext
+        String filename = exportStringFileName;
+        // sanity check
+        if (filename.equals("")) {
+            writeToUiToast("scan a tag before writing the content to a file :-)");
+            return;
+        }
+        intent.putExtra(Intent.EXTRA_TITLE, filename);
+        selectTextFileActivityResultLauncher.launch(intent);
+    }
+
+    ActivityResultLauncher<Intent> selectTextFileActivityResultLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            new ActivityResultCallback<ActivityResult>() {
+                @Override
+                public void onActivityResult(ActivityResult result) {
+                    if (result.getResultCode() == Activity.RESULT_OK) {
+                        // There are no request codes
+                        Intent resultData = result.getData();
+                        // The result data contains a URI for the document or directory that
+                        // the user selected.
+                        Uri uri = null;
+                        if (resultData != null) {
+                            uri = resultData.getData();
+                            // Perform operations on the document using its URI.
+                            try {
+                                // get file content from edittext
+                                String fileContent = exportString;
+                                System.out.println("## data to write: " + exportString);
+                                writeTextToUri(uri, fileContent);
+                                writeToUiToast("file written to external shared storage: " + uri.toString());
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                                writeToUiToast("ERROR: " + e.toString());
+                                return;
+                            }
+                        }
+                    }
+                }
+            });
+
+    private void writeTextToUri(Uri uri, String data) throws IOException {
+        try {
+            System.out.println("** data to write: " + data);
+            OutputStreamWriter outputStreamWriter = new OutputStreamWriter(getApplicationContext().getContentResolver().openOutputStream(uri));
+            outputStreamWriter.write(data);
+            outputStreamWriter.close();
+        } catch (IOException e) {
+            System.out.println("Exception File write failed: " + e.toString());
+        }
+    }
+
+    /**
      * section for options menu
      */
 
@@ -3141,6 +3315,16 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             public boolean onMenuItemClick(MenuItem item) {
                 allLayoutsInvisible();
                 //llStandardFile.setVisibility(View.VISIBLE);
+                return false;
+            }
+        });
+
+        MenuItem mExportTextFile = menu.findItem(R.id.action_export_text_file);
+        mExportTextFile.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                Log.i(TAG, "mExportTextFile");
+                exportTextFile();
                 return false;
             }
         });

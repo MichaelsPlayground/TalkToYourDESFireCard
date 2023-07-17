@@ -3939,7 +3939,8 @@ public class DesfireAuthenticateEv2 {
 
     private void log(String methodName, String data, boolean isMethodHeader) {
         if (printToLog) {
-            logData += "method: " + methodName + "\n" + data + "\n";
+            //logData += "method: " + methodName + "\n" + data + "\n";
+            logData += "\n" + methodName + ":\n" + data + "\n\n";
             Log.d(TAG, "method: " + methodName + ": " + data);
         }
     }
