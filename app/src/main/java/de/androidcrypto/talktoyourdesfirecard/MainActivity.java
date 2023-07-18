@@ -1,6 +1,7 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
 import static de.androidcrypto.talktoyourdesfirecard.Utils.byteArrayLength4InversedToInt;
+import static de.androidcrypto.talktoyourdesfirecard.Utils.bytesToHexNpeUpperCase;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
 
 import android.app.Activity;
@@ -80,6 +81,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     /**
      * section for EV2 authentication and communication
      */
+
+    private Button selectApplicationEv2, getAllFileIdsEv2, getAllFileSettingsEv2;
 
     private Button authD0AEv2, authD1AEv2, authD3ACEv2;
     private Button getCardUidEv2, getFileSettingsEv2;
@@ -289,6 +292,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         rbFileKeySecuredAccess = findViewById(R.id.rbFileAccessTypeKeySecuredAccess);
 
         // section for EV2 auth & communication
+
+        selectApplicationEv2 = findViewById(R.id.btnSelectApplicationEv2);
+        getAllFileIdsEv2 = findViewById(R.id.btnGetAllFileIdsEv2);
+        getAllFileSettingsEv2 = findViewById(R.id.btnGetAllFileSettingsEv2);
+
         authD0AEv2 = findViewById(R.id.btnAuthD0AEv2);
         authD1AEv2 = findViewById(R.id.btnAuthD1AEv2);
         authD3ACEv2 = findViewById(R.id.btnAuthD3ACEv2);
@@ -492,6 +500,77 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
         /**
          * section for EV2 authentication and communication
+         */
+
+        selectApplicationEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "select an application EV2";
+                writeToUiAppend(output, logString);
+                byte[] applicationIdentifier = Utils.hexStringToByteArray(applicationId.getText().toString());
+                if (applicationIdentifier == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you entered a wrong application ID", COLOR_RED);
+                    return;
+                }
+                //Utils.reverseByteArrayInPlace(applicationIdentifier); // change to LSB = change the order
+                if (applicationIdentifier.length != 3) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you did not enter a 6 hex string application ID", COLOR_RED);
+                    return;
+                }
+                writeToUiAppend(output, logString + " with id: " + applicationId.getText().toString());
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.selectApplicationByAid(applicationIdentifier);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    selectedApplicationId = applicationIdentifier.clone();
+                    applicationSelected.setText(bytesToHexNpeUpperCase(selectedApplicationId));
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    selectedApplicationId = null;
+                    applicationSelected.setText("please select an application");
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        getAllFileIdsEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "get all file IDs from a selected application EV2";
+                writeToUiAppend(output, logString);
+                byte[] applicationIdentifier = Utils.hexStringToByteArray(applicationId.getText().toString());
+                if (applicationIdentifier == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you entered a wrong application ID", COLOR_RED);
+                    return;
+                }
+                //Utils.reverseByteArrayInPlace(applicationIdentifier); // change to LSB = change the order
+                if (applicationIdentifier.length != 3) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you did not enter a 6 hex string application ID", COLOR_RED);
+                    return;
+                }
+                writeToUiAppend(output, logString + " with id: " + applicationId.getText().toString());
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.selectApplicationByAid(applicationIdentifier);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+
+        /**
+         * section for authentication using authenticationEv2First
          */
 
         authD0AEv2.setOnClickListener(new View.OnClickListener() {

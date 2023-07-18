@@ -5,10 +5,12 @@ import static de.androidcrypto.talktoyourdesfirecard.Utils.byteToHex;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo3ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo4ByteArrayInversed;
+import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.removeAllNonAlphaNumeric;
 
 import android.nfc.tech.IsoDep;
 import android.util.Log;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
@@ -72,8 +74,6 @@ public class DesfireAuthenticateEv2 {
 
     private static final String TAG = DesfireAuthenticateEv2.class.getName();
 
-
-
     private IsoDep isoDep;
     private boolean printToLog = true; // print data to log
     private String logData;
@@ -90,9 +90,12 @@ public class DesfireAuthenticateEv2 {
 
 
     // some constants
+    private final byte SELECT_APPLICATION_BY_AID_COMMAND = (byte) 0x5A;
     private final byte AUTHENTICATE_AES_EV2_FIRST_COMMAND = (byte) 0x71;
     private final byte AUTHENTICATE_AES_EV2_NON_FIRST_COMMAND = (byte) 0x77;
     private final byte GET_CARD_UID_COMMAND = (byte) 0x51;
+
+    private final byte GET_FILE_IDS_COMMAND = (byte) 0x6F;
     private final byte GET_FILE_SETTINGS_COMMAND = (byte) 0xF5;
 
     // standard file
@@ -185,11 +188,17 @@ public class DesfireAuthenticateEv2 {
     private final byte CYCLIC_RECORD_FILE_MACED_NUMBER = (byte) 0x0D; // 13
     private final byte CYCLIC_RECORD_FILE_ENCRYPTED_NUMBER = (byte) 0x0E; // 14
 
-    private static final byte MAXIMUM_NUMBER_OF_KEYS = 5;
+    private static final byte MAXIMUM_NUMBER_OF_KEYS = 5; // the maximum of keys per application is 14
+    private final int MAXIMUM_NUMBER_OF_FILES = 32; // as per datasheet DESFire EV3 this is valid for EV1, EV2 and EV3
+
 
     private final byte[] PADDING_FULL = hexStringToByteArray("80000000000000000000000000000000");
 
+    private byte[] selectedApplicationId; // filled by 'select application'
     private FileSettings selectedFileSetting; // takes the fileSettings of the actual file
+    private FileSettings[] fileSettingsArray = new FileSettings[MAXIMUM_NUMBER_OF_FILES]; // after an 'select application' the fileSettings of all files are read
+    // this value get invalidated after creation of a new file in this application and you need to reselect the application
+
 
     public enum CommunicationSettings {
         Plain, MACed, Encrypted
@@ -2597,67 +2606,7 @@ public class DesfireAuthenticateEv2 {
         }
     }
 
-    public byte[] getFileSettingsEv2(byte fileNumber) {
-        // this is using simple PLAIN communication without any encryption or MAC involved
-        String logData = "";
-        String methodName = "getFileSettingsEv2";
-        log(methodName, "started", true);
-        // sanity checks
-        if (fileNumber < 0) {
-            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return null;
-        }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return null;
-        }
-        Log.d(TAG,  methodName + " for fileNumber " + fileNumber);
-        byte[] getFileSettingsParameters = new byte[1];
-        getFileSettingsParameters[0] = fileNumber;
-        byte[] apdu;
-        byte[] response;
-        try {
-            apdu = wrapMessage(GET_FILE_SETTINGS_COMMAND, getFileSettingsParameters);
-            log(methodName, printData("apdu", apdu));
-            // method: getFileSettingsEv2: apdu length: 7 data: 90f50000010200
-            // sample                                           90F50000010300
-            response = isoDep.transceive(apdu);
-            log(methodName, printData("response", response));
-        } catch (Exception e) {
-            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
-            log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
-            return null;
-        }
-        System.arraycopy(returnStatusBytes(response), 0, errorCode, 0, 2);
-        byte[] responseData = Arrays.copyOfRange(response, 0, response.length - 2);
-        if (checkResponse(response)) {
-            Log.d(TAG, "response SUCCESS");
-            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
-            return responseData;
-        } else {
-            Log.d(TAG, "response FAILURE");
-            //System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
-            return null;
-        }
-    }
 
-    private boolean getSelectedFileSettings(byte fileNumber) {
-        Log.d(TAG, "getSelectedFileSettings for fileNumber " + fileNumber);
-        // no sanity checks are done !
-        byte[] fileSettingsReceived = getFileSettingsEv2(fileNumber);
-        if (fileSettingsReceived != null) {
-            selectedFileSetting = new FileSettings(fileNumber, fileSettingsReceived);
-            Log.d(TAG, "getSelectedFileSettings SUCCESS");
-            return true;
-        } else {
-            selectedFileSetting = null;
-            Log.d(TAG, "getSelectedFileSettings FAILURE");
-            return false;
-        }
-    }
 
     public boolean changeApplicationKeyEv2(byte keyNumber, byte[] keyNew, byte[] keyOld) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 76 - 80
@@ -3370,9 +3319,9 @@ public class DesfireAuthenticateEv2 {
         log(methodName, "step 09 send the encrypted data to the PICC", false);
         try {
             apdu = wrapMessage(MORE_DATA_COMMAND, rndArndB_leftRotated_enc);
-            log(methodName, "send rndArndB_leftRotated_enc " + printData("apdu", apdu), false);
+            log(methodName, "send rndArndB_leftRotated_enc " + printData("apdu", apdu));
             response = isoDep.transceive(apdu);
-            log(methodName, "send rndArndB_leftRotated_enc " + printData("response", response), false);
+            log(methodName, "send rndArndB_leftRotated_enc " + printData("response", response));
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "IOException: " + e.getMessage(), false);
@@ -3442,6 +3391,180 @@ public class DesfireAuthenticateEv2 {
         }
         log(methodName, "*********************", false);
         return rndAEqual;
+    }
+
+    /**
+     * section for application handling
+     */
+
+    // this is using PLAIN communication and does not require any authentication but as we read the fileSettings
+    // of all files within the application we need to do it in this class
+    public boolean selectApplicationByAid(byte[] applicationIdentifier) {
+        final String methodName = "selectApplication by AID";
+        logData = "";
+        log(methodName, printData("applicationIdentifier", applicationIdentifier), true);
+        errorCode = new byte[2];
+        // sanity checks
+        if ((applicationIdentifier == null) || (applicationIdentifier.length != 3)) {
+            Log.e(TAG, methodName + " applicationIdentifier length is not 16 or NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(SELECT_APPLICATION_BY_AID_COMMAND, applicationIdentifier);
+            log(methodName,printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "IOException: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            log(methodName, "SUCCESS");
+            selectedApplicationId = applicationIdentifier.clone();
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            log(methodName, "FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes) +
+                    " error code: " + EV3.getErrorCode(responseBytes));
+            selectedApplicationId = null;
+            return false;
+        }
+    }
+
+    /**
+     * section for files in general
+     */
+
+    /**
+     * get the file numbers of all files within an application
+     * Note: depending on the application master key settings this requires an preceding authentication
+     *       with the application master key
+     * @return an array of bytes with all available fileIds
+     */
+    public byte[] getFileNumbers() {
+        final String methodName = "getFileNumbers";
+        logData = "";
+        log(methodName, "started", true);
+        errorCode = new byte[2];
+        // sanity checks
+        if ((selectedApplicationId == null) || (selectedApplicationId.length != 3)) {
+            Log.e(TAG, methodName + " select an application first, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        byte[] apdu;
+        byte[] response;
+        try {
+            apdu = wrapMessage(GET_FILE_IDS_COMMAND, null);
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+        } catch (Exception e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return null;
+        }
+        System.arraycopy(returnStatusBytes(response), 0, errorCode, 0, 2);
+        byte[] responseData = Arrays.copyOfRange(response, 0, response.length - 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, "response SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return responseData;
+        } else {
+            Log.d(TAG, "response FAILURE");
+            //System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return null;
+        }
+    }
+
+    /**
+     * get the file settings of a file within an application
+     * Note: depending on the application master key settings this requires an preceding authentication
+     *       with the application master key
+     * @fileNumber: the file number we need to read the settings from
+     * @return an array of bytes with all available fileIds
+     */
+
+    public byte[] getFileSettingsEv2(byte fileNumber) {
+        // this is using simple PLAIN communication without any encryption or MAC involved
+        String logData = "";
+        String methodName = "getFileSettingsEv2";
+        log(methodName, "started", true);
+        // sanity checks
+        if (fileNumber < 0) {
+            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        Log.d(TAG,  methodName + " for fileNumber " + fileNumber);
+        byte[] getFileSettingsParameters = new byte[1];
+        getFileSettingsParameters[0] = fileNumber;
+        byte[] apdu;
+        byte[] response;
+        try {
+            apdu = wrapMessage(GET_FILE_SETTINGS_COMMAND, getFileSettingsParameters);
+            log(methodName, printData("apdu", apdu));
+            // method: getFileSettingsEv2: apdu length: 7 data: 90f50000010200
+            // sample                                           90F50000010300
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+        } catch (Exception e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return null;
+        }
+        System.arraycopy(returnStatusBytes(response), 0, errorCode, 0, 2);
+        byte[] responseData = Arrays.copyOfRange(response, 0, response.length - 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, "response SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return responseData;
+        } else {
+            Log.d(TAG, "response FAILURE");
+            //System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return null;
+        }
+    }
+
+    private boolean getSelectedFileSettings(byte fileNumber) {
+        Log.d(TAG, "getSelectedFileSettings for fileNumber " + fileNumber);
+        // no sanity checks are done !
+        byte[] fileSettingsReceived = getFileSettingsEv2(fileNumber);
+        if (fileSettingsReceived != null) {
+            selectedFileSetting = new FileSettings(fileNumber, fileSettingsReceived);
+            Log.d(TAG, "getSelectedFileSettings SUCCESS");
+            return true;
+        } else {
+            selectedFileSetting = null;
+            Log.d(TAG, "getSelectedFileSettings FAILURE");
+            return false;
+        }
     }
 
     /**

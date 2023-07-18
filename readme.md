@@ -28,7 +28,7 @@ Symmetric key diversifications: https://www.nxp.com/docs/en/application-note/AN1
 
 System level security measures for MIFARE installations: https://www.nxp.com/docs/en/application-note/AN10969.pdf
 
-
+For differences between Mifare DESFire EVx versions see: MIFARE DESFire EV3 contactless multi-application IC MF3DHx3_SDS.pdf (page 5)
 
 Type of messaging:
 - plain communication
