@@ -102,7 +102,7 @@ public class DesfireAuthenticateLegacy {
         byte[] apdu;
         byte[] response = new byte[0];
         try {
-            apdu = wrapMessage(AUTHENTICATE_DES_2K3DES_COMMAND, new byte[]{keyNo});
+            apdu = wrapMessage(AUTHENTICATE_DES_2K3DES_COMMAND, new byte[]{keyNo}); // 0x0A
             log(methodName, "get enc rndB " + printData("apdu", apdu), false);
             response = isoDep.transceive(apdu);
             log(methodName, "get enc rndB " + printData("response", response), false);
