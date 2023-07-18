@@ -136,8 +136,9 @@ public class DesfireAuthenticateEv2 {
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
     private final byte[] RESPONSE_AUTHENTICATION_ERROR = new byte[]{(byte) 0x91, (byte) 0xAE};
     private final byte[] RESPONSE_MORE_DATA_AVAILABLE = new byte[]{(byte) 0x91, (byte) 0xAF};
+    private final byte[] RESPONSE_FAILURE = new byte[]{(byte) 0x91, (byte) 0xFF}; // general, undefined failure
+    private final byte[] RESPONSE_FAILURE_MISSING_GET_FILE_SETTINGS = new byte[]{(byte) 0x91, (byte) 0xFD};
     private final byte[] RESPONSE_FAILURE_MISSING_AUTHENTICATION = new byte[]{(byte) 0x91, (byte) 0xFE};
-    private final byte[] RESPONSE_FAILURE = new byte[]{(byte) 0x91, (byte) 0xFF};
 
     private final byte[] HEADER_ENC = new byte[]{(byte) (0x5A), (byte) (0xA5)}; // fixed to 0x5AA5
     private final byte[] HEADER_MAC = new byte[]{(byte) (0xA5), (byte) (0x5A)}; // fixed to 0x5AA5
@@ -243,7 +244,6 @@ public class DesfireAuthenticateEv2 {
 
         APPLICATION_ALL_FILE_IDS = null;
         APPLICATION_ALL_FILE_SETTINGS = null;
-
 
         byte[] fileSizeArray = Utils.intTo3ByteArrayInversed(fileSize); // lsb order
         byte[] paddingParameter = Utils.hexStringToByteArray("");
@@ -754,7 +754,32 @@ public class DesfireAuthenticateEv2 {
 
         // todo other sanity checks on values
 
+        // check that is a Standard or Backup file
+        if (APPLICATION_ALL_FILE_SETTINGS == null) {
+            Log.e(TAG, methodName + " missing getFileSettings, aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_GET_FILE_SETTINGS, 0, errorCode, 0, 2);
+            return null;
+        }
+        FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        if (fileSettings == null) {
+            Log.e(TAG, methodName + " missing getFileSettings, aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_GET_FILE_SETTINGS, 0, errorCode, 0, 2);
+            return null;
+        }
+
+        if ((fileSettings.getFileTypeName().equals(FileSettings.STANDARD_FILE_TYPE)) ||
+                (fileSettings.getFileTypeName().equals(FileSettings.BACKUP_FILE_TYPE))) {
+            log(methodName, "fileNumber to read is a " + fileSettings.getFileTypeName() + ", proceed");
+        } else {
+            log(methodName, "fileNumber to read is a " + fileSettings.getFileTypeName() + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+
         // read the file settings to get e.g. the fileSize and communication mode
+        //int FILE_SIZE = 32;
+        int FILE_SIZE = fileSettings.getFileSizeInt();
+        log(methodName, "read the file with a length of " + FILE_SIZE + " bytes");
 
         // found a strange behaviour on the getFileSettings
         /**
@@ -762,43 +787,10 @@ public class DesfireAuthenticateEv2 {
          * getFileSettings command returns an 0x7e = 'length error', so in case of an error I'm trying to
          * get the file settings a second time
          */
-/*
-        boolean sfsSuccess = getSelectedFileSettings(fileNumber);
-        if (!sfsSuccess) {
-            log(methodName, "Could not retrieve the fileSettings for fileNumber " + fileNumber);
-            log(methodName, "trying to read a second time...");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            //return null;
-            // see comment above regarding a strange behaviour
-            boolean sfsSuccess2 = getSelectedFileSettings(fileNumber);
-            if (!sfsSuccess2) {
-                log(methodName, "Could not retrieve the fileSettings for fileNumber " + fileNumber + ", aborted");
-                System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-                return null;
-            }
-        } else {
-            log(methodName, selectedFileSetting.dump());
-        }
 
-        int FILE_SIZE_FIXED = selectedFileSetting.getFileSizeInt();
-        */
-
-        int FILE_SIZE_FIXED = 32;
-        log(methodName, "read the file with a length of " + FILE_SIZE_FIXED + " bytes");
-        // Generating the MAC for the Command APDU
-
-        // CmdHeader (FileNo || Offset || DataLength)
-
-        // generate the parameter
-
-        // data in write example:
-        // 22222222222222222222222222222222222222222222222222 (25)
-
-        //int fileSize = 0; // fixed, read complete file
-        int fileSize = FILE_SIZE_FIXED;
         int offsetBytes = 0; // read from the beginning
         byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
-        byte[] length = Utils.intTo3ByteArrayInversed(fileSize); // LSB order
+        byte[] length = Utils.intTo3ByteArrayInversed(FILE_SIZE); // LSB order
         ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
         baosCmdHeader.write(fileNumber);
         baosCmdHeader.write(offset, 0, 3);
@@ -888,8 +880,8 @@ public class DesfireAuthenticateEv2 {
         byte[] ivResponse = AES.encrypt(startingIv, SesAuthENCKey, ivInputResponse);
         log(methodName, printData("ivResponse", ivResponse));
         byte[] decryptedData = AES.decrypt(ivResponse, SesAuthENCKey, encryptedData);
-        log(methodName, printData("decryptedData", decryptedData)); // should be the cardUID || 9 zero bytes
-        byte[] readData = Arrays.copyOfRange(decryptedData, 0, fileSize); // todo work on this
+        log(methodName, printData("decryptedData", decryptedData));
+        byte[] readData = Arrays.copyOfRange(decryptedData, 0, FILE_SIZE);
         log(methodName, printData("readData", readData));
 
         // verifying the received MAC
@@ -3610,6 +3602,7 @@ public class DesfireAuthenticateEv2 {
         byte[] responseData = Arrays.copyOfRange(response, 0, response.length - 2);
         if (checkResponse(response)) {
             Log.d(TAG, "response SUCCESS");
+            Log.d(TAG, "return for fileNumber " + fileNumber + " : " + printData("responseData", responseData));
             System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
             return responseData;
         } else {

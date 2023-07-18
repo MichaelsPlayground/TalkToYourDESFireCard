@@ -901,11 +901,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 //byte fileIdByte = Byte.parseByte(selectedFileId);
 
                 // just for testing - test the macOverCommand value
-                boolean readDataFullPart1TestResult = desfireAuthenticateEv2.readDataFullPart1Test();
-                writeToUiAppend(output, "readDataFullPart1TestResult: " + readDataFullPart1TestResult);
+                //boolean readDataFullPart1TestResult = desfireAuthenticateEv2.readDataFullPart1Test();
+                //writeToUiAppend(output, "readDataFullPart1TestResult: " + readDataFullPart1TestResult);
 
-
-                byte fileIdByte = (byte) 0x02; // fixed
+                byte fileIdByte = desfireAuthenticateEv2.STANDARD_FILE_ENCRYPTED_NUMBER; //byte) 0x02; // fixed
 
                 byte[] responseData = new byte[2];
                 //byte[] result = readFromAStandardFilePlainCommunicationDes(output, fileIdByte, selectedFileSize, responseData);

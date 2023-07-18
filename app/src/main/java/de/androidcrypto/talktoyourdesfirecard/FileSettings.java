@@ -4,6 +4,9 @@ import java.util.Arrays;
 
 /**
  * This class takes the PICC response of the getFileSettings command (0x5f)
+ *
+ * Note: regarding the Transaction MAC file some additional data should be read out, skipped here
+ *
  */
 
 public class FileSettings {
@@ -30,6 +33,12 @@ public class FileSettings {
     private int recordsMaxInt;
     private byte[] recordsExisting; // 3 bytes
     private int recordsExistingInt;
+    // the following variables are available for transaction mac files
+    byte fileOption;
+    byte tmKeyOption;
+    byte tmKeyVersion;
+    byte[] tmcLimit; // is optional and present if Bit5 of FileOption set. Length is depending on AES mode (4 byte) or LRP mde (2 byte)
+
     private byte[] completeResponse; // the complete data returned on getFileSettings command
 
     public static final String STANDARD_FILE_TYPE = "Standard";
@@ -46,7 +55,7 @@ public class FileSettings {
         this.fileNumber = fileNumber;
         this.completeResponse = completeResponse;
         if (completeResponse == null) return;
-        if (completeResponse.length < 7) return;
+        if (completeResponse.length < 6) return;
         analyze();
     }
 
@@ -55,6 +64,58 @@ public class FileSettings {
         fileType = completeResponse[0]; // needed to know the kind of variables to fill
         fileTypeName = getFileTypeName(fileType);
         position ++;
+        // if it is a Transaction MAC file it is a different setup
+        // see MIFARE DESFire Light contactless application IC MF2DLHX0.pdf page 78 for details
+        // todo some sub fields are not not read out, see 'need to differentiate later'
+        if (fileType == (byte) 0x05) {
+            // transaction mac file
+
+            // fixed fileSize data
+            //
+            fileSizeInt = 12; // default
+            fileSize = intTo3ByteArrayInversed(fileSizeInt);
+
+            fileOption = completeResponse[position]; // need to differentiate later, e.g. bit 1-0 contain the communicationSettings
+            communicationSettings = (byte) 0x00; // todo change, this is hardcoded and not read
+            if (communicationSettings == (byte) 0x00) communicationSettingsName = COMMUNICATION_SETTING_NAME_PLAIN;
+            if (communicationSettings == (byte) 0x01) communicationSettingsName = COMMUNICATION_SETTING_NAME_CMACED;
+            if (communicationSettings == (byte) 0x03) communicationSettingsName = COMMUNICATION_SETTING_NAME_ENCRYPTED;
+            position ++;
+            accessRightsRwCar = completeResponse[position];
+            position ++;
+            accessRightsRW = completeResponse[position];
+            // get the values vor RW, Car, R and W
+            // lowNibble = yourByte & 0x0f; highNibble = (yourByte >> 4) & 0x0f;
+            // You can also do: lowNibble = yourByte & 0x0f; highNibble = yourByte >>> 4;
+            accessRightsRw = (accessRightsRwCar >> 4) & 0x0f;
+            accessRightsCar = accessRightsRwCar & 0x0f;
+            accessRightsR =  (accessRightsRW >> 4) & 0x0f;
+            accessRightsW =  accessRightsRW & 0x0f;
+
+            position ++;
+            tmKeyOption = completeResponse[position]; // need to differentiate later, but at the moment only bit 1-0 are set to 10b = AES
+            position ++;
+            tmKeyVersion = completeResponse[position];
+            // the next steps depend on the length
+            int completeResponseLength = completeResponse.length;
+            if (completeResponseLength == 6) {
+                // we are done
+                return;
+            }
+            position ++;
+            if (completeResponseLength == 8) {
+                // LRP mode, tmcLimit  is 2 bytes long // todo is the limit LSB coded ??
+                tmcLimit = Arrays.copyOfRange(completeResponse, position, position + 2);
+                return;
+            }
+            if (completeResponseLength == 10) {
+                // AES mode, tmcLimit  is 4 bytes long // todo is the limit LSB coded ??
+                tmcLimit = Arrays.copyOfRange(completeResponse, position, position + 4);
+                return;
+            }
+            return;
+        }
+
         communicationSettings = completeResponse[position];
         position ++;
         if (communicationSettings == (byte) 0x00) communicationSettingsName = COMMUNICATION_SETTING_NAME_PLAIN;
@@ -144,6 +205,11 @@ public class FileSettings {
         }
         if (fileType == (byte) 0x05) {
             sb.append("fileSize: ").append(byteArrayLength3InversedToInt(fileSize)).append("\n");
+            sb.append("fileOption: ").append(fileOption).append("\n");
+            sb.append("tmKeyOption: ").append(tmKeyOption).append("\n");
+            sb.append("tmKeyVersion: ").append(tmKeyVersion).append("\n");
+            sb.append("tmcLimit: ").append(bytesToHexNpeUpperCase(tmcLimit)).append("\n");
+            sb.append("don't rely on communicationSettings and tmcLimit !").append("\n");
         }
         return sb.toString();
     }
@@ -156,8 +222,24 @@ public class FileSettings {
         return (data[2] & 0xff) << 16 | (data[1] & 0xff) << 8 | (data[0] & 0xff);
     }
 
+    // converts an int to a 3 byte long array inversed = LSB
+    public static byte[] intTo3ByteArrayInversed(int value) {
+        return new byte[] {
+                (byte)value,
+                (byte)(value >> 8),
+                (byte)(value >> 16)};
+    }
+
     private static int byteArrayLength4InversedToInt(byte[] bytes) {
         return bytes[3] << 24 | (bytes[2] & 0xFF) << 16 | (bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF);
+    }
+
+    private static String bytesToHexNpeUpperCase(byte[] bytes) {
+        if (bytes == null) return "";
+        StringBuffer result = new StringBuffer();
+        for (byte b : bytes)
+            result.append(Integer.toString((b & 0xff) + 0x100, 16).substring(1));
+        return result.toString().toUpperCase();
     }
 
     public byte getFileNumber() {
