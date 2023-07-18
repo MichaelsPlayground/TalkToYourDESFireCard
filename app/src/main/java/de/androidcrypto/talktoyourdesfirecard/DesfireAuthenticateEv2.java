@@ -195,6 +195,7 @@ public class DesfireAuthenticateEv2 {
 
 
     private final byte[] PADDING_FULL = hexStringToByteArray("80000000000000000000000000000000");
+    private final byte[] PADDING_FULL_DES = hexStringToByteArray("8000000000000000");
 
     private byte[] selectedApplicationId; // filled by 'select application'
     private static byte[] APPLICATION_ALL_FILE_IDS; // filled by getAllFileIds and invalidated by selectApplication AND createFile
@@ -3721,7 +3722,7 @@ public class DesfireAuthenticateEv2 {
      * @param unpaddedData
      * @return the padded data
      */
-    private byte[] paddingWriteData(byte[] unpaddedData) {
+    public byte[] paddingWriteData(byte[] unpaddedData) {
         // sanity checks
         if (unpaddedData == null) {
             Log.e(TAG, "paddingWriteData - unpaddedData is NULL, aborted");
@@ -3738,6 +3739,25 @@ public class DesfireAuthenticateEv2 {
         Log.d(TAG, "fullPaddedData.length: " + fullPaddedData.length);
         Log.d(TAG, "mult16               : " + mult16);
         return Arrays.copyOfRange(fullPaddedData, 0, (mult16 * 16));
+    }
+
+    public byte[] paddingWriteDataDes(byte[] unpaddedData) {
+        // sanity checks
+        if (unpaddedData == null) {
+            Log.e(TAG, "paddingWriteData - unpaddedData is NULL, aborted");
+            return null;
+        }
+        int unpaddedDataLength = unpaddedData.length;
+        int paddingBytesLength = PADDING_FULL_DES.length;
+        byte[] fullPaddedData = new byte[unpaddedDataLength + paddingBytesLength];
+        // concatenate unpaddedData and PADDING_FULL
+        System.arraycopy(unpaddedData, 0, fullPaddedData, 0, unpaddedDataLength);
+        System.arraycopy(PADDING_FULL_DES, 0, fullPaddedData, unpaddedDataLength, paddingBytesLength);
+        // this is maybe too long, trunc to multiple of 8 bytes
+        int mult8 = fullPaddedData.length / 8;
+        Log.d(TAG, "fullPaddedData.length: " + fullPaddedData.length);
+        Log.d(TAG, "mult8c               : " + mult8);
+        return Arrays.copyOfRange(fullPaddedData, 0, (mult8 * 8));
     }
 
     public boolean createTransactionMacFileFullPart1Test() {

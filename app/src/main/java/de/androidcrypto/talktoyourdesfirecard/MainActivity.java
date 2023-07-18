@@ -139,7 +139,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for visualizing DES authentication
      */
 
-    private Button selectApplicationDesVisualizing, authDesVisualizing, readDesVisualizing;
+    private Button selectApplicationDesVisualizing, authDesVisualizing, readDesVisualizing, writeDesVisualizing;
 
     /**
      * section for constants
@@ -326,7 +326,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileRecordWriteEv2 = findViewById(R.id.btnWriteRecordFileEv2);
 
         fileCreateFileSetEnciphered = findViewById(R.id.btnCreateFileSetEncipheredEv2);
-        
+
         fileTransactionMacCreateEv2 = findViewById(R.id.btnCreateTransactionMacFileEv2);
         fileTransactionMacDeleteEv2 = findViewById(R.id.btnDeleteTransactionMacFileEv2);
         completeTransactionMacFileEv2 = findViewById(R.id.btnCompleteTransactionMacFileEv2);
@@ -365,7 +365,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         selectApplicationDesVisualizing = findViewById(R.id.btnDesVisualizeAuthSelect);
         authDesVisualizing = findViewById(R.id.btnDesVisualizeAuthAuthenticate);
         readDesVisualizing = findViewById(R.id.btnDesVisualizeAuthRead);
-
+        writeDesVisualizing = findViewById(R.id.btnDesVisualizeAuthWrite);
 
 
         // some presets
@@ -570,7 +570,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte[] responseData = new byte[2];
                 byte[] result = desfireAuthenticateEv2.getAllFileIdsEv2();
                 responseData = desfireAuthenticateEv2.getErrorCode();
-                if (result  != null) {
+                if (result != null) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppend(output, "found these fileIDs (not sorted): " + bytesToHexNpeUpperCaseBlank(result));
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
@@ -597,7 +597,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte[] responseData = new byte[2];
                 FileSettings[] result = desfireAuthenticateEv2.getAllFileSettingsEv2();
                 responseData = desfireAuthenticateEv2.getErrorCode();
-                if (result  != null) {
+                if (result != null) {
                     int numberOfFfileSettings = result.length;
                     for (int i = 0; i < numberOfFfileSettings; i++) {
                         // first check that this entry is not null
@@ -1155,8 +1155,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
 
         /**
-        * section for record files
-        */
+         * section for record files
+         */
 
         fileRecordWriteEv2.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1194,7 +1194,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 // limit the string
                 String dataToWriteString = Utils.getTimestamp() + " " + dataToWrite;
 
-                if (dataToWriteString.length() > recordSize) dataToWriteString = dataToWriteString.substring(0, recordSize);
+                if (dataToWriteString.length() > recordSize)
+                    dataToWriteString = dataToWriteString.substring(0, recordSize);
                 byte[] dataToWriteStringBytes = dataToWriteString.getBytes(StandardCharsets.UTF_8);
                 byte[] fullDataToWrite = new byte[recordSize];
                 System.arraycopy(dataToWriteStringBytes, 0, fullDataToWrite, 0, dataToWriteStringBytes.length);
@@ -1397,7 +1398,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 // limit the string
                 String dataToWriteString = Utils.getTimestamp() + " " + dataToWrite;
-                if (dataToWriteString.length() > recordSize) dataToWriteString = dataToWriteString.substring(0, recordSize);
+                if (dataToWriteString.length() > recordSize)
+                    dataToWriteString = dataToWriteString.substring(0, recordSize);
                 byte[] dataToWriteStringBytes = dataToWriteString.getBytes(StandardCharsets.UTF_8);
                 byte[] fullDataToWrite = new byte[recordSize];
                 System.arraycopy(dataToWriteStringBytes, 0, fullDataToWrite, 0, dataToWriteStringBytes.length);
@@ -1537,7 +1539,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
             }
         });
-
 
 
         /**
@@ -2592,6 +2593,58 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        writeDesVisualizing.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "DES visualizing write to an encrypted standard file";
+                writeToUiAppend(output, logString);
+                // check that a file was selected before
+
+                selectedFileId = "1";
+                fileSelected.setText("1");
+                selectedFileSize = 32;
+
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+
+                // we are writing an timestamp to the standard file
+                String dataToWrite = Utils.getTimestamp();
+                /*
+                String dataToWrite = fileStandardData.getText().toString();
+                if (TextUtils.isEmpty(dataToWrite)) {
+                    //writeToUiAppend(errorCode, "please enter some data to write");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "please enter some data to write", COLOR_RED);
+                    return;
+                }
+
+                 */
+                byte[] dataToWriteBytes = dataToWrite.getBytes(StandardCharsets.UTF_8);
+
+                // create an empty array and copy the dataToWrite to clear the complete standard file
+                byte[] fullDataToWrite = new byte[selectedFileSize];
+                System.arraycopy(dataToWriteBytes, 0, fullDataToWrite, 0, dataToWriteBytes.length);
+
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                byte[] responseData = new byte[2];
+                boolean success = writeToAStandardFileEncipheredCommunicationDes(output, fileIdByte, fullDataToWrite, responseData);
+                //boolean success = writeToAStandardFileEncipheredCommunicationDes(output, fileIdByte, dataToWriteBytes, responseData);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
 
     }
 
@@ -3057,24 +3110,203 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         }
     }
 
+    private boolean writeToAStandardFileEncipheredCommunicationDes(TextView logTextView, byte fileNumber, byte[] data, byte[] methodResponse) {
+        final String methodName = "writeToAStandardFileEncipheredCommunicationDes";
+        Log.d(TAG, methodName);
+        // sanity checks
+        if (logTextView == null) {
+            Log.e(TAG, methodName + " logTextView is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (fileNumber < 0) {
+            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if (fileNumber > 14) {
+            Log.e(TAG, methodName + " fileNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if ((data == null) || (data.length < 1) || (data.length > selectedFileSize)) {
+            Log.e(TAG, "data length not in range 1.." + MAXIMUM_FILE_SIZE + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+
+        /*
+        // first lets pad the data to a multiple of 8
+        byte[] paddedData = desfireAuthenticateEv2.paddingWriteDataDes(data);
+        Log.d(TAG, methodName + printData(" paddedData", paddedData));
+*/
+        // first: build the wrapped APDU with unencrypted data
+        // generate the parameter
+        int numberOfBytes = data.length;
+        //int numberOfBytes = paddedData.length;
+        int offsetBytes = 0; // write from the beginning
+        byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
+        byte[] length = Utils.intTo3ByteArrayInversed(numberOfBytes); // LSB order
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(offset, 0, 3);
+        baos.write(length, 0, 3);
+        baos.write(data, 0, numberOfBytes);
+        //baos.write(paddedData, 0, numberOfBytes);
+        byte[] parameter = baos.toByteArray();
+        Log.d(TAG, methodName + printData(" parameter", parameter));
+
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(WRITE_STANDARD_FILE_COMMAND, parameter);
+            Log.d(TAG, methodName + printData(" apdu", apdu));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        // fullApdu = preprocess(fullApdu, 7, cs);  // 7 = 1+3+3 (fileNo+off+len)
+        // sample from nfcjlib
+        // fullApdu1 length: 45 data: 903d00002701000000200000310000000000000000000000000000000000000000000000000000000000000000
+        // ciphertext length: 40 data: 89e277a19cec752a5e8d993d8886cbc3d3af2064149a1e7f5a6b166f98610b6ea5c36f3b7d0d6027
+        // ret length: 53 data: 903d00002f0100000020000089e277a19cec752a5e8d993d8886cbc3d3af2064149a1e7f5a6b166f98610b6ea5c36f3b7d0d602700
+        // fullApdu2 length: 53 data: 903d00002f0100000020000089e277a19cec752a5e8d993d8886cbc3d3af2064149a1e7f5a6b166f98610b6ea5c36f3b7d0d602700
+        //
+        // case ENCIPHERED: return preprocessEnciphered(apdu, offset);
+
+        // second: run the encrypted process:
+        // byte[] ciphertext = encryptApdu(apdu, offset, skey, iv, ktype);
+        byte[] ciphertext = preprocessEnciphered(apdu, 7);
+        Log.d(TAG, methodName + printData(" ciphertext", ciphertext));
+        // fullApdu = preprocess(fullApdu, 7, cs);  // 7 = 1+3+3 (fileNo+off+len)
+        // case ENCIPHERED: return preprocessEnciphered(apdu, offset);
+        // this will add a CRC16 as well
+
+        // send the encrypted data to the PICC
+
+        byte[] response = new byte[0];
+        try {
+            response = isoDep.transceive(ciphertext);
+            Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    // calculate CRC and append, encrypt, and update global IV
+    private byte[] preprocessEnciphered(byte[] apdu, int offset) {
+        Log.d(TAG, "preprocessEnciphered "
+                + printData("apdu", apdu)
+                + " offset: " + offset);
+        Log.d(TAG, printData("SESSION_KEY_DES", SESSION_KEY_DES));
+        byte[] ciphertext = encryptApdu(apdu, offset, SESSION_KEY_DES);
+        Log.d(TAG, printData("ciphertext", ciphertext));
+
+        byte[] ret = new byte[5 + offset + ciphertext.length + 1];
+        System.arraycopy(apdu, 0, ret, 0, 5 + offset);
+        System.arraycopy(ciphertext, 0, ret, 5 + offset, ciphertext.length);
+        ret[4] = (byte) (offset + ciphertext.length);
+        Log.d(TAG, printData("ret", ret));
+        return ret;
+    }
+
+    /* Only data is encrypted. Headers are left out (e.g. keyNo for credit). */
+    private static byte[] encryptApdu(byte[] apdu, int offset, byte[] sessionKey) {
+        int blockSize = 8;
+        int payloadLen = apdu.length - 6;
+        byte[] crc = calculateApduCRC16C(apdu, offset);
+        int padding = 0;  // padding=0 if block length is adequate
+        if ((payloadLen - offset + crc.length) % blockSize != 0)
+            padding = blockSize - (payloadLen - offset + crc.length) % blockSize;
+        int ciphertextLen = payloadLen - offset + crc.length + padding;
+        byte[] plaintext = new byte[ciphertextLen];
+        System.arraycopy(apdu, 5 + offset, plaintext, 0, payloadLen - offset);
+        System.arraycopy(crc, 0, plaintext, payloadLen - offset, crc.length);
+        //return send(sessionKey, plaintext, iv);
+        return decrypt(sessionKey, plaintext);
+    }
+
+    // IV sent is the global one but it is better to be explicit about it: can be null for DES/3DES
+    // if IV is null, then it is set to zeros
+    // Sending data that needs encryption.
+    private static byte[] send(byte[] key, byte[] data, byte[] iv) {
+        return decrypt(key, data);
+    }
+
+    // DES/3DES decryption: CBC send mode and CBC receive mode
+    private static byte[] decrypt(byte[] key, byte[] data) {
+        byte[] modifiedKey = new byte[24];
+        System.arraycopy(key, 0, modifiedKey, 16, 8);
+        System.arraycopy(key, 0, modifiedKey, 8, 8);
+        System.arraycopy(key, 0, modifiedKey, 0, key.length);
+
+        /* MF3ICD40, which only supports DES/3DES, has two cryptographic
+         * modes of operation (CBC): send mode and receive mode. In send mode,
+         * data is first XORed with the IV and then decrypted. In receive
+         * mode, data is first decrypted and then XORed with the IV. The PCD
+         * always decrypts. The initial IV, reset in all operations, is all zeros
+         * and the subsequent IVs are the last decrypted/plain block according with mode.
+         *
+         * MDF EV1 supports 3K3DES/AES and remains compatible with MF3ICD40.
+         */
+        byte[] ciphertext = new byte[data.length];
+        byte[] cipheredBlock = new byte[8];
+        // XOR w/ previous ciphered block --> decrypt
+        for (int i = 0; i < data.length; i += 8) {
+            for (int j = 0; j < 8; j++) {
+                data[i + j] ^= cipheredBlock[j];
+            }
+            cipheredBlock = TripleDES.decrypt(modifiedKey, data, i, 8);
+            System.arraycopy(cipheredBlock, 0, ciphertext, i, 8);
+        }
+        return ciphertext;
+    }
+
     private static byte[] calculateApduCRC16R(byte[] apdu, int length) {
         byte[] data = new byte[length];
         System.arraycopy(apdu, 0, data, 0, length);
         return CRC16.get(data);
     }
 
+    // CRC16 calculated only over data
+    private static byte[] calculateApduCRC16C(byte[] apdu, int offset) {
+        if (apdu.length == 5) {
+            return CRC16.get(new byte[0]);
+        } else {
+            return CRC16.get(apdu, 5 + offset, apdu.length - 5 - offset - 1);
+        }
+    }
+
     public byte[] getModifiedKey(byte[] key) {
         String methodName = "getModifiedKey";
-        Log.d(TAG,methodName + printData(" key", key));
+        Log.d(TAG, methodName + printData(" key", key));
         if ((key == null) || (key.length != 8)) {
-            Log.d(TAG,methodName + " Error: key is NULL or key length is not of 8 bytes length, aborted");
+            Log.d(TAG, methodName + " Error: key is NULL or key length is not of 8 bytes length, aborted");
             return null;
         }
         byte[] modifiedKey = new byte[24];
         System.arraycopy(key, 0, modifiedKey, 16, 8);
         System.arraycopy(key, 0, modifiedKey, 8, 8);
         System.arraycopy(key, 0, modifiedKey, 0, key.length);
-        Log.d(TAG,methodName + printData(" modifiedKey", modifiedKey));
+        Log.d(TAG, methodName + printData(" modifiedKey", modifiedKey));
         return modifiedKey;
     }
 

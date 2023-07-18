@@ -1995,7 +1995,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
-                        android:text="select app" />
+                        android:text="sel" />
 
                     <Button
                         android:id="@+id/btnDesVisualizeAuthAuthenticate"
@@ -2011,7 +2011,15 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="read" />
+                        android:text="rd" />
+
+                    <Button
+                        android:id="@+id/btnDesVisualizeAuthWrite"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="wr" />
 
                 </LinearLayout>
 
