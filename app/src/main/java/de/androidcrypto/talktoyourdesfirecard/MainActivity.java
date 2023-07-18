@@ -3012,6 +3012,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     }
 
     private byte[] readFromAStandardFileEncipheredCommunicationDes(TextView logTextView, byte fileNumber, int fileSize, byte[] methodResponse) {
+
+        // status WORKING
+
         final String methodName = "readStandardFileEncipheredCommunicationDes";
         Log.d(TAG, methodName);
         // sanity checks
@@ -3092,8 +3095,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
             // verify the CRC16
             writeToUiAppend(logTextView, "verify the CRC16 now");
-
-            // todo verify CRC16
             byte[] crc16CalData = calculateApduCRC16R(decryptedFullData, 32);
             writeToUiAppend(logTextView, printData("crc16CalData", crc16CalData));
             if (Arrays.equals(crc16RecData, crc16CalData)) {
@@ -3101,7 +3102,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             } else {
                 writeToUiAppend(logTextView, "CRC16 FAILURE");
             }
-
             return decryptedData;
         } else {
             Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
@@ -3111,6 +3111,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     }
 
     private boolean writeToAStandardFileEncipheredCommunicationDes(TextView logTextView, byte fileNumber, byte[] data, byte[] methodResponse) {
+
+        // status WORKING
+
         final String methodName = "writeToAStandardFileEncipheredCommunicationDes";
         Log.d(TAG, methodName);
         // sanity checks
@@ -3141,11 +3144,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             return false;
         }
 
-        /*
-        // first lets pad the data to a multiple of 8
-        byte[] paddedData = desfireAuthenticateEv2.paddingWriteDataDes(data);
-        Log.d(TAG, methodName + printData(" paddedData", paddedData));
-*/
         // first: build the wrapped APDU with unencrypted data
         // generate the parameter
         int numberOfBytes = data.length;
@@ -3220,6 +3218,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         byte[] ciphertext = encryptApdu(apdu, offset, SESSION_KEY_DES);
         Log.d(TAG, printData("ciphertext", ciphertext));
 
+        // rebuild the apdu
         byte[] ret = new byte[5 + offset + ciphertext.length + 1];
         System.arraycopy(apdu, 0, ret, 0, 5 + offset);
         System.arraycopy(ciphertext, 0, ret, 5 + offset, ciphertext.length);
@@ -3232,6 +3231,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private static byte[] encryptApdu(byte[] apdu, int offset, byte[] sessionKey) {
         int blockSize = 8;
         int payloadLen = apdu.length - 6;
+        // calculate the CRC16
         byte[] crc = calculateApduCRC16C(apdu, offset);
         int padding = 0;  // padding=0 if block length is adequate
         if ((payloadLen - offset + crc.length) % blockSize != 0)
@@ -3242,13 +3242,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         System.arraycopy(crc, 0, plaintext, payloadLen - offset, crc.length);
         //return send(sessionKey, plaintext, iv);
         return decrypt(sessionKey, plaintext);
-    }
-
-    // IV sent is the global one but it is better to be explicit about it: can be null for DES/3DES
-    // if IV is null, then it is set to zeros
-    // Sending data that needs encryption.
-    private static byte[] send(byte[] key, byte[] data, byte[] iv) {
-        return decrypt(key, data);
     }
 
     // DES/3DES decryption: CBC send mode and CBC receive mode
@@ -3371,16 +3364,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
         if (checkResponse(response)) {
             Log.d(TAG, methodName + " SUCCESS");
-
-            /*
-            // for AES only - update the global IV
-            // status NOT working
-            // todo this is just for testing the IV "update" when getting the cardUid on AES
-            byte[] cmacIv = calculateApduCMAC(apdu, SESSION_KEY_AES, IV.clone());
-            writeToUiAppend(output, printData("cmacIv", cmacIv));
-            IV = cmacIv.clone();
-             */
-
             // now strip of the response bytes
             // if the card responses more data than expected we truncate the data
             int expectedResponse = fileSize - offsetBytes;
