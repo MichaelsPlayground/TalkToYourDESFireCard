@@ -8,8 +8,10 @@ import java.text.SimpleDateFormat;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 
 public class Utils {
 
@@ -216,6 +218,24 @@ public class Utils {
     //
     public static int byteArrayLength4InversedToInt(byte[] bytes) {
         return bytes[3] << 24 | (bytes[2] & 0xFF) << 16 | (bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF);
+    }
+
+    /**
+     * splits a byte array in chunks
+     *
+     * @param source
+     * @param chunksize
+     * @return a List<byte[]> with sets of chunksize
+     */
+    public static List<byte[]> divideArrayToList(byte[] source, int chunksize) {
+        List<byte[]> result = new ArrayList<byte[]>();
+        int start = 0;
+        while (start < source.length) {
+            int end = Math.min(source.length, start + chunksize);
+            result.add(Arrays.copyOfRange(source, start, end));
+            start += chunksize;
+        }
+        return result;
     }
 
     // gives an 19 byte long timestamp yyyy.MM.dd HH:mm:ss

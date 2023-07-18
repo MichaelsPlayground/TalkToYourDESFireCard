@@ -5,6 +5,7 @@ import static de.androidcrypto.talktoyourdesfirecard.Utils.byteToHex;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo3ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo4ByteArrayInversed;
+import static de.androidcrypto.talktoyourdesfirecard.Utils.removeAllNonAlphaNumeric;
 
 import android.nfc.tech.IsoDep;
 import android.util.Log;
@@ -17,7 +18,9 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -164,7 +167,7 @@ public class DesfireAuthenticateEv2 {
     // predefined file numbers
     private final byte STANDARD_FILE_PLAIN_NUMBER = (byte) 0x00;
     private final byte STANDARD_FILE_MACED_NUMBER = (byte) 0x01;
-    private final byte STANDARD_FILE_ENCRYPTED_NUMBER = (byte) 0x02;
+    public final byte STANDARD_FILE_ENCRYPTED_NUMBER = (byte) 0x02;
     // backup 03, 04, 05
     private final byte BACKUP_FILE_PLAIN_NUMBER = (byte) 0x03;
     private final byte BACKUP_FILE_MACED_NUMBER = (byte) 0x04;
@@ -185,6 +188,8 @@ public class DesfireAuthenticateEv2 {
     private static final byte MAXIMUM_NUMBER_OF_KEYS = 5;
 
     private final byte[] PADDING_FULL = hexStringToByteArray("80000000000000000000000000000000");
+
+    private FileSettings selectedFileSetting; // takes the fileSettings of the actual file
 
     public enum CommunicationSettings {
         Plain, MACed, Encrypted
@@ -267,7 +272,257 @@ public class DesfireAuthenticateEv2 {
         // todo add padding
         // if data length is a multiple of AES block length (16 bytes) we need to add a complete
         // block of padding data, beginning with 0x80 00 00...
-        byte[] fullPadding = hexStringToByteArray("80000000000000000000000000000000");
+
+
+        /**
+         * Mifare DESFire Light Features and Hints AN12343.pdf page 30
+         * 7.1.2 Encryption and Decryption
+         * Encryption and decryption are done using the underlying block cipher (in this case
+         * the AES block cipher) according to the CBC mode of the NIST Special Publication
+         * 800-38A, see [6]. Padding is done according to Padding Method 2 (0x80 followed by zero
+         * bytes) of ISO/IEC 9797-1. Note that if the original data is already a multiple of 16 bytes,
+         * another additional padding block (16 bytes) is added. The only exception is during the
+         * authentication itself, where no padding is applied at all.
+         */
+
+        String logData = "";
+        String methodName = "writeStandardFileEv2";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, printData("dataToWrite", dataToWrite));
+        // sanity checks
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        // todo other sanity checks on values
+
+        /*
+        // read the file settings to get e.g. the fileSize and communication mode
+        boolean sfsSuccess = getSelectedFileSettings(fileNumber);
+        if (!sfsSuccess) {
+            log(methodName, "Could not retrieve the fileSettings for fileNumber " + fileNumber + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        } else {
+            log(methodName, selectedFileSetting.dump());
+        }
+        */
+        //int selectedFileSize = selectedFileSetting.getFileSizeInt();
+        int selectedFileSize = 32;
+
+        // what does happen when dataToWrite is longer than selectedFileSize ?
+        // Answer: I'm trimming the data to selectedFileSize
+        byte[] dataToWriteCorrectLength;
+        if (dataToWrite.length > selectedFileSize) {
+            log(methodName, "trimming dataToWrite to length of selected fileNumber: " + selectedFileSize);
+            dataToWriteCorrectLength = Arrays.copyOfRange(dataToWrite, 0, selectedFileSize);
+        } else {
+            dataToWriteCorrectLength = dataToWrite.clone();
+        }
+
+        // next step is to pad the data according to padding rules in desfire EV2/3 for AES Secure Messaging fullMode
+        byte[] dataPadded = paddingWriteData(dataToWriteCorrectLength);
+        log(methodName, printData("data unpad", dataToWriteCorrectLength));
+        log(methodName, printData("data pad  ", dataPadded));
+
+        int numberOfDataBlocks = dataPadded.length / 16;
+        log(methodName, "number of dataBlocks: " + numberOfDataBlocks);
+        List<byte[]> dataBlockList = Utils.divideArrayToList(dataPadded, 16);
+
+        // Encrypting the Command Data
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        // MAC_Input
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        byte[] header = new byte[]{(byte) (0xA5), (byte) (0x5A)}; // fixed to 0xA55A
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(header, 0, header.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        // data compl   22222222222222222222222222222222222222222222222222 (25 bytes)
+        // data block 1 22222222222222222222222222222222 (16 bytes)
+        // data block 2 22222222222222222280000000000000 (16 bytes, 9 data bytes and 15 padding bytes, beginning with 0x80)
+
+        // create an empty array and copy the dataToWrite to clear the complete standard file
+        // this is done to avoid the padding
+        // todo work on this, this is rough coded
+        //byte[] fullDataToWrite = new byte[FILE_SIZE_FIXED];
+        //System.arraycopy(dataToWrite, 0, fullDataToWrite, 0, dataToWrite.length);
+
+        // here we are splitting up the data into 2 data blocks
+        //byte[] dataBlock1 = Arrays.copyOfRange(fullDataToWrite, 0, 16);
+        //byte[] dataBlock2 = Arrays.copyOfRange(fullDataToWrite, 16, 32);
+
+        //log(methodName, printData("dataBlock1", dataBlock1));
+        //log(methodName, printData("dataBlock2", dataBlock2));
+
+        List<byte[]> dataBlockEncryptedList = new ArrayList<>();
+        byte[] ivDataEncryption = ivForCmdData.clone(); // the "starting iv"
+
+        for (int i = 0; i < numberOfDataBlocks; i++) {
+            byte[] dataBlockEncrypted = AES.encrypt(ivDataEncryption, SesAuthENCKey, dataBlockList.get(i));
+            dataBlockEncryptedList.add(dataBlockEncrypted);
+            ivDataEncryption = dataBlockEncrypted.clone(); // new, subsequent iv for next encryption
+        }
+/*
+        // Encrypted Data Block 1 = E(KSesAuthENC, Data Input)
+        byte[] dataBlock1Encrypted = AES.encrypt(ivForCmdData, SesAuthENCKey, dataBlock1);
+        byte[] iv2 = dataBlock1Encrypted.clone();
+        log(methodName, printData("iv2", iv2));
+        byte[] dataBlock2Encrypted = AES.encrypt(iv2, SesAuthENCKey, dataBlock2); // todo is this correct ? or startingIv ?
+*/
+        //byte[] dataBlock2Encrypted = AES.encrypt(startingIv, SesAuthENCKey, dataBlock2); // todo is this correct ? or startingIv ?
+//        log(methodName, printData("startingIv", startingIv));
+        for (int i = 0; i < numberOfDataBlocks; i++) {
+            log(methodName, printData("dataBlock" + i + "Encrypted", dataBlockEncryptedList.get(i)));
+        }
+        //log(methodName, printData("dataBlock1Encrypted", dataBlock1Encrypted));
+        //log(methodName, printData("dataBlock2Encrypted", dataBlock2Encrypted));
+
+        // Encrypted Data (complete), concatenate all byte arrays
+
+        ByteArrayOutputStream baosDataEncrypted = new ByteArrayOutputStream();
+        for (int i = 0; i < numberOfDataBlocks; i++) {
+            try {
+                baosDataEncrypted.write(dataBlockEncryptedList.get(i));
+            } catch (IOException e) {
+                Log.e(TAG, "IOException on concatenating encrypted dataBlocks, aborted\n" +
+                        e.getMessage());
+                return false;
+            }
+        }
+        byte[] encryptedData = baosDataEncrypted.toByteArray();
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // Generating the MAC for the Command APDU
+        // CmdHeader (FileNo || Offset || DataLength)
+        int fileSize = selectedFileSize;
+        int offsetBytes = 0; // read from the beginning
+        byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
+        byte[] length = Utils.intTo3ByteArrayInversed(fileSize); // LSB order
+        log(methodName, printData("length", length));
+        ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
+        baosCmdHeader.write(fileNumber);
+        baosCmdHeader.write(offset, 0, 3);
+        baosCmdHeader.write(length, 0, 3);
+        byte[] cmdHeader = baosCmdHeader.toByteArray();
+        log(methodName, printData("cmdHeader", cmdHeader));
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted CmdData )
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(WRITE_STANDARD_FILE_SECURE_COMMAND); // 0xAD
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // error in Features and Hints, page 57, point 28:
+        // Data (FileNo || Offset || DataLenght || Data) is NOT correct, as well not the Data Message
+        // correct is the following concatenation:
+
+        // Data (CmdHeader || Encrypted Data || MAC)
+        ByteArrayOutputStream baosWriteDataCommand = new ByteArrayOutputStream();
+        baosWriteDataCommand.write(cmdHeader, 0, cmdHeader.length);
+        baosWriteDataCommand.write(encryptedData, 0, encryptedData.length);
+        baosWriteDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] writeDataCommand = baosWriteDataCommand.toByteArray();
+        log(methodName, printData("writeDataCommand", writeDataCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(WRITE_STANDARD_FILE_SECURE_COMMAND, writeDataCommand);
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+
+        // verifying the received Response MAC
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        byte[] macInput2 = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput2", macInput2));
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return true;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return false;
+        }
+    }
+
+    public boolean writeStandardFileOrgEv2(byte fileNumber, byte[] dataToWrite) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 55 - 58
+        // Cmd.WriteData in AES Secure Messaging using CommMode.Full
+        // this is based on the write to a data file on a DESFire Light card
+
+        // status WORKING - with prepared data blocks only:
+        // todo add padding
+        // if data length is a multiple of AES block length (16 bytes) we need to add a complete
+        // block of padding data, beginning with 0x80 00 00...
+
 
         /**
          * Mifare DESFire Light Features and Hints AN12343.pdf page 30
@@ -458,7 +713,6 @@ public class DesfireAuthenticateEv2 {
         }
     }
 
-
     public byte[] readStandardFileEv2(byte fileNumber) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 55 - 58
         // Cmd.ReadData in AES Secure Messaging using CommMode.Full
@@ -484,9 +738,37 @@ public class DesfireAuthenticateEv2 {
 
         // todo other sanity checks on values
 
-        // todo read the file settings to get e.g. the fileSize and communication mode
+        // read the file settings to get e.g. the fileSize and communication mode
+
+        // found a strange behaviour on the getFileSettings
+        /**
+         * found a strange behaviour on the getFileSettings: after a (successful) authentication the first
+         * getFileSettings command returns an 0x7e = 'length error', so in case of an error I'm trying to
+         * get the file settings a second time
+         */
+/*
+        boolean sfsSuccess = getSelectedFileSettings(fileNumber);
+        if (!sfsSuccess) {
+            log(methodName, "Could not retrieve the fileSettings for fileNumber " + fileNumber);
+            log(methodName, "trying to read a second time...");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            //return null;
+            // see comment above regarding a strange behaviour
+            boolean sfsSuccess2 = getSelectedFileSettings(fileNumber);
+            if (!sfsSuccess2) {
+                log(methodName, "Could not retrieve the fileSettings for fileNumber " + fileNumber + ", aborted");
+                System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+                return null;
+            }
+        } else {
+            log(methodName, selectedFileSetting.dump());
+        }
+
+        int FILE_SIZE_FIXED = selectedFileSetting.getFileSizeInt();
+        */
 
         int FILE_SIZE_FIXED = 32;
+        log(methodName, "read the file with a length of " + FILE_SIZE_FIXED + " bytes");
         // Generating the MAC for the Command APDU
 
         // CmdHeader (FileNo || Offset || DataLength)
@@ -1571,7 +1853,7 @@ public class DesfireAuthenticateEv2 {
             return false;
         }
 
-        // here we are using just the commit command wit preceding commitReaderId command
+        // here we are using just the commit command with preceding commitReaderId command
 
         // Constructing the full CommitReaderID Command APDU
         // we do need a ReaderId
@@ -1663,7 +1945,7 @@ public class DesfireAuthenticateEv2 {
         log(methodName, printData("ivResponseReader", ivResponseReader));
         byte[] decryptedData = AES.decrypt(ivResponseReader, SesAuthENCKey, encryptedData);
         log(methodName, printData("decryptedData", decryptedData));
-        log(methodName, "decryptedData is TMRI");
+        log(methodName, "decryptedData is TMRI (TransactionMAC Reader ID");
         // Decrypted Response Data = (TMRI) : BDD40ED9F434F9DDCBF5821299CD2119 (16 bytes)
 
         // verifying the received MAC
@@ -2317,7 +2599,6 @@ public class DesfireAuthenticateEv2 {
 
     public byte[] getFileSettingsEv2(byte fileNumber) {
         // this is using simple PLAIN communication without any encryption or MAC involved
-
         String logData = "";
         String methodName = "getFileSettingsEv2";
         log(methodName, "started", true);
@@ -2332,15 +2613,16 @@ public class DesfireAuthenticateEv2 {
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return null;
         }
-
+        Log.d(TAG,  methodName + " for fileNumber " + fileNumber);
         byte[] getFileSettingsParameters = new byte[1];
         getFileSettingsParameters[0] = fileNumber;
-        byte[] getFileSettingsResponse;
         byte[] apdu;
         byte[] response;
         try {
             apdu = wrapMessage(GET_FILE_SETTINGS_COMMAND, getFileSettingsParameters);
             log(methodName, printData("apdu", apdu));
+            // method: getFileSettingsEv2: apdu length: 7 data: 90f50000010200
+            // sample                                           90F50000010300
             response = isoDep.transceive(apdu);
             log(methodName, printData("response", response));
         } catch (Exception e) {
@@ -2356,9 +2638,24 @@ public class DesfireAuthenticateEv2 {
             System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
             return responseData;
         } else {
-            Log.d(TAG, "responseMAC FAILURE");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            Log.d(TAG, "response FAILURE");
+            //System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
             return null;
+        }
+    }
+
+    private boolean getSelectedFileSettings(byte fileNumber) {
+        Log.d(TAG, "getSelectedFileSettings for fileNumber " + fileNumber);
+        // no sanity checks are done !
+        byte[] fileSettingsReceived = getFileSettingsEv2(fileNumber);
+        if (fileSettingsReceived != null) {
+            selectedFileSetting = new FileSettings(fileNumber, fileSettingsReceived);
+            Log.d(TAG, "getSelectedFileSettings SUCCESS");
+            return true;
+        } else {
+            selectedFileSetting = null;
+            Log.d(TAG, "getSelectedFileSettings FAILURE");
+            return false;
         }
     }
 
@@ -2935,7 +3232,6 @@ public class DesfireAuthenticateEv2 {
         return true; // returns true independent of results
     }
 
-
     /**
      * authenticateAesEv2NonFirst uses the EV2NonFirst authentication method with command 0x77
      *
@@ -3233,6 +3529,32 @@ public class DesfireAuthenticateEv2 {
         }
         log(methodName, printData("truncatedMAC", truncatedMAC));
         return truncatedMAC;
+    }
+
+    /**
+     * add the padding bytes to data that is written to a Standard, Backup, Linear Record or Cyclic Record file
+     * The encryption method does need a byte array of multiples of 16 bytes
+     * If the unpaddedData is of (multiple) length of 16 the complete padding is added
+     * @param unpaddedData
+     * @return the padded data
+     */
+    private byte[] paddingWriteData(byte[] unpaddedData) {
+        // sanity checks
+        if (unpaddedData == null) {
+            Log.e(TAG, "paddingWriteData - unpaddedData is NULL, aborted");
+            return null;
+        }
+        int unpaddedDataLength = unpaddedData.length;
+        int paddingBytesLength = PADDING_FULL.length;
+        byte[] fullPaddedData = new byte[unpaddedDataLength + paddingBytesLength];
+        // concatenate unpaddedData and PADDING_FULL
+        System.arraycopy(unpaddedData, 0, fullPaddedData, 0, unpaddedDataLength);
+        System.arraycopy(PADDING_FULL, 0, fullPaddedData, unpaddedDataLength, paddingBytesLength);
+        // this is maybe too long, trunc to multiple of 16 bytes
+        int mult16 = fullPaddedData.length / 16;
+        Log.d(TAG, "fullPaddedData.length: " + fullPaddedData.length);
+        Log.d(TAG, "mult16               : " + mult16);
+        return Arrays.copyOfRange(fullPaddedData, 0, (mult16 * 16));
     }
 
     public boolean createTransactionMacFileFullPart1Test() {

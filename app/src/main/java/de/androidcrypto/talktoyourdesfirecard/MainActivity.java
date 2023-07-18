@@ -1,5 +1,6 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
+import static de.androidcrypto.talktoyourdesfirecard.Utils.byteArrayLength4InversedToInt;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
 
 import android.app.Activity;
@@ -349,6 +350,29 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         numberOfKeys.setText(String.valueOf((int) APPLICATION_NUMBER_OF_KEYS));
         fileStandardFileId.setText(String.valueOf((int) STANDARD_FILE_FREE_ACCESS_ID)); // preset is FREE ACCESS
 
+        /**
+         * just es quick test button
+         */
+        Button pad = findViewById(R.id.btncardUIDxx);
+        pad.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                byte[] fileSettings02 = desfireAuthenticateEv2.getFileSettingsEv2((byte) 0x02);
+                Log.d(TAG, printData("fileSettings02", fileSettings02));
+
+                byte[] fileSettings05 = desfireAuthenticateEv2.getFileSettingsEv2((byte) 0x05);
+                Log.d(TAG, printData("fileSettings05", fileSettings05));
+
+                byte[] fileSettings08 = desfireAuthenticateEv2.getFileSettingsEv2((byte) 0x08);
+                Log.d(TAG, printData("fileSettings08", fileSettings08));
+
+                byte[] fileSettings11 = desfireAuthenticateEv2.getFileSettingsEv2((byte) 0x0b);
+                Log.d(TAG, printData("fileSettings11", fileSettings11));
+
+                byte[] fileSettings14 = desfireAuthenticateEv2.getFileSettingsEv2((byte) 0x0e);
+                Log.d(TAG, printData("fileSettings14", fileSettings14));
+            }
+        });
 
         rbFileFreeAccess.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
@@ -801,7 +825,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 writeToUiAppend(output, logString);
 
                 // todo skipped, using a fixed fileNumber
-                selectedFileId = "2";
+                selectedFileId = String.valueOf(desfireAuthenticateEv2.STANDARD_FILE_ENCRYPTED_NUMBER); // 2
                 fileSelected.setText(selectedFileId);
                 int SELECTED_FILE_SIZE_FIXED = 32;
 
@@ -811,8 +835,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
                     return;
                 }
-                String dataToWrite = fileStandardData.getText().toString();
-                dataToWrite = "123 some data";
+
+                // we are going to write a timestamp to the file
+                String dataToWrite = Utils.getTimestamp();
+
+                //dataToWrite = "123 some data";
 
                 if (TextUtils.isEmpty(dataToWrite)) {
                     //writeToUiAppend(errorCode, "please enter some data to write");
@@ -821,8 +848,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
 
                 // just for testing - test the macOverCommand value
-                boolean writeDataFullPart1TestResult = desfireAuthenticateEv2.writeDataFullPart1Test();
-                writeToUiAppend(output, "writeDataFullPart1TestResult: " + writeDataFullPart1TestResult);
+                //boolean writeDataFullPart1TestResult = desfireAuthenticateEv2.writeDataFullPart1Test();
+                //writeToUiAppend(output, "writeDataFullPart1TestResult: " + writeDataFullPart1TestResult);
 
                 byte[] dataToWriteBytes = dataToWrite.getBytes(StandardCharsets.UTF_8);
                 // create an empty array and copy the dataToWrite to clear the complete standard file
@@ -1288,7 +1315,41 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 vibrateShort();
                 writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
 
-                // TODO READ THE TMAC file content
+                // read the TMAC file content
+                //byte fileIdTmacByte = (byte) 0x0F; // fixed
+
+                // as the communication mode is PLAIN we are using the traditional reading method
+
+                responseData = new byte[2];
+                byte[] result = readFromAStandardFilePlainCommunication(output, TRANSACTION_MAC_FILE_NUMBER, 12, responseData);
+                if (result == null) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkResponseMoreData(responseData)) {
+                        writeToUiAppend(output, "the file is too long to read, sorry");
+                    }
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " ID: " + fileIdByte + printData(" data", result));
+
+                    // split the received data:
+                    // should be TMC || TMV
+                    // sample: TMC (TMAC Counter) : 04000000 (4 bytes, counter in LSB encoding)
+                    // sample: TMV (TMAC Value)   : 94A3205E41588BA9 (8 bytes)
+                    // split up the data to TMC and TMV
+                    byte[] tmcByte = Arrays.copyOfRange(result, 0, 4);
+                    byte[] tmvByte = Arrays.copyOfRange(result, 4, 8);
+                    int tmcInt = byteArrayLength4InversedToInt(tmcByte);
+                    writeToUiAppend(output, logString + printData(" tmcByte", tmcByte));
+                    writeToUiAppend(output, logString + " tmcInt: " + tmcInt);
+                    writeToUiAppend(output, logString + printData(" tmvByte", tmvByte));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }
             }
         });
 
@@ -2597,6 +2658,96 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
             return null;
         }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        // generate the parameter
+        int offsetBytes = 0; // read from the beginning
+        byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
+        byte[] length = Utils.intTo3ByteArrayInversed(fileSize); // LSB order
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(offset, 0, 3);
+        baos.write(length, 0, 3);
+        byte[] parameter = baos.toByteArray();
+        Log.d(TAG, methodName + printData(" parameter", parameter));
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(READ_STANDARD_FILE_COMMAND, parameter);
+            Log.d(TAG, methodName + printData(" apdu", apdu));
+            response = isoDep.transceive(apdu);
+            Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+
+            /*
+            // for AES only - update the global IV
+            // status NOT working
+            // todo this is just for testing the IV "update" when getting the cardUid on AES
+            byte[] cmacIv = calculateApduCMAC(apdu, SESSION_KEY_AES, IV.clone());
+            writeToUiAppend(output, printData("cmacIv", cmacIv));
+            IV = cmacIv.clone();
+             */
+
+            // now strip of the response bytes
+            // if the card responses more data than expected we truncate the data
+            int expectedResponse = fileSize - offsetBytes;
+            if (response.length == expectedResponse) {
+                return response;
+            } else if (response.length > expectedResponse) {
+                // more data is provided - truncated
+                return Arrays.copyOf(response, expectedResponse);
+            } else {
+                // less data is provided - we return as much as possible
+                return response;
+            }
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return null;
+        }
+    }
+
+    // this is the code as readFromAStandardFilePlainCommunicationDes but we allow a fileNumber 15 (0x0F) for TMAC files
+    private byte[] readFromAStandardFilePlainCommunication(TextView logTextView, byte fileNumber, int fileSize, byte[] methodResponse) {
+        final String methodName = "createFilePlainCommunication";
+        Log.d(TAG, methodName);
+        // sanity checks
+        if (logTextView == null) {
+            Log.e(TAG, methodName + " logTextView is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        if (fileNumber < 0) {
+            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        if (fileNumber > 15) {
+            Log.e(TAG, methodName + " fileNumber is > 15, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        /*
+        if ((fileSize < 1) || (fileSize > MAXIMUM_FILE_SIZE)) {
+            Log.e(TAG, methodName + " fileSize has to be in range 1.." + MAXIMUM_FILE_SIZE + " but found " + fileSize + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+
+         */
         if ((isoDep == null) || (!isoDep.isConnected())) {
             writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
             Log.e(TAG, methodName + " lost connection to the card, aborted");
