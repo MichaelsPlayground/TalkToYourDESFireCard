@@ -3030,19 +3030,24 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             byte[] decryptedFullData = TripleDES.decrypt(new byte[8], modDesKey, encryptedFullData);
             writeToUiAppend(logTextView, printData("decryptedFullData", decryptedFullData));
             // decryptedFullData length: 40 data: 31323320736f6d65206461746100000000000000000000000000000000000000ccd0800000000000
-            // decryptedFullData is decrypted file content (32 byte) || CRC16 (4 bytes) || padding with zero (4 bytes)
+            // decryptedFullData is decrypted file content (32 byte) || CRC16 (2 bytes) || padding with zero (6 bytes)
             byte[] decryptedData = Arrays.copyOfRange(decryptedFullData, 0, 32);
-            byte[] crc16Data = Arrays.copyOfRange(decryptedFullData, 32, 36);
-            byte[] paddingData = Arrays.copyOfRange(decryptedFullData, 36, 40);
-            writeToUiAppend(logTextView, printData("crc16Data", crc16Data));
+            byte[] crc16RecData = Arrays.copyOfRange(decryptedFullData, 32, 34);
+            byte[] paddingData = Arrays.copyOfRange(decryptedFullData, 34, 40);
+            writeToUiAppend(logTextView, printData("crc16RecData", crc16RecData));
             writeToUiAppend(logTextView, printData("paddingData", paddingData));
 
             // verify the CRC16
             writeToUiAppend(logTextView, "verify the CRC16 now");
 
-
-
-
+            // todo verify CRC16
+            byte[] crc16CalData = calculateApduCRC16R(decryptedFullData, 32);
+            writeToUiAppend(logTextView, printData("crc16CalData", crc16CalData));
+            if (Arrays.equals(crc16RecData, crc16CalData)) {
+                writeToUiAppend(logTextView, "CRC16 SUCCESS");
+            } else {
+                writeToUiAppend(logTextView, "CRC16 FAILURE");
+            }
 
             return decryptedData;
         } else {
@@ -3050,6 +3055,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
             return null;
         }
+    }
+
+    private static byte[] calculateApduCRC16R(byte[] apdu, int length) {
+        byte[] data = new byte[length];
+        System.arraycopy(apdu, 0, data, 0, length);
+        return CRC16.get(data);
     }
 
     public byte[] getModifiedKey(byte[] key) {
