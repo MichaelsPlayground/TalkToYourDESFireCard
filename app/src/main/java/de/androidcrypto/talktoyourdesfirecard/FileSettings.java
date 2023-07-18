@@ -37,6 +37,7 @@ public class FileSettings {
     public static final String VALUE_FILE_TYPE = "Value";
     public static final String LINEAR_RECORD_FILE_TYPE = "Linear record";
     public static final String CYCLIC_RECORD_FILE_TYPE = "Cyclic record";
+    public static final String TRANSACTION_MAC_FILE_TYPE = "Transaction MAC";
     public static final String COMMUNICATION_SETTING_NAME_PLAIN = "Plain";
     public static final String COMMUNICATION_SETTING_NAME_CMACED = "CMACed";
     public static final String COMMUNICATION_SETTING_NAME_ENCRYPTED = "Encrypted";
@@ -71,6 +72,8 @@ public class FileSettings {
         accessRightsR =  (accessRightsRW >> 4) & 0x0f;
         accessRightsW =  accessRightsRW & 0x0f;
 
+        fileSize = new byte[3];
+        fileSizeInt = 0; // default
         if ((fileType == (byte) 0x00) || (fileType == (byte) 0x01)) {
             // standard and backup file
             fileSize = Arrays.copyOfRange(completeResponse, position, position + 3);
@@ -109,6 +112,7 @@ public class FileSettings {
             case (byte) 0x02: return VALUE_FILE_TYPE;
             case (byte) 0x03: return LINEAR_RECORD_FILE_TYPE;
             case (byte) 0x04: return CYCLIC_RECORD_FILE_TYPE;
+            case (byte) 0x05: return TRANSACTION_MAC_FILE_TYPE;
             default: return "Unknown";
         }
     }
@@ -137,6 +141,9 @@ public class FileSettings {
             sb.append("recordSize: ").append(recordSizeInt).append("\n");
             sb.append("recordsMax: ").append(recordsMaxInt).append("\n");
             sb.append("recordsExisting: ").append(recordsExistingInt).append("\n");
+        }
+        if (fileType == (byte) 0x05) {
+            sb.append("fileSize: ").append(byteArrayLength3InversedToInt(fileSize)).append("\n");
         }
         return sb.toString();
     }

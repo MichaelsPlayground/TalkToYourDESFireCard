@@ -2,6 +2,7 @@ package de.androidcrypto.talktoyourdesfirecard;
 
 import static de.androidcrypto.talktoyourdesfirecard.Utils.byteArrayLength4InversedToInt;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.bytesToHexNpeUpperCase;
+import static de.androidcrypto.talktoyourdesfirecard.Utils.bytesToHexNpeUpperCaseBlank;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
 
 import android.app.Activity;
@@ -502,6 +503,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
          * section for EV2 authentication and communication
          */
 
+        /**
+         * section for application handling using authenticateEv2 class
+         */
+
         selectApplicationEv2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -520,7 +525,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 writeToUiAppend(output, logString + " with id: " + applicationId.getText().toString());
                 byte[] responseData = new byte[2];
-                boolean success = desfireAuthenticateEv2.selectApplicationByAid(applicationIdentifier);
+                boolean success = desfireAuthenticateEv2.selectApplicationByAidEv2(applicationIdentifier);
                 responseData = desfireAuthenticateEv2.getErrorCode();
                 if (success) {
                     selectedApplicationId = applicationIdentifier.clone();
@@ -543,27 +548,57 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 clearOutputFields();
                 String logString = "get all file IDs from a selected application EV2";
                 writeToUiAppend(output, logString);
-                byte[] applicationIdentifier = Utils.hexStringToByteArray(applicationId.getText().toString());
-                if (applicationIdentifier == null) {
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you entered a wrong application ID", COLOR_RED);
+                if (selectedApplicationId == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
                     return;
                 }
-                //Utils.reverseByteArrayInPlace(applicationIdentifier); // change to LSB = change the order
-                if (applicationIdentifier.length != 3) {
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you did not enter a 6 hex string application ID", COLOR_RED);
-                    return;
-                }
-                writeToUiAppend(output, logString + " with id: " + applicationId.getText().toString());
+
                 byte[] responseData = new byte[2];
-                boolean success = desfireAuthenticateEv2.selectApplicationByAid(applicationIdentifier);
+                byte[] result = desfireAuthenticateEv2.getAllFileIdsEv2();
                 responseData = desfireAuthenticateEv2.getErrorCode();
-                if (success) {
+                if (result  != null) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppend(output, "found these fileIDs (not sorted): " + bytesToHexNpeUpperCaseBlank(result));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Depending on the Application Master Keys settings a previous authentication with the Application Master Key is required");
+                }
+            }
+        });
+
+        getAllFileSettingsEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "get all file settings from a selected application EV2";
+                writeToUiAppend(output, logString);
+                if (selectedApplicationId == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
+                    return;
+                }
+
+                byte[] responseData = new byte[2];
+                FileSettings[] result = desfireAuthenticateEv2.getAllFileSettingsEv2();
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (result  != null) {
+                    int numberOfFfileSettings = result.length;
+                    for (int i = 0; i < numberOfFfileSettings; i++) {
+                        // first check that this entry is not null
+                        FileSettings fileSettings = result[i];
+                        if (fileSettings != null) {
+                            writeToUiAppend(output, fileSettings.dump());
+                        }
+                    }
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     vibrateShort();
                 } else {
                     writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Depending on the Application Master Keys settings a previous authentication with the Application Master Key is required");
                 }
             }
         });

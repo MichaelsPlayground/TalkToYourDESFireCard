@@ -89,6 +89,14 @@ public class Utils {
         return result.toString().toUpperCase();
     }
 
+    public static String bytesToHexNpeUpperCaseBlank(byte[] bytes) {
+        if (bytes == null) return "";
+        StringBuffer result = new StringBuffer();
+        for (byte b : bytes)
+            result.append(Integer.toString((b & 0xff) + 0x100, 16).substring(1)).append(" ");
+        return result.toString().toUpperCase();
+    }
+
     public static String byteToHex(Byte input) {
         return String.format("%02X", input);
         //return String.format("0x%02X", input);

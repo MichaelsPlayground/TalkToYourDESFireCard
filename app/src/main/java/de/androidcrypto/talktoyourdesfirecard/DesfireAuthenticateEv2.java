@@ -74,6 +74,7 @@ public class DesfireAuthenticateEv2 {
 
     private static final String TAG = DesfireAuthenticateEv2.class.getName();
 
+
     private IsoDep isoDep;
     private boolean printToLog = true; // print data to log
     private String logData;
@@ -195,6 +196,8 @@ public class DesfireAuthenticateEv2 {
     private final byte[] PADDING_FULL = hexStringToByteArray("80000000000000000000000000000000");
 
     private byte[] selectedApplicationId; // filled by 'select application'
+    private static byte[] APPLICATION_ALL_FILE_IDS; // filled by getAllFileIds and invalidated by selectApplication AND createFile
+    private static FileSettings[] APPLICATION_ALL_FILE_SETTINGS; // filled by getAllFileSettings and invalidated by selectApplication AND createFile
     private FileSettings selectedFileSetting; // takes the fileSettings of the actual file
     private FileSettings[] fileSettingsArray = new FileSettings[MAXIMUM_NUMBER_OF_FILES]; // after an 'select application' the fileSettings of all files are read
     // this value get invalidated after creation of a new file in this application and you need to reselect the application
@@ -237,6 +240,10 @@ public class DesfireAuthenticateEv2 {
             return false;
         }
         // todo other sanity checks on values
+
+        APPLICATION_ALL_FILE_IDS = null;
+        APPLICATION_ALL_FILE_SETTINGS = null;
+
 
         byte[] fileSizeArray = Utils.intTo3ByteArrayInversed(fileSize); // lsb order
         byte[] paddingParameter = Utils.hexStringToByteArray("");
@@ -3048,7 +3055,15 @@ public class DesfireAuthenticateEv2 {
          * Read access            3
          * Write access           4
          * Application Master key 0
+         *
+         * The creation of a file will invalidate the cached fileIDs and fileSettings and you need to
+         * select the application again to get data
+         *
          */
+
+        // invalidate cached data
+        APPLICATION_ALL_FILE_IDS = null;
+        APPLICATION_ALL_FILE_SETTINGS = null;
 
         byte commSettings;
         if (communicationSettings == CommunicationSettings.Plain) {
@@ -3399,8 +3414,8 @@ public class DesfireAuthenticateEv2 {
 
     // this is using PLAIN communication and does not require any authentication but as we read the fileSettings
     // of all files within the application we need to do it in this class
-    public boolean selectApplicationByAid(byte[] applicationIdentifier) {
-        final String methodName = "selectApplication by AID";
+    public boolean selectApplicationByAidEv2(byte[] applicationIdentifier) {
+        final String methodName = "selectApplication by AID EV2";
         logData = "";
         log(methodName, printData("applicationIdentifier", applicationIdentifier), true);
         errorCode = new byte[2];
@@ -3434,6 +3449,7 @@ public class DesfireAuthenticateEv2 {
             Log.d(TAG, methodName + " SUCCESS");
             log(methodName, "SUCCESS");
             selectedApplicationId = applicationIdentifier.clone();
+            APPLICATION_ALL_FILE_IDS = null;
             return true;
         } else {
             Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
@@ -3441,6 +3457,7 @@ public class DesfireAuthenticateEv2 {
             log(methodName, "FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes) +
                     " error code: " + EV3.getErrorCode(responseBytes));
             selectedApplicationId = null;
+            APPLICATION_ALL_FILE_IDS = null;
             return false;
         }
     }
@@ -3455,8 +3472,8 @@ public class DesfireAuthenticateEv2 {
      *       with the application master key
      * @return an array of bytes with all available fileIds
      */
-    public byte[] getFileNumbers() {
-        final String methodName = "getFileNumbers";
+    public byte[] getAllFileIdsEv2() {
+        final String methodName = "getAllFileIDs EV2";
         logData = "";
         log(methodName, "started", true);
         errorCode = new byte[2];
@@ -3489,12 +3506,62 @@ public class DesfireAuthenticateEv2 {
         if (checkResponse(response)) {
             Log.d(TAG, "response SUCCESS");
             System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            APPLICATION_ALL_FILE_IDS = responseData.clone();
             return responseData;
         } else {
             Log.d(TAG, "response FAILURE");
             //System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
             return null;
         }
+    }
+
+    /**
+     * get the file numbers of all files within an application
+     * Note: depending on the application master key settings this requires an preceding authentication
+     *       with the application master key
+     * @return an array of bytes with all available fileIds
+     */
+    public FileSettings[] getAllFileSettingsEv2() {
+        final String methodName = "getAllFileSettings EV2";
+        logData = "";
+        log(methodName, "started", true);
+        errorCode = new byte[2];
+        // sanity checks
+        if ((selectedApplicationId == null) || (selectedApplicationId.length != 3)) {
+            Log.e(TAG, methodName + " select an application first, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        if (APPLICATION_ALL_FILE_IDS == null) {
+            Log.e(TAG, methodName + " select an application first, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        if (APPLICATION_ALL_FILE_IDS.length == 0) {
+            Log.e(TAG, methodName + " there are no files available, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+
+        int numberOfFileIds = APPLICATION_ALL_FILE_IDS.length;
+        APPLICATION_ALL_FILE_SETTINGS = new FileSettings[MAXIMUM_NUMBER_OF_FILES];
+        for (int i = 0; i < numberOfFileIds; i++) {
+            byte fileId = APPLICATION_ALL_FILE_IDS[i];
+            byte[] fileSettingsByte = getFileSettingsEv2(fileId);
+            if (fileSettingsByte != null) {
+                FileSettings fileSettings = new FileSettings(fileId, fileSettingsByte);
+                if (fileSettings != null) {
+                    APPLICATION_ALL_FILE_SETTINGS[fileId] = fileSettings;
+                }
+            }
+        }
+        log(methodName, "ended");
+        return APPLICATION_ALL_FILE_SETTINGS;
     }
 
     /**
