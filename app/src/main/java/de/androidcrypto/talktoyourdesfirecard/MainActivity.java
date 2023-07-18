@@ -3,6 +3,7 @@ package de.androidcrypto.talktoyourdesfirecard;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.byteArrayLength4InversedToInt;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.bytesToHexNpeUpperCase;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.bytesToHexNpeUpperCaseBlank;
+import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
 
 import android.app.Activity;
@@ -133,6 +134,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     private Button getCardUidDes, getCardUidAes; // get cardUID * encrypted
+
+    /**
+     * section for visualizing DES authentication
+     */
+
+    private Button selectApplicationDesVisualizing, authDesVisualizing, readDesVisualizing;
 
     /**
      * section for constants
@@ -353,6 +360,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         // general handling
         getCardUidDes = findViewById(R.id.btnGetCardUidDes);
         getCardUidAes = findViewById(R.id.btnGetCardUidAes);
+
+        // visualize DES authentication
+        selectApplicationDesVisualizing = findViewById(R.id.btnDesVisualizeAuthSelect);
+        authDesVisualizing = findViewById(R.id.btnDesVisualizeAuthAuthenticate);
+        readDesVisualizing = findViewById(R.id.btnDesVisualizeAuthRead);
+
+
 
         // some presets
         applicationId.setText(Utils.bytesToHexNpeUpperCase(APPLICATION_IDENTIFIER));
@@ -2468,6 +2482,117 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 // decr               046feadd1b0e57
             }
         });
+
+        /**
+         * section for DES visualizing
+         */
+
+        selectApplicationDesVisualizing.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "DES visualizing select an application";
+                writeToUiAppend(output, logString);
+                byte[] applicationIdentifier = hexStringToByteArray("0100D0"); // lsb
+                applicationId.setText("D00001");
+                if (applicationIdentifier == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you entered a wrong application ID", COLOR_RED);
+                    return;
+                }
+                //Utils.reverseByteArrayInPlace(applicationIdentifier); // change to LSB = change the order
+                if (applicationIdentifier.length != 3) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you did not enter a 6 hex string application ID", COLOR_RED);
+                    return;
+                }
+                writeToUiAppend(output, logString + " with id: " + applicationId.getText().toString());
+                byte[] responseData = new byte[2];
+                boolean success = selectApplication(output, applicationIdentifier, responseData);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        authDesVisualizing.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // authenticate with the read&write access key = 01...
+                clearOutputFields();
+                String logString = "DES visualizing authenticate with DEFAULT DES key number 0x01 = read & write access key";
+                writeToUiAppend(output, logString);
+                if (selectedApplicationId == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
+                    return;
+                }
+                byte[] responseData = new byte[2];
+                // this is the authentication method from the NFCJLIB, working correctly
+                //boolean success = desfireAuthenticate.authenticateWithNfcjlibDes(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES_DEFAULT);
+                boolean success = desfireAuthenticateLegacy.authenticateD40(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES_DEFAULT);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    SESSION_KEY_DES = desfireAuthenticateLegacy.getSessionKey();
+                    writeToUiAppend(output, printData("the DES session key is", SESSION_KEY_DES));
+                    vibrateShort();
+                    // show logData
+
+                    // prepare data for export
+                    exportString = desfireAuthenticate.getLogData();
+                    exportStringFileName = "auth1d_ev2.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
+                    //showDialog(MainActivity.this, desfireAuthenticateLegacy.getLogData());
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(output, desfireAuthenticateLegacy.getLogData());
+                }
+            }
+        });
+
+        readDesVisualizing.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "DES visualizing read from an encrypted standard file";
+                writeToUiAppend(output, logString);
+                // check that a file was selected before
+                selectedFileId = "1";
+                fileSelected.setText("1");
+
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                byte[] responseData = new byte[2];
+                byte[] result = readFromAStandardFileEncipheredCommunicationDes(output, fileIdByte, selectedFileSize, responseData);
+                if (result == null) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkResponseMoreData(responseData)) {
+                        writeToUiAppend(output, "the file is too long to read, sorry");
+                    }
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " ID: " + fileIdByte + printData(" data", result));
+                    writeToUiAppend(output, logString + " ID: " + fileIdByte + " data: " + new String(result, StandardCharsets.UTF_8));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }
+            }
+        });
+
+
     }
 
     /**
@@ -2748,7 +2873,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     }
 
     private byte[] readFromAStandardFilePlainCommunicationDes(TextView logTextView, byte fileNumber, int fileSize, byte[] methodResponse) {
-        final String methodName = "createFilePlainCommunicationDes";
+        final String methodName = "readStandardFilePlainCommunicationDes";
         Log.d(TAG, methodName);
         // sanity checks
         if (logTextView == null) {
@@ -2766,8 +2891,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
             return null;
         }
-        if ((fileSize < 1) || (fileSize > MAXIMUM_FILE_SIZE)) {
-            Log.e(TAG, methodName + " fileSize has to be in range 1.." + MAXIMUM_FILE_SIZE + " but found " + fileSize + ", aborted");
+        if ((fileSize < 0) || (fileSize > MAXIMUM_FILE_SIZE)) {
+            Log.e(TAG, methodName + " fileSize has to be in range 0.." + MAXIMUM_FILE_SIZE + " but found " + fileSize + ", aborted");
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
             return null;
         }
@@ -2831,6 +2956,115 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
             return null;
         }
+    }
+
+    private byte[] readFromAStandardFileEncipheredCommunicationDes(TextView logTextView, byte fileNumber, int fileSize, byte[] methodResponse) {
+        final String methodName = "readStandardFileEncipheredCommunicationDes";
+        Log.d(TAG, methodName);
+        // sanity checks
+        if (logTextView == null) {
+            Log.e(TAG, methodName + " logTextView is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        if (fileNumber < 0) {
+            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        if (fileNumber > 14) {
+            Log.e(TAG, methodName + " fileNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        if ((fileSize < 0) || (fileSize > MAXIMUM_FILE_SIZE)) {
+            Log.e(TAG, methodName + " fileSize has to be in range 0.." + MAXIMUM_FILE_SIZE + " but found " + fileSize + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        // generate the parameter
+        int offsetBytes = 0; // read from the beginning
+        byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
+        byte[] length = Utils.intTo3ByteArrayInversed(fileSize); // LSB order
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(offset, 0, 3);
+        baos.write(length, 0, 3);
+        byte[] parameter = baos.toByteArray();
+        Log.d(TAG, methodName + printData(" parameter", parameter));
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(READ_STANDARD_FILE_COMMAND, parameter);
+            Log.d(TAG, methodName + printData(" apdu", apdu));
+            response = isoDep.transceive(apdu);
+            Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return null;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+
+            // now strip of the response bytes
+
+            // now we return all data
+            byte[] responseData = Arrays.copyOf(response, response.length - 2);
+            // response length: 42 data: 19e32d7ac29b6737f016d94be2839da3e22db2d039cbe1dd90b67e5b29b98ca1c247812eed438a4e9100
+            // responseData length: 40 data: 19e32d7ac29b6737f016d94be2839da3e22db2d039cbe1dd90b67e5b29b98ca1c247812eed438a4e
+            // the  decryption will happen here
+            //byte[] encryptedData = Arrays.copyOfRange(responseData, 0, 36);
+            byte[] encryptedFullData = responseData.clone();
+            // try to decrypt with SessionKey
+            byte[] modDesKey = getModifiedKey(SESSION_KEY_DES); // get a TripleDES key (length 24 bytes) of a DES key (8 bytes)
+            byte[] decryptedFullData = TripleDES.decrypt(new byte[8], modDesKey, encryptedFullData);
+            writeToUiAppend(logTextView, printData("decryptedFullData", decryptedFullData));
+            // decryptedFullData length: 40 data: 31323320736f6d65206461746100000000000000000000000000000000000000ccd0800000000000
+            // decryptedFullData is decrypted file content (32 byte) || CRC16 (4 bytes) || padding with zero (4 bytes)
+            byte[] decryptedData = Arrays.copyOfRange(decryptedFullData, 0, 32);
+            byte[] crc16Data = Arrays.copyOfRange(decryptedFullData, 32, 36);
+            byte[] paddingData = Arrays.copyOfRange(decryptedFullData, 36, 40);
+            writeToUiAppend(logTextView, printData("crc16Data", crc16Data));
+            writeToUiAppend(logTextView, printData("paddingData", paddingData));
+
+            // verify the CRC16
+            writeToUiAppend(logTextView, "verify the CRC16 now");
+
+
+
+
+
+            return decryptedData;
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return null;
+        }
+    }
+
+    public byte[] getModifiedKey(byte[] key) {
+        String methodName = "getModifiedKey";
+        Log.d(TAG,methodName + printData(" key", key));
+        if ((key == null) || (key.length != 8)) {
+            Log.d(TAG,methodName + " Error: key is NULL or key length is not of 8 bytes length, aborted");
+            return null;
+        }
+        byte[] modifiedKey = new byte[24];
+        System.arraycopy(key, 0, modifiedKey, 16, 8);
+        System.arraycopy(key, 0, modifiedKey, 8, 8);
+        System.arraycopy(key, 0, modifiedKey, 0, key.length);
+        Log.d(TAG,methodName + printData(" modifiedKey", modifiedKey));
+        return modifiedKey;
     }
 
     // this is the code as readFromAStandardFilePlainCommunicationDes but we allow a fileNumber 15 (0x0F) for TMAC files
