@@ -261,7 +261,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private IsoDep isoDep;
     private byte[] tagIdByte;
 
-    private String exportString = ""; // takes the log data for export
+    private String exportString = "Desfire Authenticate Legacy"; // takes the log data for export
     private String exportStringFileName = "auth.html"; // takes the log data for export
 
 
@@ -2561,7 +2561,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     // show logData
 
                     // prepare data for export
-                    exportString = desfireAuthenticate.getLogData();
+                    exportString = desfireAuthenticateLegacy.getLogData();
                     exportStringFileName = "auth1d_ev2.html";
                     writeToUiToast("your authentication log file is ready for export");
 
@@ -2597,7 +2597,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     // show logData
 
                     // prepare data for export
-                    exportString = desfireAuthenticate.getLogData();
+                    exportString = desfireAuthenticateLegacy.getLogData();
+                    Log.d(TAG, "exportString: " + exportString);
                     exportStringFileName = "auth1d_ev2.html";
                     writeToUiToast("your authentication log file is ready for export");
 
@@ -2633,7 +2634,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     // show logData
 
                     // prepare data for export
-                    exportString = desfireAuthenticate.getLogData();
+                    exportString = desfireAuthenticateLegacy.getLogData();
                     exportStringFileName = "auth1d_ev2.html";
                     writeToUiToast("your authentication log file is ready for export");
 
@@ -4170,7 +4171,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private void exportTextFile() {
         //provideTextViewDataForExport(etLog);
-        if (exportString.isEmpty()) {
+        if (TextUtils.isEmpty(exportString)) {
             writeToUiToast("Log some data before writing files :-)");
             return;
         }

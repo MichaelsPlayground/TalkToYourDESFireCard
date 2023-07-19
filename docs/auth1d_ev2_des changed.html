@@ -1,0 +1,257 @@
+method: authenticateD40
+
+authentication with CHANGED key number 01 = RW access
+
+key length: 8 data: d10023456789abcd keyNo: 1
+method: authenticateD40
+step 01 get encrypted rndB from card
+method: authenticateD40
+- send auth apdu   apdu     length: 7 data: 900a0000010100
+method: authenticateD40
+- receive response response length: 10 data: 213f83d5f49951e991af
+method: authenticateD40
+step 02 get the encrypted rndB from response data
+method: getData
+responseAPDU length: 10 data: 213f83d5f49951e991af
+method: getData
+responseData length: 8 data: 213f83d5f49951e9
+method: authenticateD40
+- encryptedRndB length: 8 data: 213f83d5f49951e9
+method: authenticateD40
+step 03 setKeyVersion to 00 for DES keys
+method: authenticateD40
+- DES key provided       length: 8 data: d10023456789abcd
+method: setKeyVersion
+a length: 8 data: d10023456789abcd offset: 0 length: 8 version: 0
+method: authenticateD40
+- DES key w/keyVersion 0 length: 8 data: d00022446688aacc
+method: authenticateD40
+step 04 get a TDES key from the DES key
+method: getTDesKeyFromDesKey
+key length: 8 data: d00022446688aacc
+method: getTDesKeyFromDesKey
+TDES key length: 24 data: d00022446688aaccd00022446688aaccd00022446688aacc
+method: authenticateD40
+- DES key   length: 8 data: d00022446688aacc
+method: authenticateD40
+- TDES key length: 24 data: d00022446688aaccd00022446688aaccd00022446688aacc
+method: authenticateD40
+step 06 decrypt the encRndB using TripeDES.decrypt with key key length: 8 data: d00022446688aacc iv0 length: 8 data: 0000000000000000
+method: authenticateD40
+- encrypted rndB length: 8 data: 213f83d5f49951e9
+method: authenticateD40
+- decrypted rndB length: 8 data: 1c91de5fef3a5607
+method: authenticateD40
+step 06 rotate the decrypted rndB by 1 position/byte to the left
+method: authenticateD40
+- rndB              length: 8 data: 1c91de5fef3a5607
+method: rotateLeft
+data length: 8 data: 1c91de5fef3a5607
+method: authenticateD40
+- rndB left rotated length: 8 data: 91de5fef3a56071c
+method: authenticateD40
+step 07 generate a random rndA
+method: getRandomData
+key length: 8 data: 0000000000000000
+method: getRandomData
+length: 8
+method: authenticateD40
+- rndA length: 8 data: d6c8a213398b6f8b
+method: authenticateD40
+step 08 concatenate rndA || rndB left rotated
+method: authenticateD40
+- rndA || rndB left rotated length: 16 data: d6c8a213398b6f8b91de5fef3a56071c
+method: authenticateD40
+step 09 copy encryptedRndB to iv1 from position 0 to 8
+method: authenticateD40
+iv1 length: 8 data: 213f83d5f49951e9
+method: authenticateD40
+step 09 copy encryptedRndB to iv1 from position 
+method: authenticateD40
+step 10 encrypt rndA || rndB left rotated
+method: authenticateD40
+using mode case SEND_MODE = XOR w/ previous ciphered block --> decrypt
+method: authenticateD40
+step 10 encryption magic starting ********************
+method: authenticateD40
+XOR w/ previous ciphered block --> decrypt
+method: authenticateD40
+data before XORing data length: 16 data: d6c8a213398b6f8b91de5fef3a56071c cipheredBlock length: 8 data: 0000000000000000
+method: authenticateD40
+running a 2 round loop to XOR rndArndBLeftRotated with the previous cipheredBlock and DEcrypt the block using TripleDES
+method: authenticateD40
+ciphertext length: 16 data: 00000000000000000000000000000000 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b91de5fef3a56071c | cipheredBlock length: 8 data: 0000000000000000
+method: authenticateD40
+The outer loop is running for i=0 to <16 in steps of 8
+method: authenticateD40
+outer loop i: 0
+method: authenticateD40
+The outer loop is running for j=0 to <8 in steps of 1
+method: authenticateD40
+outer loop i: 0 inner loop j: 0
+method: authenticateD40
+cipheredBlock length: 8 data: 0000000000000000 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b91de5fef3a56071c | ciphertext length: 16 data: 00000000000000000000000000000000
+method: authenticateD40
+outer loop i: 0 inner loop j: 1
+method: authenticateD40
+cipheredBlock length: 8 data: 0000000000000000 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b91de5fef3a56071c | ciphertext length: 16 data: 00000000000000000000000000000000
+method: authenticateD40
+outer loop i: 0 inner loop j: 2
+method: authenticateD40
+cipheredBlock length: 8 data: 0000000000000000 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b91de5fef3a56071c | ciphertext length: 16 data: 00000000000000000000000000000000
+method: authenticateD40
+outer loop i: 0 inner loop j: 3
+method: authenticateD40
+cipheredBlock length: 8 data: 0000000000000000 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b91de5fef3a56071c | ciphertext length: 16 data: 00000000000000000000000000000000
+method: authenticateD40
+outer loop i: 0 inner loop j: 4
+method: authenticateD40
+cipheredBlock length: 8 data: 0000000000000000 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b91de5fef3a56071c | ciphertext length: 16 data: 00000000000000000000000000000000
+method: authenticateD40
+outer loop i: 0 inner loop j: 5
+method: authenticateD40
+cipheredBlock length: 8 data: 0000000000000000 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b91de5fef3a56071c | ciphertext length: 16 data: 00000000000000000000000000000000
+method: authenticateD40
+outer loop i: 0 inner loop j: 6
+method: authenticateD40
+cipheredBlock length: 8 data: 0000000000000000 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b91de5fef3a56071c | ciphertext length: 16 data: 00000000000000000000000000000000
+method: authenticateD40
+outer loop i: 0 inner loop j: 7
+method: authenticateD40
+cipheredBlock length: 8 data: 0000000000000000 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b91de5fef3a56071c | ciphertext length: 16 data: 00000000000000000000000000000000
+method: authenticateD40
+data after  XORing data length: 16 data: d6c8a213398b6f8b91de5fef3a56071c cipheredBlock length: 8 data: 0000000000000000
+method: authenticateD40
+calling TripleDES.decrypt with modifiedKey length: 24 data: d00022446688aaccd00022446688aaccd00022446688aacc data length: 16 data: d6c8a213398b6f8b91de5fef3a56071c i: 0 length: 8
+method: authenticateD40
+cipheredBlock length: 8 data: 0376e80a30120ea0 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b91de5fef3a56071c | ciphertext length: 16 data: 00000000000000000000000000000000
+method: authenticateD40
+TripleDES.decrypt cipheredBlock length: 8 data: 0376e80a30120ea0
+method: authenticateD40
+ copying cipheredBlock to ciphertext from i = 0 length 8
+method: authenticateD40
+before copy cipheredBlock length: 8 data: 0376e80a30120ea0 | ciphertext length: 16 data: 00000000000000000000000000000000
+method: authenticateD40
+after  copy cipheredBlock length: 8 data: 0376e80a30120ea0 | ciphertext length: 16 data: 0376e80a30120ea00000000000000000
+method: decrypt
+ ciphertext length: 16 data: 0376e80a30120ea00000000000000000
+method: authenticateD40
+outer loop i: 8
+method: authenticateD40
+The outer loop is running for j=0 to <8 in steps of 1
+method: authenticateD40
+outer loop i: 8 inner loop j: 0
+method: authenticateD40
+cipheredBlock length: 8 data: 0376e80a30120ea0 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b92de5fef3a56071c | ciphertext length: 16 data: 0376e80a30120ea00000000000000000
+method: authenticateD40
+outer loop i: 8 inner loop j: 1
+method: authenticateD40
+cipheredBlock length: 8 data: 0376e80a30120ea0 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b92a85fef3a56071c | ciphertext length: 16 data: 0376e80a30120ea00000000000000000
+method: authenticateD40
+outer loop i: 8 inner loop j: 2
+method: authenticateD40
+cipheredBlock length: 8 data: 0376e80a30120ea0 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b92a8b7ef3a56071c | ciphertext length: 16 data: 0376e80a30120ea00000000000000000
+method: authenticateD40
+outer loop i: 8 inner loop j: 3
+method: authenticateD40
+cipheredBlock length: 8 data: 0376e80a30120ea0 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b92a8b7e53a56071c | ciphertext length: 16 data: 0376e80a30120ea00000000000000000
+method: authenticateD40
+outer loop i: 8 inner loop j: 4
+method: authenticateD40
+cipheredBlock length: 8 data: 0376e80a30120ea0 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b92a8b7e50a56071c | ciphertext length: 16 data: 0376e80a30120ea00000000000000000
+method: authenticateD40
+outer loop i: 8 inner loop j: 5
+method: authenticateD40
+cipheredBlock length: 8 data: 0376e80a30120ea0 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b92a8b7e50a44071c | ciphertext length: 16 data: 0376e80a30120ea00000000000000000
+method: authenticateD40
+outer loop i: 8 inner loop j: 6
+method: authenticateD40
+cipheredBlock length: 8 data: 0376e80a30120ea0 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b92a8b7e50a44091c | ciphertext length: 16 data: 0376e80a30120ea00000000000000000
+method: authenticateD40
+outer loop i: 8 inner loop j: 7
+method: authenticateD40
+cipheredBlock length: 8 data: 0376e80a30120ea0 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b92a8b7e50a4409bc | ciphertext length: 16 data: 0376e80a30120ea00000000000000000
+method: authenticateD40
+data after  XORing data length: 16 data: d6c8a213398b6f8b92a8b7e50a4409bc cipheredBlock length: 8 data: 0376e80a30120ea0
+method: authenticateD40
+calling TripleDES.decrypt with modifiedKey length: 24 data: d00022446688aaccd00022446688aaccd00022446688aacc data length: 16 data: d6c8a213398b6f8b92a8b7e50a4409bc i: 8 length: 8
+method: authenticateD40
+cipheredBlock length: 8 data: 6fc4e7bac32f953e | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b92a8b7e50a4409bc | ciphertext length: 16 data: 0376e80a30120ea00000000000000000
+method: authenticateD40
+TripleDES.decrypt cipheredBlock length: 8 data: 6fc4e7bac32f953e
+method: authenticateD40
+ copying cipheredBlock to ciphertext from i = 8 length 8
+method: authenticateD40
+before copy cipheredBlock length: 8 data: 6fc4e7bac32f953e | ciphertext length: 16 data: 0376e80a30120ea00000000000000000
+method: authenticateD40
+after  copy cipheredBlock length: 8 data: 6fc4e7bac32f953e | ciphertext length: 16 data: 0376e80a30120ea06fc4e7bac32f953e
+method: decrypt
+ ciphertext length: 16 data: 0376e80a30120ea06fc4e7bac32f953e
+method: authenticateD40
+step 10 encryption magic ending   ********************
+method: authenticateD40
+- encrypted rndA || rndB left rotated length: 16 data: 0376e80a30120ea06fc4e7bac32f953e
+method: authenticateD40
+step 11 send the encrypted data to the PICC using the 0xAF command (more data)
+method: authenticateD40
+- send auth apdu   apdu     length: 22 data: 90af0000100376e80a30120ea06fc4e7bac32f953e00
+method: authenticateD40
+- receive response response length: 10 data: a642280713a68cd19100
+method: authenticateD40
+step 12 the response data is the encrypted rndA from the PICC
+method: authenticateD40
+        Note: the received (encrypted) rndA is left rotated
+method: getData
+responseAPDU length: 10 data: a642280713a68cd19100
+method: getData
+responseData length: 8 data: a642280713a68cd1
+method: authenticateD40
+- encrypted rndA left rotated length: 8 data: a642280713a68cd1
+method: authenticateD40
+encryptedRndA length: 8 data: a642280713a68cd1
+method: authenticateD40
+The iv is set to 8 * 0x00
+method: authenticateD40
+iv0 length: 8 data: 0000000000000000
+method: authenticateD40
+step xx decrypt the encrypted rndA left rotated using TripeDES.decrypt with key key length: 8 data: d00022446688aacc iv0 length: 8 data: 0000000000000000
+method: authenticateD40
+- encrypted left rotated rndA length: 8 data: 213f83d5f49951e9
+method: authenticateD40
+- decrypted left rotated rndA length: 8 data: c8a213398b6f8bd6
+method: authenticateD40
+step xx rotate decrypted left rotated rndA to RIGHT
+method: authenticateD40
+- decrypted rndA length: 8 data: d6c8a213398b6f8b
+method: authenticateD40
+step xx compare self generated rndA with rndA received from PICC
+method: authenticateD40
+- rndA generated length: 8 data: d6c8a213398b6f8b
+method: authenticateD40
+- rndA received  length: 8 data: d6c8a213398b6f8b
+method: authenticateD40
+- rndA generated and received are equals: true
+method: authenticateD40
+step xx generate the DES Session key from rndA and rndB
+method: authenticateD40
+- rndA           length: 8 data: d6c8a213398b6f8b
+method: authenticateD40
+- rndB           length: 8 data: 1c91de5fef3a5607
+method: getSessionKey
+rndA length: 8 data: d6c8a213398b6f8b rndB length: 8 data: 1c91de5fef3a5607
+method: authenticateD40
+This are the first 4 bytes of rndA and rndB, the DES Session key is
+method: authenticateD40
+rndA first 4 bytes || rndB first 4 bytes
+method: authenticateD40
+rndA first 4 Bytes    D6C8A213
+method: authenticateD40
+rndB first 4 Bytes            1C91DE5F
+method: authenticateD40
+SessionKey is 8 Bytes D6C8A2131C91DE5F (length: 8)
+method: authenticateD40
+**** auth result ****
+method: authenticateD40
+*** AUTHENTICATED ***
+method: authenticateD40
+*********************

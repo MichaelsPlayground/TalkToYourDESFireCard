@@ -29,7 +29,7 @@ public class DesfireAuthenticateLegacy {
 
     private IsoDep isoDep;
     private boolean printToLog = true; // print data to log
-    private String logData;
+    private String logData = "";
     private boolean authenticateLegacyD40Success = false;
     private boolean authenticateLegacyAesSuccess = false;
     private byte keyNumberUsedForAuthentication = -1;
