@@ -754,6 +754,8 @@ public class DesfireAuthenticateLegacy {
         log(methodName, printData("iv1", iv1));
 
         log(methodName, "step 09 copy encryptedRndB to iv1 from position ");
+
+
         log(methodName, "mode case SEND_MODE");
         log(methodName, "XOR w/ previous ciphered block --> decrypt");
         byte[] ciphertext = new byte[rndArndBLeftRotated.length];
@@ -792,13 +794,14 @@ public class DesfireAuthenticateLegacy {
         }
         byte[] encryptedRndArndBLeftRotated = ciphertext.clone();
 
-        log(methodName, printData("encryptedRndArndBLeftRotated", encryptedRndArndBLeftRotated));
-        log(methodName, "step 10 send the encrypted data to the PICC");
+        log(methodName, printData("- encrypted rndA || rndB left rotated", encryptedRndArndBLeftRotated));
+
+        log(methodName, "step 11 send the encrypted data to the PICC using the 0xAF command (more data)");
         try {
             apdu = wrapMessage(MORE_DATA_COMMAND, encryptedRndArndBLeftRotated);
-            log(methodName, "send encryptedRndArndBLeftRotated " + printData("apdu", apdu));
+            log(methodName, "- send auth apdu   " + printData("apdu    ", apdu));
             response = isoDep.transceive(apdu);
-            log(methodName, "send encryptedRndArndBLeftRotated " + printData("response", response));
+            log(methodName, "- receive response " + printData("response", response));
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "IOException: " + e.getMessage());
@@ -814,25 +817,46 @@ public class DesfireAuthenticateLegacy {
             return false;
         }
         // now we know that we can work with the response
+        log(methodName, "step 12 the response data is the encrypted rndA from the PICC");
+        log(methodName, "        Note: the rndA is left rotated");
         byte[] encryptedRndA = getData(response);
-        log(methodName, printData("encryptedRndA0", encryptedRndA));
-        log(methodName, "step 11 Get iv2 from encryptedRndArndBLeftRotated");
-        byte[] iv2 = Arrays.copyOfRange(encryptedRndArndBLeftRotated,
-                encryptedRndArndBLeftRotated.length - iv0.length, encryptedRndArndBLeftRotated.length);
+        log(methodName, printData("- encrypted rndA left rotated", encryptedRndA));
+
+
+        log(methodName, printData("encryptedRndA", encryptedRndA));
+        //log(methodName, "step 13 Get iv2 from encryptedRndArndBLeftRotated");
+        //byte[] iv2 = Arrays.copyOfRange(encryptedRndArndBLeftRotated, encryptedRndArndBLeftRotated.length - iv0.length, encryptedRndArndBLeftRotated.length);
+
         log(methodName, printData("iv0", iv0));
+
+        log(methodName, "step xx decrypt the encrypted rndA left rotated using TripeDES.decrypt with key " + printData("key", key) + printData(" iv0", iv0));
+        log(methodName, printData("- encrypted left rotated rndA", encryptedRndB));
         byte[] decryptedRndALeftRotated = TripleDES.decrypt(iv0, tdesKey, encryptedRndA);
-        log(methodName, printData("decryptedRndALeftRotated", decryptedRndALeftRotated));
-        log(methodName, "step xx rotate decryptedRndALeftRotated to RIGHT");
+        log(methodName, printData("- decrypted left rotated rndA", decryptedRndALeftRotated));
+
+        log(methodName, "step xx rotate decrypted left rotated rndA to RIGHT");
         byte[] decryptedRndA = rotateRight(decryptedRndALeftRotated);
+        log(methodName, printData("- decrypted rndA", decryptedRndA));
 
+        log(methodName, "step xx compare self generated rndA with rndA received from PICC");
         boolean rndAEqual = Arrays.equals(rndA, decryptedRndA);
+        log(methodName, printData("- rndA generated", rndA));
+        log(methodName, printData("- rndA received ", decryptedRndA));
 
-        log(methodName, printData("rndA received ", decryptedRndA));
-        log(methodName, printData("rndA          ", rndA));
-        log(methodName, "rndA and rndA received are equal: " + rndAEqual);
-        log(methodName, printData("rndB          ", rndB));
+        log(methodName, "- rndA generated and received are equals: " + rndAEqual);
+
+        log(methodName, "step xx generate the DES Session key from rndA and rndB");
+        log(methodName, printData("- rndA          ", rndA));
+        log(methodName, printData("- rndB          ", rndB));
         SessionKey = getSessionKeyDes(rndA, rndB);
-        log(methodName, printData("SessionKey    ", SessionKey));
+        log(methodName, "This are the first 4 bytes of rndA and rndB, the DES Session key is");
+        log(methodName, "rndA first 4 bytes || rndB first 4 bytes");
+        byte[] rndAfirst4Bytes = Arrays.copyOf(rndA, 4);
+        byte[] rndBfirst4Bytes = Arrays.copyOf(rndB, 4);
+        log(methodName, "rndA first 4 B " + bytesToHexNpeUpperCase(rndAfirst4Bytes));
+        log(methodName, "rndB first 4 B         " + bytesToHexNpeUpperCase(rndBfirst4Bytes));
+        log(methodName, "SessionKey is  " + bytesToHexNpeUpperCase(SessionKey) + " (length: " + SessionKey.length + ")");
+
         log(methodName, "**** auth result ****");
         if (rndAEqual) {
             log(methodName, "*** AUTHENTICATED ***");
@@ -1440,7 +1464,7 @@ public class DesfireAuthenticateLegacy {
     }
 
     private void log(String methodName, String data) {
-        log(methodName, data);
+        log(methodName, data, false);
     }
 
     private void log(String methodName, String data, boolean isMethodHeader) {
