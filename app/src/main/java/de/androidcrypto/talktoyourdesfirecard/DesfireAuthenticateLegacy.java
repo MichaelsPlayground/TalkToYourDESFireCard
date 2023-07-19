@@ -755,9 +755,10 @@ public class DesfireAuthenticateLegacy {
 
         log(methodName, "step 09 copy encryptedRndB to iv1 from position ");
 
+        log(methodName, "step 10 encrypt rndA || rndB left rotated");
+        log(methodName, "using mode case SEND_MODE = XOR w/ previous ciphered block --> decrypt");
+        log(methodName, "step 10 encryption magic starting ********************");
 
-        log(methodName, "mode case SEND_MODE");
-        log(methodName, "XOR w/ previous ciphered block --> decrypt");
         byte[] ciphertext = new byte[rndArndBLeftRotated.length];
         byte[] cipheredBlock = new byte[8];
         // XOR w/ previous ciphered block --> decrypt
@@ -768,8 +769,10 @@ public class DesfireAuthenticateLegacy {
         log(methodName, printData("ciphertext", ciphertext) +
                 printData(" | rndArndBLeftRotated", rndArndBLeftRotated) +
                 printData(" | cipheredBlock", cipheredBlock));
+        log(methodName, "The outer loop is running for i=0 to <" + rndArndBLeftRotated.length + " in steps of 8");
         for (int i = 0; i < rndArndBLeftRotated.length; i += 8) {
             log(methodName, "outer loop i: " + i);
+            log(methodName, "The outer loop is running for j=0 to <8"  + " in steps of 1");
             for (int j = 0; j < 8; j++) {
                 log(methodName, "outer loop i: " + i + " inner loop j: " + j);
                 rndArndBLeftRotated[i + j] ^= cipheredBlock[j];
@@ -793,7 +796,7 @@ public class DesfireAuthenticateLegacy {
             log("decrypt", printData(" ciphertext", ciphertext));
         }
         byte[] encryptedRndArndBLeftRotated = ciphertext.clone();
-
+        log(methodName, "step 10 encryption magic ending   ********************");
         log(methodName, printData("- encrypted rndA || rndB left rotated", encryptedRndArndBLeftRotated));
 
         log(methodName, "step 11 send the encrypted data to the PICC using the 0xAF command (more data)");
@@ -818,7 +821,7 @@ public class DesfireAuthenticateLegacy {
         }
         // now we know that we can work with the response
         log(methodName, "step 12 the response data is the encrypted rndA from the PICC");
-        log(methodName, "        Note: the rndA is left rotated");
+        log(methodName, "        Note: the received (encrypted) rndA is left rotated");
         byte[] encryptedRndA = getData(response);
         log(methodName, printData("- encrypted rndA left rotated", encryptedRndA));
 
@@ -826,7 +829,7 @@ public class DesfireAuthenticateLegacy {
         log(methodName, printData("encryptedRndA", encryptedRndA));
         //log(methodName, "step 13 Get iv2 from encryptedRndArndBLeftRotated");
         //byte[] iv2 = Arrays.copyOfRange(encryptedRndArndBLeftRotated, encryptedRndArndBLeftRotated.length - iv0.length, encryptedRndArndBLeftRotated.length);
-
+        log(methodName, "The iv is set to 8 * 0x00");
         log(methodName, printData("iv0", iv0));
 
         log(methodName, "step xx decrypt the encrypted rndA left rotated using TripeDES.decrypt with key " + printData("key", key) + printData(" iv0", iv0));
@@ -853,9 +856,9 @@ public class DesfireAuthenticateLegacy {
         log(methodName, "rndA first 4 bytes || rndB first 4 bytes");
         byte[] rndAfirst4Bytes = Arrays.copyOf(rndA, 4);
         byte[] rndBfirst4Bytes = Arrays.copyOf(rndB, 4);
-        log(methodName, "rndA first 4 B " + bytesToHexNpeUpperCase(rndAfirst4Bytes));
-        log(methodName, "rndB first 4 B         " + bytesToHexNpeUpperCase(rndBfirst4Bytes));
-        log(methodName, "SessionKey is  " + bytesToHexNpeUpperCase(SessionKey) + " (length: " + SessionKey.length + ")");
+        log(methodName, "rndA first 4 Bytes    " + bytesToHexNpeUpperCase(rndAfirst4Bytes));
+        log(methodName, "rndB first 4 Bytes            " + bytesToHexNpeUpperCase(rndBfirst4Bytes));
+        log(methodName, "SessionKey is 8 Bytes " + bytesToHexNpeUpperCase(SessionKey) + " (length: " + SessionKey.length + ")");
 
         log(methodName, "**** auth result ****");
         if (rndAEqual) {

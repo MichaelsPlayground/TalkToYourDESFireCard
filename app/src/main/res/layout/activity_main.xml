@@ -2053,6 +2053,45 @@
                         android:layout_weight="1"
                         android:text="DES 1->D" />
 
+                    <Button
+                        android:id="@+id/btnDesVisualizeAuthAuthenticateC"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="auth C" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnDesVisualizeChangeKeyDes01ToChanged2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:text="DES 1->C2" />
+
+                    <Button
+                        android:id="@+id/btnDesVisualizeChangeKeyDes01ToDefault2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="DES 1 C2->D" />
+
+                    <Button
+                        android:id="@+id/btnDesVisualizeAuthAuthenticateC2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="auth C2" />
+
                 </LinearLayout>
 
                 <LinearLayout
