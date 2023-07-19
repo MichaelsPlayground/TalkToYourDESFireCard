@@ -140,6 +140,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     private Button selectApplicationDesVisualizing, authDesVisualizing, readDesVisualizing, writeDesVisualizing;
+    private Button changeKeyDes01ToChangedDesVisualizing, changeKeyDes01ToDefaultDesVisualizing;
+    private Button changeKeyDes00ToChangedDesVisualizing, changeKeyDes00ToDefaultDesVisualizing;
 
     /**
      * section for constants
@@ -191,10 +193,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private final byte[] APPLICATION_KEY_MASTER_DES_DEFAULT = Utils.hexStringToByteArray("0000000000000000"); // default DES key with 8 nulls
     private final byte[] APPLICATION_KEY_MASTER_DES = Utils.hexStringToByteArray("D000000000000000");
     private final byte[] APPLICATION_KEY_MASTER_AES_DEFAULT = Utils.hexStringToByteArray("00000000000000000000000000000000"); // default AES key with 16 nulls
+    private final byte[] APPLICATION_KEY_MASTER_AES = Utils.hexStringToByteArray("A08899AABBCCDD223344556677889911");
     private final byte APPLICATION_KEY_MASTER_NUMBER = (byte) 0x00;
 
     private final byte[] APPLICATION_KEY_RW_DES_DEFAULT = Utils.hexStringToByteArray("0000000000000000"); // default DES key with 8 nulls
-    private final byte[] APPLICATION_KEY_RW_DES = Utils.hexStringToByteArray("D100000000000000");
+    private final byte[] APPLICATION_KEY_RW_DES = Utils.hexStringToByteArray("D10023456789ABCD");
     private final byte[] APPLICATION_KEY_RW_AES_DEFAULT = Utils.hexStringToByteArray("00000000000000000000000000000000"); // default AES key with 16 nulls
     private final byte APPLICATION_KEY_RW_NUMBER = (byte) 0x01;
     private final byte[] APPLICATION_KEY_CAR_DES_DEFAULT = Utils.hexStringToByteArray("0000000000000000"); // default DES key with 8 nulls
@@ -226,6 +229,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
     private final byte GET_FILE_SETTINGS_COMMAND = (byte) 0xF5;
     private final byte CHANGE_FILE_SETTINGS_COMMAND = (byte) 0x5F;
+    private final byte CHANGE_KEY_COMMAND = (byte) 0xC4;
+
 
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
 
@@ -366,7 +371,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         authDesVisualizing = findViewById(R.id.btnDesVisualizeAuthAuthenticate);
         readDesVisualizing = findViewById(R.id.btnDesVisualizeAuthRead);
         writeDesVisualizing = findViewById(R.id.btnDesVisualizeAuthWrite);
-
+        changeKeyDes00ToChangedDesVisualizing = findViewById(R.id.btnDesVisualizeChangeKeyDes00ToChanged);
+        changeKeyDes00ToDefaultDesVisualizing = findViewById(R.id.btnDesVisualizeChangeKeyDes00ToDefault);
+        changeKeyDes01ToChangedDesVisualizing = findViewById(R.id.btnDesVisualizeChangeKeyDes01ToChanged);
+        changeKeyDes01ToDefaultDesVisualizing = findViewById(R.id.btnDesVisualizeChangeKeyDes01ToDefault);
 
         // some presets
         applicationId.setText(Utils.bytesToHexNpeUpperCase(APPLICATION_IDENTIFIER));
@@ -2646,6 +2654,250 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        changeKeyDes01ToChangedDesVisualizing.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // this method will change the key number 1 (read&write access) from default to D100...
+                clearOutputFields();
+                String logString = "DES visualizing change key 1 read&write access to CHANGED";
+                writeToUiAppend(output, logString);
+
+                byte[] responseData = new byte[2];
+                writeToUiAppend(output, "changeKeyDes: "
+                        + Utils.byteToHex(APPLICATION_KEY_RW_NUMBER)
+                        + " from " + printData("oldValue", APPLICATION_KEY_RW_DES_DEFAULT)
+                        + " to " + printData("newValue", APPLICATION_KEY_RW_DES));
+
+                // select the application
+                writeToUiAppend(output, "step 1: select the application");
+                byte[] applicationIdentifier = hexStringToByteArray("0100D0"); // lsb
+                applicationId.setText("D00001");
+                writeToUiAppend(output, "select the application with id: " + applicationId.getText().toString());
+                boolean success = selectApplication(output, applicationIdentifier, responseData);
+                if (success) {
+                    writeToUiAppend(output, "select the application SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+
+               // before we are running an auth with key 0 (application master key)
+                writeToUiAppend(output, "step 2: authenticate with the app MASTER key");
+                success = desfireAuthenticateLegacy.authenticateD40(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_DES_DEFAULT);
+                //boolean success = desfireAuthenticateLegacy.authenticateD40(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_DES_DEFAULT);
+                if (success) {
+                    writeToUiAppend(output, "auth with app MASTER key SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "auth with app MASTER key SUCCESS", COLOR_GREEN);
+                    SESSION_KEY_DES = desfireAuthenticateLegacy.getSessionKey();
+                    KEY_NUMBER_USED_FOR_AUTHENTICATION = APPLICATION_KEY_MASTER_NUMBER;
+                    writeToUiAppend(output, printData("the DES session key is", SESSION_KEY_DES));
+                    vibrateShort();
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "auth with app MASTER key FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(output, desfireAuthenticateLegacy.getLogData());
+                    return;
+                }
+
+                // now change the key
+                writeToUiAppend(output, "step 3: change key 1 to CHANGED");
+                success = changeDesKey(output, KEY_NUMBER_USED_FOR_AUTHENTICATION, APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES, APPLICATION_KEY_RW_DES_DEFAULT, "read&write access", responseData);
+                if (success) {
+                    writeToUiAppend(output, "change key 1 to CHANGED SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "change key 1 to CHANGED  SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "change key 1 to CHANGED  FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+            }
+        });
+
+        changeKeyDes01ToDefaultDesVisualizing.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // this method will change the key number 1 (read&write access) from changed to DEFAULT
+                clearOutputFields();
+                String logString = "DES visualizing change key 1 read&write access to DEFAULT";
+                writeToUiAppend(output, logString);
+
+                byte[] responseData = new byte[2];
+                writeToUiAppend(output, "changeKeyDes: "
+                        + Utils.byteToHex(APPLICATION_KEY_RW_NUMBER)
+                        + " from " + printData("oldValue", APPLICATION_KEY_RW_DES)
+                        + " to " + printData("newValue", APPLICATION_KEY_RW_DES_DEFAULT));
+
+                // select the application
+                writeToUiAppend(output, "step 1: select the application");
+                byte[] applicationIdentifier = hexStringToByteArray("0100D0"); // lsb
+                applicationId.setText("D00001");
+                writeToUiAppend(output, "select the application with id: " + applicationId.getText().toString());
+                boolean success = selectApplication(output, applicationIdentifier, responseData);
+                if (success) {
+                    writeToUiAppend(output, "select the application SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+
+                // before we are running an auth with key 0 (application master key)
+                writeToUiAppend(output, "step 2: authenticate with the app MASTER key");
+                success = desfireAuthenticateLegacy.authenticateD40(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_DES_DEFAULT);
+                //boolean success = desfireAuthenticateLegacy.authenticateD40(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_DES_DEFAULT);
+                if (success) {
+                    writeToUiAppend(output, "auth with app MASTER key SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "auth with app MASTER key SUCCESS", COLOR_GREEN);
+                    SESSION_KEY_DES = desfireAuthenticateLegacy.getSessionKey();
+                    KEY_NUMBER_USED_FOR_AUTHENTICATION = APPLICATION_KEY_MASTER_NUMBER;
+                    writeToUiAppend(output, printData("the DES session key is", SESSION_KEY_DES));
+                    vibrateShort();
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "auth with app MASTER key FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(output, desfireAuthenticateLegacy.getLogData());
+                    return;
+                }
+
+                // now change the key
+                writeToUiAppend(output, "step 3: change key 1 to DEFAULT");
+                success = changeDesKey(output, KEY_NUMBER_USED_FOR_AUTHENTICATION, APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES_DEFAULT, APPLICATION_KEY_RW_DES, "read&write access", responseData);
+                if (success) {
+                    writeToUiAppend(output, "change key 1 to DEFAULT SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "change key 1 to DEFAULT SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "change key 1 to DEFAULT FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+            }
+        });
+
+        changeKeyDes00ToChangedDesVisualizing.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // this method will change the key number 0 (master) from default to D100...
+                clearOutputFields();
+                String logString = "DES visualizing change key 0 app Master to CHANGED";
+                writeToUiAppend(output, logString);
+
+                byte[] responseData = new byte[2];
+                writeToUiAppend(output, "changeKeyDes: "
+                        + Utils.byteToHex(APPLICATION_KEY_MASTER_NUMBER)
+                        + " from " + printData("oldValue", APPLICATION_KEY_MASTER_DES_DEFAULT)
+                        + " to " + printData("newValue", APPLICATION_KEY_MASTER_DES));
+
+                // select the application
+                writeToUiAppend(output, "step 1: select the application");
+                byte[] applicationIdentifier = hexStringToByteArray("0100D0"); // lsb
+                applicationId.setText("D00001");
+                writeToUiAppend(output, "select the application with id: " + applicationId.getText().toString());
+                boolean success = selectApplication(output, applicationIdentifier, responseData);
+                if (success) {
+                    writeToUiAppend(output, "select the application SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+
+                // before we are running an auth with key 0 (application master key)
+                writeToUiAppend(output, "step 2: authenticate with the app MASTER key");
+                success = desfireAuthenticateLegacy.authenticateD40(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_DES_DEFAULT);
+                //boolean success = desfireAuthenticateLegacy.authenticateD40(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_DES_DEFAULT);
+                if (success) {
+                    writeToUiAppend(output, "auth with app MASTER key SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "auth with app MASTER key SUCCESS", COLOR_GREEN);
+                    SESSION_KEY_DES = desfireAuthenticateLegacy.getSessionKey();
+                    KEY_NUMBER_USED_FOR_AUTHENTICATION = APPLICATION_KEY_MASTER_NUMBER;
+                    writeToUiAppend(output, printData("the DES session key is", SESSION_KEY_DES));
+                    vibrateShort();
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "auth with app MASTER key FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(output, desfireAuthenticateLegacy.getLogData());
+                    return;
+                }
+
+                // now change the key
+                writeToUiAppend(output, "step 3: change key 0 to CHANGED");
+                success = changeDesKey(output, KEY_NUMBER_USED_FOR_AUTHENTICATION, APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_DES, APPLICATION_KEY_MASTER_DES_DEFAULT, "app master", responseData);
+                if (success) {
+                    writeToUiAppend(output, "change key 0 to CHANGED SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "change key 0 to CHANGED SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "change key 0 to CHANGED FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+            }
+        });
+
+        changeKeyDes00ToDefaultDesVisualizing.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // this method will change the key number 0 (application master) from changed to DEFAULT
+                clearOutputFields();
+                String logString = "DES visualizing change key 0 application master to DEFAULT";
+                writeToUiAppend(output, logString);
+
+                byte[] responseData = new byte[2];
+                writeToUiAppend(output, "changeKeyDes: "
+                        + Utils.byteToHex(APPLICATION_KEY_MASTER_NUMBER)
+                        + " from " + printData("oldValue", APPLICATION_KEY_MASTER_DES)
+                        + " to " + printData("newValue", APPLICATION_KEY_MASTER_DES_DEFAULT));
+
+                // select the application
+                writeToUiAppend(output, "step 1: select the application");
+                byte[] applicationIdentifier = hexStringToByteArray("0100D0"); // lsb
+                applicationId.setText("D00001");
+                writeToUiAppend(output, "select the application with id: " + applicationId.getText().toString());
+                boolean success = selectApplication(output, applicationIdentifier, responseData);
+                if (success) {
+                    writeToUiAppend(output, "select the application SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+
+                // before we are running an auth with key 0 (application master key)
+                writeToUiAppend(output, "step 2: authenticate with the CHANGED app MASTER key");
+                success = desfireAuthenticateLegacy.authenticateD40(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_DES);
+                //boolean success = desfireAuthenticateLegacy.authenticateD40(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_DES_DEFAULT);
+                if (success) {
+                    writeToUiAppend(output, "auth with app MASTER key SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "auth with app MASTER key SUCCESS", COLOR_GREEN);
+                    SESSION_KEY_DES = desfireAuthenticateLegacy.getSessionKey();
+                    KEY_NUMBER_USED_FOR_AUTHENTICATION = APPLICATION_KEY_MASTER_NUMBER;
+                    writeToUiAppend(output, printData("the DES session key is", SESSION_KEY_DES));
+                    vibrateShort();
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "auth with app MASTER key FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(output, desfireAuthenticateLegacy.getLogData());
+                    return;
+                }
+
+                // now change the key
+                writeToUiAppend(output, "step 3: change key 0 to DEFAULT");
+                success = changeDesKey(output, KEY_NUMBER_USED_FOR_AUTHENTICATION, APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_DES_DEFAULT, APPLICATION_KEY_MASTER_DES, "app master", responseData);
+                if (success) {
+                    writeToUiAppend(output, "change key 0 to DEFAULT SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "change key 0 to DEFAULT SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "change key 0 to DEFAULT FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+            }
+        });
+
     }
 
     /**
@@ -3532,10 +3784,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         System.arraycopy(crc16Value, 0, bytesForDecryption, 3, 2);
         Log.d(TAG, printData("bytesForDecryption", bytesForDecryption));
         // generate 24 bytes long triple des key
-        byte[] tripleDES_SESSION_KEY = new byte[24];
-        System.arraycopy(SESSION_KEY_DES, 0, tripleDES_SESSION_KEY, 0, 8);
-        System.arraycopy(SESSION_KEY_DES, 0, tripleDES_SESSION_KEY, 8, 8);
-        System.arraycopy(SESSION_KEY_DES, 0, tripleDES_SESSION_KEY, 16, 8);
+        byte[] tripleDES_SESSION_KEY = getModifiedKey(SESSION_KEY_DES);
         Log.d(TAG, printData("tripleDES Session Key", tripleDES_SESSION_KEY));
         byte[] IV_DES = new byte[8];
         Log.d(TAG, printData("IV_DES", IV_DES));
@@ -3570,7 +3819,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for key handling
      */
 
-    private boolean changeDesKey(TextView logTextView, byte authenticationKeyNumber, byte[] authenticationKey, byte changeKeyNumber,
+    private boolean changeDesKey(TextView logTextView, byte authenticationKeyNumber, byte changeKeyNumber,
                                  byte[] changeKeyNew, byte[] changeKeyOld, String changeKeyName, byte[] methodResponse) {
         final String methodName = "changeDesKey";
         Log.d(TAG, methodName);
@@ -3590,11 +3839,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
             return false;
         }
-        if ((authenticationKey == null) || (authenticationKey.length != 8)) {
-            Log.e(TAG, methodName + " authenticationKey is NULL or of wrong length, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
         if (changeKeyNumber < 0) {
             Log.e(TAG, methodName + " changeKeyNumber is < 0, aborted");
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
@@ -3605,6 +3849,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
             return false;
         }
+        // note: as this method can be used to change a key from DES to AES and vice versa
+        // we cannot check for a key length
+        if ((changeKeyNew == null) || (changeKeyOld == null)) {
+            Log.e(TAG, methodName + " changeKeyNew or Old is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+
+/*
         if ((changeKeyNew == null) || (changeKeyNew.length != 8)) {
             Log.e(TAG, methodName + " changeKeyNew is NULL or of wrong length, aborted");
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
@@ -3615,8 +3868,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
             return false;
         }
+
+ */
         if (TextUtils.isEmpty(changeKeyName)) {
-            Log.e(TAG, methodName + " changeKeyNamr is empty, aborted");
+            Log.e(TAG, methodName + " changeKeyName is empty, aborted");
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
             return false;
         }
@@ -3626,9 +3881,106 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
             return false;
         }
-        return false;
+        if ((SESSION_KEY_DES == null) || (SESSION_KEY_DES.length != 8)) {
+            writeToUiAppend(logTextView, methodName + " SESSION_KEY_DES is null or not of length 8 (missing auth ?), aborted");
+            Log.e(TAG, methodName + " SESSION_KEY_DES is null or not of length 8 (missing auth ?), aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
+            return false;
+        }
+
+        // important: don't use the original keys for changes as the PICC is using
+        // only 56 bit of the 64 bit long (8 bytes) DES key, the remaining 8 bits are used for the
+        // key version. The following method call will set the keyVersion to 0 so the 'original' may get
+        // altered.
+        Log.d(TAG, printData("new key before setKeyVersion", changeKeyNew));
+        byte KEY_VERSION = 0;
+        setKeyVersion(changeKeyOld, 0, changeKeyOld.length, KEY_VERSION);
+        setKeyVersion(changeKeyNew, 0, changeKeyNew.length, KEY_VERSION);
+        Log.d(TAG, printData("new key after  setKeyVersion", changeKeyNew));
+
+        byte[] plaintext = new byte[24]; // this is the final array
+        int nklen = 16;
+        System.arraycopy(changeKeyNew, 0, plaintext, 0, changeKeyNew.length);
+        Log.d(methodName, printData("plaintext", plaintext));
+        // 8-byte DES keys accepted: internally have to be handled w/ 16 bytes
+        System.arraycopy(changeKeyNew, 0, plaintext, 8, changeKeyNew.length);
+        changeKeyNew = Arrays.copyOfRange(plaintext, 0, 16);
+
+        Log.d(methodName, printData("newKey TDES", changeKeyNew));
+
+        // xor the new key with the old key if a key is changed different to authentication key
+        if ((changeKeyNumber & 0x0F) != KEY_NUMBER_USED_FOR_AUTHENTICATION) {
+            for (int i = 0; i < changeKeyNew.length; i++) {
+                plaintext[i] ^= changeKeyOld[i % changeKeyOld.length];
+            }
+        }
+        Log.d(methodName, printData("plaintext", plaintext));
+
+        byte[] crc;
+        int addDesKeyVersionByte = (byte) 0x00;
+
+        crc = CRC16.get(plaintext, 0, nklen + addDesKeyVersionByte);
+        System.arraycopy(crc, 0, plaintext, nklen + addDesKeyVersionByte, 2);
+
+        // this crc16 value is necessary only when the keyNumber used for authentication differs from key to change
+        if ((changeKeyNumber & 0x0F) != KEY_NUMBER_USED_FOR_AUTHENTICATION) {
+            crc = CRC16.get(changeKeyNew);
+            System.arraycopy(crc, 0, plaintext, nklen + addDesKeyVersionByte + 2, 2);
+        }
+        Log.d(methodName, printData("plaintext before encryption", plaintext));
+        byte[] ciphertext = null;
+        System.out.println(printData("SESSION_KEY_DES", SESSION_KEY_DES));
+        ciphertext = decrypt(SESSION_KEY_DES, plaintext);
+        Log.d(methodName, printData("ciphertext after encryption", ciphertext));
+
+        byte[] apdu = new byte[5 + 1 + ciphertext.length + 1];
+        apdu[0] = (byte) 0x90;
+        apdu[1] = CHANGE_KEY_COMMAND;
+        apdu[4] = (byte) (1 + plaintext.length);
+        apdu[5] = changeKeyNumber;
+        System.arraycopy(ciphertext, 0, apdu, 6, ciphertext.length);
+        Log.d(methodName, printData("apdu", apdu));
+
+        byte[] changeKeyDesResponse = new byte[0];
+        try {
+            //response = isoDep.transceive(wrapMessage(selectApplicationCommand, applicationIdentifier));
+            changeKeyDesResponse = isoDep.transceive(apdu);
+            writeToUiAppend(logTextView, printData("changeKeyDesResponse", changeKeyDesResponse));
+            System.arraycopy(returnStatusBytes(changeKeyDesResponse), 0, methodResponse, 0, 2);
+            //System.arraycopy(selectApplicationResponse, 0, response, 0, selectApplicationResponse.length);
+            if (checkResponse(changeKeyDesResponse)) {
+                return true;
+            } else {
+                return false;
+            }
+        } catch (Exception e) {
+            //throw new RuntimeException(e);
+            writeToUiAppend(logTextView, "changeKeyDes transceive failed: " + e.getMessage());
+            byte[] responseManual = new byte[]{(byte) 0x91, (byte) 0xFF};
+            System.arraycopy(responseManual, 0, methodResponse, 0, 2);
+            return false;
+        }
     }
 
+    /**
+     * Set the version on a DES key. Each least significant bit of each byte of
+     * the DES key, takes one bit of the version. Since the version is only
+     * one byte, the information is repeated if dealing with 16/24-byte keys.
+     *
+     * @param a       1K/2K/3K 3DES
+     * @param offset  start position of the key within a
+     * @param length  key length
+     * @param version the 1-byte version
+     *                Source: DESFireEV1.java (NFCJLIB)
+     */
+    private static void setKeyVersion(byte[] a, int offset, int length, byte version) {
+        if (length == 8 || length == 16 || length == 24) {
+            for (int i = offset + length - 1, j = 0; i >= offset; i--, j = (j + 1) % 8) {
+                a[i] &= 0xFE;
+                a[i] |= ((version >>> j) & 0x01);
+            }
+        }
+    }
 
     /**
      * section for general handling

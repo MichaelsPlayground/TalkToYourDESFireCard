@@ -1975,7 +1975,7 @@
                     app:dividerInsetStart="8dp" />
 
                 <TextView
-                    android:id="@+id/tvVisuaAuthDes"
+                    android:id="@+id/tvDesVisualAuth"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:padding="10dp"
@@ -2020,6 +2020,62 @@
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
                         android:text="wr" />
+
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvDesVisualChange"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="10dp"
+                    android:text="change keys"
+                    android:textAlignment="center"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnDesVisualizeChangeKeyDes01ToChanged"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:text="DES 1->C" />
+
+                    <Button
+                        android:id="@+id/btnDesVisualizeChangeKeyDes01ToDefault"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="DES 1->D" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnDesVisualizeChangeKeyDes00ToChanged"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:text="DES 0->C" />
+
+                    <Button
+                        android:id="@+id/btnDesVisualizeChangeKeyDes00ToDefault"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="DES 0->D" />
 
                 </LinearLayout>
 
