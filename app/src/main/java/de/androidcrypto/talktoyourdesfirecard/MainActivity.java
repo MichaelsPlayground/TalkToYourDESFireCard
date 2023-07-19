@@ -1716,7 +1716,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 byte fileIdByte = Byte.parseByte(selectedFileId);
                 byte[] responseData = new byte[2];
-                byte[] result = getFileSettings(output, fileIdByte, responseData);
+                byte[] result = desfireAuthenticateLegacy.getFileSettings(fileIdByte);
+                responseData = desfireAuthenticateLegacy.getErrorCode();
                 if (result == null) {
                     // something gone wrong
                     writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
@@ -1727,6 +1728,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with the Application Master Key ?");
                     }
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(output, desfireAuthenticate.getLogData());
                     return;
                 } else {
                     writeToUiAppend(output, logString + " ID: " + fileIdByte + printData(" data", result));
@@ -1753,7 +1755,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 byte fileIdByte = Byte.parseByte(selectedFileId);
                 byte[] responseData = new byte[2];
-                boolean success = changeFileSettings(output, fileIdByte, responseData);
+                boolean success = desfireAuthenticateLegacy.changeFileSettings(fileIdByte);
+                responseData = desfireAuthenticateLegacy.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
@@ -2134,7 +2137,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 byte[] responseData = new byte[2];
 
-                boolean success = desfireAuthenticateLegacy.authenticateAesEv2First(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_AES_DEFAULT);
+                boolean success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_AES_DEFAULT);
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
@@ -2168,7 +2171,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
                 // check that a previous successfull authentication with EV2First was run
-                boolean ev2FirstSuccess = desfireAuthenticateLegacy.isAuthenticateEv2FirstSuccess();
+                boolean ev2FirstSuccess = desfireAuthenticateEv2.isAuthenticateEv2FirstSuccess();
                 if (!ev2FirstSuccess) {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to successfully run an 'authenticate EV2 First' before, aborted", COLOR_RED);
                     return;
@@ -2176,7 +2179,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 byte[] responseData = new byte[2];
 
-                boolean success = desfireAuthenticateLegacy.authenticateAesEv2NonFirst(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_AES_DEFAULT);
+                boolean success = desfireAuthenticateEv2.authenticateAesEv2NonFirst(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_AES_DEFAULT);
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
@@ -2357,7 +2360,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     // decrypt result is length: 16 data: 04597a32501490074400000000000000
                     // correct result is                  04597a32501490 (7 bytes)
                     byte[] encryptionKeyDes = SESSION_KEY_DES;
-                    byte[] encryptionKeyTDes = desfireAuthenticateLegacy.getModifiedKey(encryptionKeyDes);
+                    byte[] encryptionKeyTDes = desfireAuthenticateLegacy.getTDesKeyFromDesKey(encryptionKeyDes);
 
                     writeToUiAppend(output, printData("encryptionKey DES", encryptionKeyDes));
                     writeToUiAppend(output, printData("encryptionKey TDES", encryptionKeyTDes));
@@ -2580,7 +2583,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 byte fileIdByte = Byte.parseByte(selectedFileId);
                 byte[] responseData = new byte[2];
-                byte[] result = readFromAStandardFileEncipheredCommunicationDes(output, fileIdByte, selectedFileSize, responseData);
+                byte[] result = desfireAuthenticateLegacy.readFromAStandardFileEncipheredCommunicationDes(fileIdByte, selectedFileSize);
+                responseData = desfireAuthenticateLegacy.getErrorCode();
+                Log.d(TAG, desfireAuthenticateLegacy.getLogData());
                 if (result == null) {
                     // something gone wrong
                     writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
@@ -2638,8 +2643,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 byte fileIdByte = Byte.parseByte(selectedFileId);
                 byte[] responseData = new byte[2];
-                boolean success = writeToAStandardFileEncipheredCommunicationDes(output, fileIdByte, fullDataToWrite, responseData);
-                //boolean success = writeToAStandardFileEncipheredCommunicationDes(output, fileIdByte, dataToWriteBytes, responseData);
+                boolean success = desfireAuthenticateLegacy.writeToAStandardFileEncipheredCommunicationDes(fileIdByte, fullDataToWrite);
+                responseData = desfireAuthenticateLegacy.getErrorCode();
+                Log.d(TAG, desfireAuthenticateLegacy.getLogData());
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
@@ -2703,7 +2709,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 // now change the key
                 writeToUiAppend(output, "step 3: change key 1 to CHANGED");
-                success = changeDesKey(output, KEY_NUMBER_USED_FOR_AUTHENTICATION, APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES, APPLICATION_KEY_RW_DES_DEFAULT, "read&write access", responseData);
+                success = desfireAuthenticateLegacy.changeDesKey(KEY_NUMBER_USED_FOR_AUTHENTICATION, APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES, APPLICATION_KEY_RW_DES_DEFAULT, "read&write access");
+                responseData = desfireAuthenticateLegacy.getErrorCode();
+                Log.d(TAG, desfireAuthenticateLegacy.getLogData());
+
                 if (success) {
                     writeToUiAppend(output, "change key 1 to CHANGED SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "change key 1 to CHANGED  SUCCESS", COLOR_GREEN);
@@ -2764,7 +2773,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 // now change the key
                 writeToUiAppend(output, "step 3: change key 1 to DEFAULT");
-                success = changeDesKey(output, KEY_NUMBER_USED_FOR_AUTHENTICATION, APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES_DEFAULT, APPLICATION_KEY_RW_DES, "read&write access", responseData);
+                success = desfireAuthenticateLegacy.changeDesKey(KEY_NUMBER_USED_FOR_AUTHENTICATION, APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_DES_DEFAULT, APPLICATION_KEY_RW_DES, "read&write access");
+                responseData = desfireAuthenticateLegacy.getErrorCode();
+                Log.d(TAG, desfireAuthenticateLegacy.getLogData());
                 if (success) {
                     writeToUiAppend(output, "change key 1 to DEFAULT SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "change key 1 to DEFAULT SUCCESS", COLOR_GREEN);
@@ -2825,7 +2836,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 // now change the key
                 writeToUiAppend(output, "step 3: change key 0 to CHANGED");
-                success = changeDesKey(output, KEY_NUMBER_USED_FOR_AUTHENTICATION, APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_DES, APPLICATION_KEY_MASTER_DES_DEFAULT, "app master", responseData);
+                success = desfireAuthenticateLegacy.changeDesKey(KEY_NUMBER_USED_FOR_AUTHENTICATION, APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_DES, APPLICATION_KEY_MASTER_DES_DEFAULT, "app master");
+                responseData = desfireAuthenticateLegacy.getErrorCode();
+                Log.d(TAG, desfireAuthenticateLegacy.getLogData());
                 if (success) {
                     writeToUiAppend(output, "change key 0 to CHANGED SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "change key 0 to CHANGED SUCCESS", COLOR_GREEN);
@@ -2886,7 +2899,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 // now change the key
                 writeToUiAppend(output, "step 3: change key 0 to DEFAULT");
-                success = changeDesKey(output, KEY_NUMBER_USED_FOR_AUTHENTICATION, APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_DES_DEFAULT, APPLICATION_KEY_MASTER_DES, "app master", responseData);
+                success = desfireAuthenticateLegacy.changeDesKey(KEY_NUMBER_USED_FOR_AUTHENTICATION, APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_DES_DEFAULT, APPLICATION_KEY_MASTER_DES, "app master");
+                responseData = desfireAuthenticateLegacy.getErrorCode();
+                Log.d(TAG, desfireAuthenticateLegacy.getLogData());
                 if (success) {
                     writeToUiAppend(output, "change key 0 to DEFAULT SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "change key 0 to DEFAULT SUCCESS", COLOR_GREEN);
@@ -3263,283 +3278,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         }
     }
 
-    private byte[] readFromAStandardFileEncipheredCommunicationDes(TextView logTextView, byte fileNumber, int fileSize, byte[] methodResponse) {
-
-        // status WORKING
-
-        final String methodName = "readStandardFileEncipheredCommunicationDes";
-        Log.d(TAG, methodName);
-        // sanity checks
-        if (logTextView == null) {
-            Log.e(TAG, methodName + " logTextView is NULL, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        if (fileNumber < 0) {
-            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        if (fileNumber > 14) {
-            Log.e(TAG, methodName + " fileNumber is > 14, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        if ((fileSize < 0) || (fileSize > MAXIMUM_FILE_SIZE)) {
-            Log.e(TAG, methodName + " fileSize has to be in range 0.." + MAXIMUM_FILE_SIZE + " but found " + fileSize + ", aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        // generate the parameter
-        int offsetBytes = 0; // read from the beginning
-        byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
-        byte[] length = Utils.intTo3ByteArrayInversed(fileSize); // LSB order
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        baos.write(fileNumber);
-        baos.write(offset, 0, 3);
-        baos.write(length, 0, 3);
-        byte[] parameter = baos.toByteArray();
-        Log.d(TAG, methodName + printData(" parameter", parameter));
-        byte[] response = new byte[0];
-        byte[] apdu = new byte[0];
-        try {
-            apdu = wrapMessage(READ_STANDARD_FILE_COMMAND, parameter);
-            Log.d(TAG, methodName + printData(" apdu", apdu));
-            response = isoDep.transceive(apdu);
-            Log.d(TAG, methodName + printData(" response", response));
-        } catch (IOException e) {
-            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
-            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        byte[] responseBytes = returnStatusBytes(response);
-        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
-        if (checkResponse(response)) {
-            Log.d(TAG, methodName + " SUCCESS");
-
-            // now strip of the response bytes
-
-            // now we return all data
-            byte[] responseData = Arrays.copyOf(response, response.length - 2);
-            // response length: 42 data: 19e32d7ac29b6737f016d94be2839da3e22db2d039cbe1dd90b67e5b29b98ca1c247812eed438a4e9100
-            // responseData length: 40 data: 19e32d7ac29b6737f016d94be2839da3e22db2d039cbe1dd90b67e5b29b98ca1c247812eed438a4e
-            // the  decryption will happen here
-            //byte[] encryptedData = Arrays.copyOfRange(responseData, 0, 36);
-            byte[] encryptedFullData = responseData.clone();
-            // try to decrypt with SessionKey
-            byte[] modDesKey = getModifiedKey(SESSION_KEY_DES); // get a TripleDES key (length 24 bytes) of a DES key (8 bytes)
-            byte[] decryptedFullData = TripleDES.decrypt(new byte[8], modDesKey, encryptedFullData);
-            writeToUiAppend(logTextView, printData("decryptedFullData", decryptedFullData));
-            // decryptedFullData length: 40 data: 31323320736f6d65206461746100000000000000000000000000000000000000ccd0800000000000
-            // decryptedFullData is decrypted file content (32 byte) || CRC16 (2 bytes) || padding with zero (6 bytes)
-            byte[] decryptedData = Arrays.copyOfRange(decryptedFullData, 0, 32);
-            byte[] crc16RecData = Arrays.copyOfRange(decryptedFullData, 32, 34);
-            byte[] paddingData = Arrays.copyOfRange(decryptedFullData, 34, 40);
-            writeToUiAppend(logTextView, printData("crc16RecData", crc16RecData));
-            writeToUiAppend(logTextView, printData("paddingData", paddingData));
-
-            // verify the CRC16
-            writeToUiAppend(logTextView, "verify the CRC16 now");
-            byte[] crc16CalData = calculateApduCRC16R(decryptedFullData, 32);
-            writeToUiAppend(logTextView, printData("crc16CalData", crc16CalData));
-            if (Arrays.equals(crc16RecData, crc16CalData)) {
-                writeToUiAppend(logTextView, "CRC16 SUCCESS");
-            } else {
-                writeToUiAppend(logTextView, "CRC16 FAILURE");
-            }
-            return decryptedData;
-        } else {
-            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
-            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
-            return null;
-        }
-    }
-
-    private boolean writeToAStandardFileEncipheredCommunicationDes(TextView logTextView, byte fileNumber, byte[] data, byte[] methodResponse) {
-
-        // status WORKING
-
-        final String methodName = "writeToAStandardFileEncipheredCommunicationDes";
-        Log.d(TAG, methodName);
-        // sanity checks
-        if (logTextView == null) {
-            Log.e(TAG, methodName + " logTextView is NULL, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (fileNumber < 0) {
-            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (fileNumber > 14) {
-            Log.e(TAG, methodName + " fileNumber is > 14, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if ((data == null) || (data.length < 1) || (data.length > selectedFileSize)) {
-            Log.e(TAG, "data length not in range 1.." + MAXIMUM_FILE_SIZE + ", aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-
-        // first: build the wrapped APDU with unencrypted data
-        // generate the parameter
-        int numberOfBytes = data.length;
-        //int numberOfBytes = paddedData.length;
-        int offsetBytes = 0; // write from the beginning
-        byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
-        byte[] length = Utils.intTo3ByteArrayInversed(numberOfBytes); // LSB order
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        baos.write(fileNumber);
-        baos.write(offset, 0, 3);
-        baos.write(length, 0, 3);
-        baos.write(data, 0, numberOfBytes);
-        //baos.write(paddedData, 0, numberOfBytes);
-        byte[] parameter = baos.toByteArray();
-        Log.d(TAG, methodName + printData(" parameter", parameter));
-
-        byte[] apdu = new byte[0];
-        try {
-            apdu = wrapMessage(WRITE_STANDARD_FILE_COMMAND, parameter);
-            Log.d(TAG, methodName + printData(" apdu", apdu));
-        } catch (IOException e) {
-            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
-            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        // fullApdu = preprocess(fullApdu, 7, cs);  // 7 = 1+3+3 (fileNo+off+len)
-        // sample from nfcjlib
-        // fullApdu1 length: 45 data: 903d00002701000000200000310000000000000000000000000000000000000000000000000000000000000000
-        // ciphertext length: 40 data: 89e277a19cec752a5e8d993d8886cbc3d3af2064149a1e7f5a6b166f98610b6ea5c36f3b7d0d6027
-        // ret length: 53 data: 903d00002f0100000020000089e277a19cec752a5e8d993d8886cbc3d3af2064149a1e7f5a6b166f98610b6ea5c36f3b7d0d602700
-        // fullApdu2 length: 53 data: 903d00002f0100000020000089e277a19cec752a5e8d993d8886cbc3d3af2064149a1e7f5a6b166f98610b6ea5c36f3b7d0d602700
-        //
-        // case ENCIPHERED: return preprocessEnciphered(apdu, offset);
-
-        // second: run the encrypted process:
-        // byte[] ciphertext = encryptApdu(apdu, offset, skey, iv, ktype);
-        byte[] ciphertext = preprocessEnciphered(apdu, 7);
-        Log.d(TAG, methodName + printData(" ciphertext", ciphertext));
-        // fullApdu = preprocess(fullApdu, 7, cs);  // 7 = 1+3+3 (fileNo+off+len)
-        // case ENCIPHERED: return preprocessEnciphered(apdu, offset);
-        // this will add a CRC16 as well
-
-        // send the encrypted data to the PICC
-
-        byte[] response = new byte[0];
-        try {
-            response = isoDep.transceive(ciphertext);
-            Log.d(TAG, methodName + printData(" response", response));
-        } catch (IOException e) {
-            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
-            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        byte[] responseBytes = returnStatusBytes(response);
-        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
-        if (checkResponse(response)) {
-            Log.d(TAG, methodName + " SUCCESS");
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    // calculate CRC and append, encrypt, and update global IV
-    private byte[] preprocessEnciphered(byte[] apdu, int offset) {
-        Log.d(TAG, "preprocessEnciphered "
-                + printData("apdu", apdu)
-                + " offset: " + offset);
-        Log.d(TAG, printData("SESSION_KEY_DES", SESSION_KEY_DES));
-        byte[] ciphertext = encryptApdu(apdu, offset, SESSION_KEY_DES);
-        Log.d(TAG, printData("ciphertext", ciphertext));
-
-        // rebuild the apdu
-        byte[] ret = new byte[5 + offset + ciphertext.length + 1];
-        System.arraycopy(apdu, 0, ret, 0, 5 + offset);
-        System.arraycopy(ciphertext, 0, ret, 5 + offset, ciphertext.length);
-        ret[4] = (byte) (offset + ciphertext.length);
-        Log.d(TAG, printData("ret", ret));
-        return ret;
-    }
-
-    /* Only data is encrypted. Headers are left out (e.g. keyNo for credit). */
-    private static byte[] encryptApdu(byte[] apdu, int offset, byte[] sessionKey) {
-        int blockSize = 8;
-        int payloadLen = apdu.length - 6;
-        // calculate the CRC16
-        byte[] crc = calculateApduCRC16C(apdu, offset);
-        int padding = 0;  // padding=0 if block length is adequate
-        if ((payloadLen - offset + crc.length) % blockSize != 0)
-            padding = blockSize - (payloadLen - offset + crc.length) % blockSize;
-        int ciphertextLen = payloadLen - offset + crc.length + padding;
-        byte[] plaintext = new byte[ciphertextLen];
-        System.arraycopy(apdu, 5 + offset, plaintext, 0, payloadLen - offset);
-        System.arraycopy(crc, 0, plaintext, payloadLen - offset, crc.length);
-        //return send(sessionKey, plaintext, iv);
-        return decrypt(sessionKey, plaintext);
-    }
-
-    // DES/3DES decryption: CBC send mode and CBC receive mode
-    private static byte[] decrypt(byte[] key, byte[] data) {
-        byte[] modifiedKey = new byte[24];
-        System.arraycopy(key, 0, modifiedKey, 16, 8);
-        System.arraycopy(key, 0, modifiedKey, 8, 8);
-        System.arraycopy(key, 0, modifiedKey, 0, key.length);
-
-        /* MF3ICD40, which only supports DES/3DES, has two cryptographic
-         * modes of operation (CBC): send mode and receive mode. In send mode,
-         * data is first XORed with the IV and then decrypted. In receive
-         * mode, data is first decrypted and then XORed with the IV. The PCD
-         * always decrypts. The initial IV, reset in all operations, is all zeros
-         * and the subsequent IVs are the last decrypted/plain block according with mode.
-         *
-         * MDF EV1 supports 3K3DES/AES and remains compatible with MF3ICD40.
-         */
-        byte[] ciphertext = new byte[data.length];
-        byte[] cipheredBlock = new byte[8];
-        // XOR w/ previous ciphered block --> decrypt
-        for (int i = 0; i < data.length; i += 8) {
-            for (int j = 0; j < 8; j++) {
-                data[i + j] ^= cipheredBlock[j];
-            }
-            cipheredBlock = TripleDES.decrypt(modifiedKey, data, i, 8);
-            System.arraycopy(cipheredBlock, 0, ciphertext, i, 8);
-        }
-        return ciphertext;
-    }
-
-    private static byte[] calculateApduCRC16R(byte[] apdu, int length) {
-        byte[] data = new byte[length];
-        System.arraycopy(apdu, 0, data, 0, length);
-        return CRC16.get(data);
-    }
-
-    // CRC16 calculated only over data
-    private static byte[] calculateApduCRC16C(byte[] apdu, int offset) {
-        if (apdu.length == 5) {
-            return CRC16.get(new byte[0]);
-        } else {
-            return CRC16.get(apdu, 5 + offset, apdu.length - 5 - offset - 1);
-        }
-    }
-
     public byte[] getModifiedKey(byte[] key) {
         String methodName = "getModifiedKey";
         Log.d(TAG, methodName + printData(" key", key));
@@ -3700,7 +3438,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         }
     }
 
-    private byte[] getFileSettings(TextView logTextView, byte fileNumber, byte[] methodResponse) {
+    public byte[] getFileSettingsA(TextView logTextView, byte fileNumber, byte[] methodResponse) {
         final String methodName = "getFileSettings";
         Log.d(TAG, methodName);
         // sanity checks
@@ -3750,7 +3488,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     }
 
 
-    private boolean changeFileSettings(TextView logTextView, byte fileNumber, byte[] methodResponse) {
+    private boolean changeFileSettingsA(TextView logTextView, byte fileNumber, byte[] methodResponse) {
         // NOTE: don't forget to authenticate with CAR key
 
         if (SESSION_KEY_DES == null) {
@@ -3819,168 +3557,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for key handling
      */
 
-    private boolean changeDesKey(TextView logTextView, byte authenticationKeyNumber, byte changeKeyNumber,
-                                 byte[] changeKeyNew, byte[] changeKeyOld, String changeKeyName, byte[] methodResponse) {
-        final String methodName = "changeDesKey";
-        Log.d(TAG, methodName);
-        // sanity checks
-        if (logTextView == null) {
-            Log.e(TAG, methodName + " logTextView is NULL, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (authenticationKeyNumber < 0) {
-            Log.e(TAG, methodName + " authenticationKeyNumber is < 0, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (authenticationKeyNumber > 14) {
-            Log.e(TAG, methodName + " authenticationKeyNumber is > 14, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (changeKeyNumber < 0) {
-            Log.e(TAG, methodName + " changeKeyNumber is < 0, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (changeKeyNumber > 14) {
-            Log.e(TAG, methodName + " changeKeyNumber is > 14, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        // note: as this method can be used to change a key from DES to AES and vice versa
-        // we cannot check for a key length
-        if ((changeKeyNew == null) || (changeKeyOld == null)) {
-            Log.e(TAG, methodName + " changeKeyNew or Old is NULL, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-
-/*
-        if ((changeKeyNew == null) || (changeKeyNew.length != 8)) {
-            Log.e(TAG, methodName + " changeKeyNew is NULL or of wrong length, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if ((changeKeyOld == null) || (changeKeyOld.length != 8)) {
-            Log.e(TAG, methodName + " changeKeyOld is NULL or of wrong length, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-
- */
-        if (TextUtils.isEmpty(changeKeyName)) {
-            Log.e(TAG, methodName + " changeKeyName is empty, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if ((SESSION_KEY_DES == null) || (SESSION_KEY_DES.length != 8)) {
-            writeToUiAppend(logTextView, methodName + " SESSION_KEY_DES is null or not of length 8 (missing auth ?), aborted");
-            Log.e(TAG, methodName + " SESSION_KEY_DES is null or not of length 8 (missing auth ?), aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-
-        // important: don't use the original keys for changes as the PICC is using
-        // only 56 bit of the 64 bit long (8 bytes) DES key, the remaining 8 bits are used for the
-        // key version. The following method call will set the keyVersion to 0 so the 'original' may get
-        // altered.
-        Log.d(TAG, printData("new key before setKeyVersion", changeKeyNew));
-        byte KEY_VERSION = 0;
-        setKeyVersion(changeKeyOld, 0, changeKeyOld.length, KEY_VERSION);
-        setKeyVersion(changeKeyNew, 0, changeKeyNew.length, KEY_VERSION);
-        Log.d(TAG, printData("new key after  setKeyVersion", changeKeyNew));
-
-        byte[] plaintext = new byte[24]; // this is the final array
-        int nklen = 16;
-        System.arraycopy(changeKeyNew, 0, plaintext, 0, changeKeyNew.length);
-        Log.d(methodName, printData("plaintext", plaintext));
-        // 8-byte DES keys accepted: internally have to be handled w/ 16 bytes
-        System.arraycopy(changeKeyNew, 0, plaintext, 8, changeKeyNew.length);
-        changeKeyNew = Arrays.copyOfRange(plaintext, 0, 16);
-
-        Log.d(methodName, printData("newKey TDES", changeKeyNew));
-
-        // xor the new key with the old key if a key is changed different to authentication key
-        if ((changeKeyNumber & 0x0F) != KEY_NUMBER_USED_FOR_AUTHENTICATION) {
-            for (int i = 0; i < changeKeyNew.length; i++) {
-                plaintext[i] ^= changeKeyOld[i % changeKeyOld.length];
-            }
-        }
-        Log.d(methodName, printData("plaintext", plaintext));
-
-        byte[] crc;
-        int addDesKeyVersionByte = (byte) 0x00;
-
-        crc = CRC16.get(plaintext, 0, nklen + addDesKeyVersionByte);
-        System.arraycopy(crc, 0, plaintext, nklen + addDesKeyVersionByte, 2);
-
-        // this crc16 value is necessary only when the keyNumber used for authentication differs from key to change
-        if ((changeKeyNumber & 0x0F) != KEY_NUMBER_USED_FOR_AUTHENTICATION) {
-            crc = CRC16.get(changeKeyNew);
-            System.arraycopy(crc, 0, plaintext, nklen + addDesKeyVersionByte + 2, 2);
-        }
-        Log.d(methodName, printData("plaintext before encryption", plaintext));
-        byte[] ciphertext = null;
-        System.out.println(printData("SESSION_KEY_DES", SESSION_KEY_DES));
-        ciphertext = decrypt(SESSION_KEY_DES, plaintext);
-        Log.d(methodName, printData("ciphertext after encryption", ciphertext));
-
-        byte[] apdu = new byte[5 + 1 + ciphertext.length + 1];
-        apdu[0] = (byte) 0x90;
-        apdu[1] = CHANGE_KEY_COMMAND;
-        apdu[4] = (byte) (1 + plaintext.length);
-        apdu[5] = changeKeyNumber;
-        System.arraycopy(ciphertext, 0, apdu, 6, ciphertext.length);
-        Log.d(methodName, printData("apdu", apdu));
-
-        byte[] changeKeyDesResponse = new byte[0];
-        try {
-            //response = isoDep.transceive(wrapMessage(selectApplicationCommand, applicationIdentifier));
-            changeKeyDesResponse = isoDep.transceive(apdu);
-            writeToUiAppend(logTextView, printData("changeKeyDesResponse", changeKeyDesResponse));
-            System.arraycopy(returnStatusBytes(changeKeyDesResponse), 0, methodResponse, 0, 2);
-            //System.arraycopy(selectApplicationResponse, 0, response, 0, selectApplicationResponse.length);
-            if (checkResponse(changeKeyDesResponse)) {
-                return true;
-            } else {
-                return false;
-            }
-        } catch (Exception e) {
-            //throw new RuntimeException(e);
-            writeToUiAppend(logTextView, "changeKeyDes transceive failed: " + e.getMessage());
-            byte[] responseManual = new byte[]{(byte) 0x91, (byte) 0xFF};
-            System.arraycopy(responseManual, 0, methodResponse, 0, 2);
-            return false;
-        }
-    }
-
-    /**
-     * Set the version on a DES key. Each least significant bit of each byte of
-     * the DES key, takes one bit of the version. Since the version is only
-     * one byte, the information is repeated if dealing with 16/24-byte keys.
-     *
-     * @param a       1K/2K/3K 3DES
-     * @param offset  start position of the key within a
-     * @param length  key length
-     * @param version the 1-byte version
-     *                Source: DESFireEV1.java (NFCJLIB)
-     */
-    private static void setKeyVersion(byte[] a, int offset, int length, byte version) {
-        if (length == 8 || length == 16 || length == 24) {
-            for (int i = offset + length - 1, j = 0; i >= offset; i--, j = (j + 1) % 8) {
-                a[i] &= 0xFE;
-                a[i] |= ((version >>> j) & 0x01);
-            }
-        }
-    }
 
     /**
      * section for general handling

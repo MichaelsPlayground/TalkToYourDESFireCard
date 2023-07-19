@@ -226,7 +226,7 @@ public class DesfireAuthenticateEv2 {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 83 - 85
         // this is based on the creation of a TransactionMac file on a DESFire Light card
         String logData = "";
-        String methodName = "createStandardFileEv2";
+        final String methodName = "createStandardFileEv2";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber + " fileSize: " + fileSize +
                 " isStandardFile: " + isStandardFile + " isEncrypted: " + isEncrypted);
@@ -303,7 +303,7 @@ public class DesfireAuthenticateEv2 {
          */
 
         String logData = "";
-        String methodName = "writeStandardFileEv2";
+        final String methodName = "writeStandardFileEv2";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
         log(methodName, printData("dataToWrite", dataToWrite));
@@ -553,7 +553,7 @@ public class DesfireAuthenticateEv2 {
          */
 
         String logData = "";
-        String methodName = "writeStandardFileEv2";
+        final String methodName = "writeStandardFileEv2";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
         log(methodName, printData("dataToWrite", dataToWrite));
@@ -738,7 +738,7 @@ public class DesfireAuthenticateEv2 {
         // status WORKING
 
         String logData = "";
-        String methodName = "readStandardFileEv2";
+        final String methodName = "readStandardFileEv2";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
         // sanity checks
@@ -919,7 +919,7 @@ public class DesfireAuthenticateEv2 {
         // Cmd.GetValue in AES Secure Messaging using CommMode.Full
         // this is based on the get value on a value file on a DESFire Light card
         String logData = "";
-        String methodName = "getValueFileEv2";
+        final String methodName = "getValueFileEv2";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
 
@@ -1054,7 +1054,7 @@ public class DesfireAuthenticateEv2 {
         // this is based on the credit a value on a value file on a DESFire Light card
         // Note: this document does not mention to submit a COMMIT command !
         String logData = "";
-        String methodName = "creditValueFileEv2";
+        final String methodName = "creditValueFileEv2";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber + " changeValue: " + changeValue);
 
@@ -1202,7 +1202,7 @@ public class DesfireAuthenticateEv2 {
         // this is based on the debit a value on a value file on a DESFire Light card
         // Note: this document does not mention to submit a COMMIT command !
         String logData = "";
-        String methodName = "debitValueFileEv2";
+        final String methodName = "debitValueFileEv2";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber + " changeValue: " + changeValue);
 
@@ -1369,7 +1369,7 @@ public class DesfireAuthenticateEv2 {
          */
 
         String logData = "";
-        String methodName = "writeRecordFileEv2";
+        final String methodName = "writeRecordFileEv2";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
         log(methodName, printData("dataToWrite", dataToWrite));
@@ -1552,7 +1552,7 @@ public class DesfireAuthenticateEv2 {
         // reason: no examples for creating a record file in Features and Hints
 
         String logData = "";
-        String methodName = "readRecordFileEv2";
+        final String methodName = "readRecordFileEv2";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
         // sanity checks
@@ -1718,7 +1718,7 @@ public class DesfireAuthenticateEv2 {
         // status WORKING
 
         String logData = "";
-        String methodName = "commitTransactionEv2";
+        final String methodName = "commitTransactionEv2";
         log(methodName, "started", true);
         // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
@@ -1848,7 +1848,7 @@ public class DesfireAuthenticateEv2 {
         // status WORKING
 
         String logData = "";
-        String methodName = "commitTMACTransactionEv2";
+        final String methodName = "commitTMACTransactionEv2";
         log(methodName, "started", true);
         // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
@@ -2119,7 +2119,7 @@ public class DesfireAuthenticateEv2 {
         // see pages 40-48 (General overview as well)
 
         String logData = "";
-        String methodName = "createTransactionMacFileEv2";
+        final String methodName = "createTransactionMacFileEv2";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber + printData(" TransactionMacKey", key));
         // sanity checks
@@ -2302,7 +2302,7 @@ public class DesfireAuthenticateEv2 {
         // this is based on the creation of a TransactionMac file on a DESFire Light card
         // Cmd.DeleteTransactionMACFile
         String logData = "";
-        String methodName = "deleteTransactionMacFileEv2";
+        final String methodName = "deleteTransactionMacFileEv2";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
         // sanity checks
@@ -2493,7 +2493,7 @@ public class DesfireAuthenticateEv2 {
     public byte[] getCardUidEv2() {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 15, 16, 17
         String logData = "";
-        String methodName = "getCardUidEv2";
+        final String methodName = "getCardUidEv2";
         log(methodName, "started", true);
         // sanity checks
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
@@ -2617,7 +2617,7 @@ public class DesfireAuthenticateEv2 {
         // Case 2: Key number to be changed == Key number for currently authenticated session.
 
         String logData = "";
-        String methodName = "changeApplicationKeyEv2";
+        final String methodName = "changeApplicationKeyEv2";
         log(methodName, "started", true);
         log(methodName, "keyNumber: " + keyNumber);
         log(methodName, printData("keyNew", keyNew));
@@ -2816,7 +2816,7 @@ public class DesfireAuthenticateEv2 {
         // and MIFARE DESFire Light contactless application IC MF2DLHX0.pdf pages 52 ff
         logData = "";
         invalidateAllData();
-        String methodName = "authenticateAesEv2First";
+        final String methodName = "authenticateAesEv2First";
         log(methodName, printData("key", key) + " keyNo: " + keyNo, true);
         errorCode = new byte[2];
         // sanity checks
@@ -3224,7 +3224,7 @@ public class DesfireAuthenticateEv2 {
 
         logData = "";
         invalidateAllDataNonFirst();
-        String methodName = "authenticateAesEv2NonFirst";
+        final String methodName = "authenticateAesEv2NonFirst";
         log(methodName, printData("key", key) + " keyNo: " + keyNo, true);
         errorCode = new byte[2];
         // sanity checks
@@ -3568,7 +3568,7 @@ public class DesfireAuthenticateEv2 {
     public byte[] getFileSettingsEv2(byte fileNumber) {
         // this is using simple PLAIN communication without any encryption or MAC involved
         String logData = "";
-        String methodName = "getFileSettingsEv2";
+        final String methodName = "getFileSettingsEv2";
         log(methodName, "started", true);
         // sanity checks
         if (fileNumber < 0) {
@@ -3698,7 +3698,7 @@ public class DesfireAuthenticateEv2 {
     }
 
     private byte[] truncateMAC(byte[] fullMAC) {
-        String methodName = "truncateMAC";
+        final String methodName = "truncateMAC";
         log(methodName, printData("fullMAC", fullMAC), true);
         if ((fullMAC == null) || (fullMAC.length < 2)) {
             log(methodName, "fullMAC is NULL or of wrong length, aborted");
@@ -3768,7 +3768,7 @@ public class DesfireAuthenticateEv2 {
          * test vectors are for Cmd.CreateTransactionMACFile
          */
 
-        String methodName = "createTransactionMacFileFullPart1Test";
+        final String methodName = "createTransactionMacFileFullPart1Test";
         log(methodName, "started", true);
 
         byte[] SesAuthENCKeyTest = hexStringToByteArray("CFD5F757E422144FE831842694AF69AF");
@@ -4431,7 +4431,7 @@ public class DesfireAuthenticateEv2 {
     public byte[] getSesAuthEncKey(byte[] rndA, byte[] rndB, byte[] authenticationKey) {
         // see
         // see MIFARE DESFire Light contactless application IC pdf, page 28
-        String methodName = "getSesAuthEncKey";
+        final String methodName = "getSesAuthEncKey";
         log(methodName, printData("rndA", rndA) + printData(" rndB", rndB) + printData(" authenticationKey", authenticationKey), false);
         // sanity checks
         if ((rndA == null) || (rndA.length != 16)) {
@@ -4496,7 +4496,7 @@ public class DesfireAuthenticateEv2 {
     public byte[] getSesAuthMacKey(byte[] rndA, byte[] rndB, byte[] authenticationKey) {
         // see
         // see MIFARE DESFire Light contactless application IC pdf, page 28
-        String methodName = "getSesAuthMacKey";
+        final String methodName = "getSesAuthMacKey";
         log(methodName, printData("rndA", rndA) + printData(" rndB", rndB) + printData(" authenticationKey", authenticationKey), false);
         // sanity checks
         if ((rndA == null) || (rndA.length != 16)) {
@@ -4744,6 +4744,7 @@ public class DesfireAuthenticateEv2 {
     }
 
     private byte[] xor(byte[] dataA, byte[] dataB) {
+        log("xor", printData("dataA", dataA) + printData(" dataB", dataB), true);
         if ((dataA == null) || (dataB == null)) {
             Log.e(TAG, "xor - dataA or dataB is NULL, aborted");
             return null;
