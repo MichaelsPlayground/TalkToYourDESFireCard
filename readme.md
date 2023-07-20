@@ -38,5 +38,6 @@ Type of messaging:
 - AES Secure Messaging
 - LRP Secure Messaging (Leakage Resilient Primitive)
 
+This app always uses ISO/IEC 7816-4 wrapped comands.  
 
-
+Mifare type identification procedure AN10833.pdf

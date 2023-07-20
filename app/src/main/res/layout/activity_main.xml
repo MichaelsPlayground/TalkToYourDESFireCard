@@ -612,6 +612,47 @@
                 </LinearLayout>
 
                 <TextView
+                    android:id="@+id/tv11Ev2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="10dp"
+                    android:text="work with Backup files"
+                    android:textAlignment="center"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnCreateBackupFileEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:text="Cr Back 5" />
+
+                    <Button
+                        android:id="@+id/btnWriteBackupFileEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="Wr Back 5" />
+
+                    <Button
+                        android:id="@+id/btnReadBackupFileEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="Rd Back 5" />
+
+                </LinearLayout>
+
+                <TextView
                     android:id="@+id/tv5Ev2"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

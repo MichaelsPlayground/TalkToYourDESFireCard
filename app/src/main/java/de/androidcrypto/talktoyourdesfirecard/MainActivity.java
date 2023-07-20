@@ -89,6 +89,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button authD0AEv2, authD1AEv2, authD3ACEv2;
     private Button getCardUidEv2, getFileSettingsEv2;
     private Button fileStandardCreateEv2, fileStandardWriteEv2, fileStandardReadEv2;
+    private Button fileBackupCreateEv2, fileBackupWriteEv2, fileBackupReadEv2;
     private Button fileValueCreditEv2, fileValueDebitEv2, fileValueReadEv2;
 
     private Button fileRecordCreateEv2, fileRecordWriteEv2, fileRecordReadEv2;
@@ -324,6 +325,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileStandardCreateEv2 = findViewById(R.id.btnCreateStandardFileEv2);
         fileStandardReadEv2 = findViewById(R.id.btnReadStandardFileEv2);
         fileStandardWriteEv2 = findViewById(R.id.btnWriteStandardFileEv2);
+
+        fileBackupCreateEv2 = findViewById(R.id.btnCreateBackupFileEv2);
+        fileBackupReadEv2 = findViewById(R.id.btnReadBackupFileEv2);
+        fileBackupWriteEv2 = findViewById(R.id.btnWriteBackupFileEv2);
 
         fileValueCreditEv2 = findViewById(R.id.btnCreditValueFileEv2);
         fileValueDebitEv2 = findViewById(R.id.btnDebitValueFileEv2);
@@ -1023,6 +1028,166 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         });
 
         /**
+         * section for Backup files
+         */
+
+        fileBackupCreateEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "create a new Backup file EV2";
+                writeToUiAppend(output, logString);
+                writeToUiAppend(output, "Note: using a FIXED fileNumber 5 and fileSize of 32 for this method");
+                byte fileIdByte = desfireAuthenticateEv2.BACKUP_FILE_ENCRYPTED_NUMBER; // (byte) 0x05; // fixed
+                int fileSizeInt = 32; // fixed
+                // check that an application was selected before
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                writeToUiAppend(output, logString + " with id: " + fileIdByte + " size: " + fileSizeInt);
+                byte[] responseData = new byte[2];
+                // create a Backup file with Encrypted communication
+
+                // not ready so far
+                //boolean success = desfireAuthenticateEv2.createBackupFileEv2(fileIdByte, fileSizeInt, true, true);
+                boolean success = false;
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                //boolean success = createBackupFilePlainCommunicationDes(output, fileIdByte, fileSizeInt, rbFileFreeAccess.isChecked(), responseData);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        fileBackupReadEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "read from a Backup file EV2";
+                writeToUiAppend(output, logString);
+                // todo skipped, using a fixed fileNumber
+                selectedFileId = "5";
+                fileSelected.setText(selectedFileId);
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                //byte fileIdByte = Byte.parseByte(selectedFileId);
+
+                // just for testing - test the macOverCommand value
+                //boolean readDataFullPart1TestResult = desfireAuthenticateEv2.readDataFullPart1Test();
+                //writeToUiAppend(output, "readDataFullPart1TestResult: " + readDataFullPart1TestResult);
+
+                byte fileIdByte = desfireAuthenticateEv2.BACKUP_FILE_ENCRYPTED_NUMBER; //byte) 0x05; // fixed
+
+                byte[] responseData = new byte[2];
+                //byte[] result = readFromABackupFilePlainCommunicationDes(output, fileIdByte, selectedFileSize, responseData);
+                byte[] result = desfireAuthenticateEv2.readDataFileEv2(fileIdByte);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (result == null) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkResponseMoreData(responseData)) {
+                        writeToUiAppend(output, "the file is too long to read, sorry");
+                    }
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " ID: " + fileIdByte + printData(" data", result));
+                    writeToUiAppend(output, logString + " ID: " + fileIdByte + " data: " + new String(result, StandardCharsets.UTF_8));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }
+            }
+        });
+
+        fileBackupWriteEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "write to a Backup file EV2";
+                writeToUiAppend(output, logString);
+
+                // todo skipped, using a fixed fileNumber
+                selectedFileId = String.valueOf(desfireAuthenticateEv2.BACKUP_FILE_ENCRYPTED_NUMBER); // 5
+                fileSelected.setText(selectedFileId);
+                int SELECTED_FILE_SIZE_FIXED = 32;
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+
+                // we are going to write a timestamp to the file
+                String dataToWrite = Utils.getTimestamp();
+
+                //dataToWrite = "123 some data";
+
+                if (TextUtils.isEmpty(dataToWrite)) {
+                    //writeToUiAppend(errorCode, "please enter some data to write");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "please enter some data to write", COLOR_RED);
+                    return;
+                }
+
+                // just for testing - test the macOverCommand value
+                //boolean writeDataFullPart1TestResult = desfireAuthenticateEv2.writeDataFullPart1Test();
+                //writeToUiAppend(output, "writeDataFullPart1TestResult: " + writeDataFullPart1TestResult);
+
+                byte[] dataToWriteBytes = dataToWrite.getBytes(StandardCharsets.UTF_8);
+                // create an empty array and copy the dataToWrite to clear the complete Backup file
+                //byte[] fullDataToWrite = new byte[selectedFileSize];
+                byte[] fullDataToWrite = new byte[SELECTED_FILE_SIZE_FIXED];
+                System.arraycopy(dataToWriteBytes, 0, fullDataToWrite, 0, dataToWriteBytes.length);
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                byte[] responseData = new byte[2];
+                //boolean success = writeToABackupFilePlainCommunicationDes(output, fileIdByte, fullDataToWrite, responseData);
+                boolean success = desfireAuthenticateEv2.writeBackupFileEv2(fileIdByte, fullDataToWrite);
+                //boolean success = false;
+                responseData = desfireAuthenticateEv2.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    //vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+
+                boolean successCommit = desfireAuthenticateEv2.commitTransactionEv2();
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                writeToUiAppend(output, "commitSuccess: " + successCommit);
+                if (!successCommit) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit NOT Success, aborted", COLOR_RED);
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Did you forget to authenticate with a WRITE ACCESS Key first ?");
+                    return;
+                }
+                writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
+                vibrateShort();
+            }
+        });
+        
+        /**
          * section for value files
          */
 
@@ -1095,7 +1260,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    vibrateShort();
+                    //vibrateShort();
                 } else {
                     writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
                     if (checkAuthenticationError(responseData)) {
@@ -2485,13 +2650,43 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 boolean isResponseStatus3Ok = Arrays.equals(responseStatus3, statusOk);
                 writeToUiAppend(output, "checking that the status is OK" + isResponseStatus3Ok);
                 if (!isResponseStatus3Ok) {
-                    writeToUiAppend(output, "final status is not '0x9000', aborted");
+                    writeToUiAppend(output, "final status is not '0x9100', aborted");
                     return;
                 }
                 // now the status is OK and we can analyze the  data
+                writeToUiAppend(output, "The final status is '0x9100' means SUCCESS");
 
+                // concatenate the 3 parts
+                writeToUiAppend(output, "concatenate the 3 response parts");
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                baos.write(responseData1, 0, responseData1.length);
+                baos.write(responseData2, 0, responseData2.length);
+                baos.write(responseData3, 0, responseData3.length);
+                byte[] responseData = baos.toByteArray();
+                writeToUiAppend(output, printData("complete responseData", responseData));
+                // example length: 28 data: 040101330016050401010300160504597a3250149020466430304822
 
+                // for analysis see the document MIFARE DESFire Light contactless application IC MF2DLHX0.pdf
+                // on pages 67 - 69
 
+                // to identify the hardware type see Mifare type identification procedure AN10833.pdf page 5
+
+                // taking just some elements
+                byte hardwareType = responseData[1];
+                byte hardwareStorageSize = responseData[5];
+                byte weekProduction = responseData[26];
+                byte yearProduction = responseData[27];
+
+                String hardwareTypeName = " is not a Mifare DESFire tag";
+                if (hardwareType == (byte) 0x01) hardwareTypeName = " is a Mifare DESFire tag";
+                int hardwareStorageSizeInt = (int)Math.pow (2, hardwareStorageSize >> 1); // get the storage size in bytes
+
+                writeToUiAppend(output, "hardwareType: " + Utils.byteToHex(hardwareType) + hardwareTypeName);
+                writeToUiAppend(output, "hardwareStorageSize: " + hardwareStorageSizeInt);
+                writeToUiAppend(output, "weekProduction: " + Utils.byteToHex(weekProduction));
+                writeToUiAppend(output, "yearProduction: " + Utils.byteToHex(yearProduction));
+
+                vibrateShort();
 
                 /*
                 VersionInfo versionInfo = null;
