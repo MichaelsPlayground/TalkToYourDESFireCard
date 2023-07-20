@@ -74,7 +74,6 @@ public class DesfireAuthenticateEv2 {
 
     private static final String TAG = DesfireAuthenticateEv2.class.getName();
 
-
     private IsoDep isoDep;
     private boolean printToLog = true; // print data to log
     private String logData;
@@ -98,6 +97,7 @@ public class DesfireAuthenticateEv2 {
 
     private final byte GET_FILE_IDS_COMMAND = (byte) 0x6F;
     private final byte GET_FILE_SETTINGS_COMMAND = (byte) 0xF5;
+    private final byte SET_CONFIGURATION_SECURE_COMMAND = (byte) 0x5C;
 
     // standard file
     private final byte READ_STANDARD_FILE_COMMAND = (byte) 0xBD;
@@ -3191,7 +3191,163 @@ public class DesfireAuthenticateEv2 {
         }
     }
 
+    public boolean setConfigurationValueFileLimit(byte fileNumber) {
+        // see example in Mifare DESFire Light Features and Hints AN12343.pdf pages 12 ff
+        // and MIFARE DESFire Light contactless application IC MF2DLHX0.pdf pages 61 ff
+        // for value file see page 64
+        // error 7E = length error is thrown when length of command data != expected length
+        // error 9D = PERMISSION_DENIED
+        //            .. Option 09h: file configuration not allowed anymore as already done once or targeted file is not a Value file
 
+        // status:
+
+        logData = "";
+        final String methodName = "setConfigurationValueFileLimit";
+        log(methodName, "fileNumber: " + fileNumber, true);
+
+/*
+The SetConfiguration command can be used to configure card or application-related attributes.
+In example Table 5, the SetConfiguration command is used, to modify the parameters of the pre-installed value file inside the MIFARE DESFire Light application.
+The modification which is executed, is setting the upper limit of the value file to 1000 (0x03E8) and setting the option "Free GetValue" to disabled, meaning an authentication is forced for retrieving the value.
+Table 5.
+Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the Value file
+ */
+        // sanity checks
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        byte optionOfSetConfiguration = (byte) 0x09; // (modify the Value File configuration)
+
+        // using a fixed fileNumber for Value file enciphered = 0x08
+        // upper limit is 0xE8030000 = 1000
+        // lower limit is (unchanged) 0
+        // value is 0
+        // last 01 means: Free GetValue not allowed, LimitedCredit enabled
+
+        // Data (FileNo || Lower Limit || Upper Limit || Value || ValueOption)
+        byte[] data = hexStringToByteArray("0800000000E80300000000000001");
+        log(methodName, printData("data", data));
+
+        // Encrypting the Command Data
+
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(IV_LABEL_ENC, 0, IV_LABEL_ENC.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        // fixed data
+        // padding is 2 bytes
+        byte[] dataPadded = hexStringToByteArray("0800000000E803000000000000018000"); // 16 bytes
+        log(methodName, printData("dataPadded", dataPadded));
+
+        // Encrypted Data Block 1 = E(KSesAuthENC, Data Input)
+        byte[] encryptedData = AES.encrypt(ivForCmdData, SesAuthENCKey, dataPadded);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted CmdData )
+        // CmdHeader = optionOfSetConfiguration
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(SET_CONFIGURATION_SECURE_COMMAND); // 0x5C
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(optionOfSetConfiguration);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Data (CmdHeader || Encrypted Data || MAC)
+        // CmdHeader = optionOfSetConfiguration
+        ByteArrayOutputStream baosSetConfigurationCommand = new ByteArrayOutputStream();
+        baosSetConfigurationCommand.write(optionOfSetConfiguration);
+        baosSetConfigurationCommand.write(encryptedData, 0, encryptedData.length);
+        baosSetConfigurationCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] setConfigurationCommand = baosSetConfigurationCommand.toByteArray();
+        log(methodName, printData("setConfigurationCommand", setConfigurationCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(SET_CONFIGURATION_SECURE_COMMAND, setConfigurationCommand);
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+
+        // verifying the received Response MAC
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        byte[] macInput2 = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput2", macInput2));
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return true;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return false;
+        }
+    }
 
 
     /**

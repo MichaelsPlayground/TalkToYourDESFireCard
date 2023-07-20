@@ -86,12 +86,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private Button selectApplicationEv2, getAllFileIdsEv2, getAllFileSettingsEv2, completeFileSettingsEv2;
 
-    private Button authD0AEv2, authD1AEv2, authD3ACEv2;
+    private Button authD0AEv2, authD1AEv2, authD2AEv2, authD3ACEv2;
     private Button getCardUidEv2, getFileSettingsEv2;
     private Button fileStandardCreateEv2, fileStandardWriteEv2, fileStandardReadEv2;
     private Button fileBackupCreateEv2, fileBackupWriteEv2, fileBackupReadEv2;
     private Button fileValueCreditEv2, fileValueDebitEv2, fileValueReadEv2;
-
+    private Button fileValueSetConfigurationEv2, fileValueDeleteEv2;
     private Button fileRecordCreateEv2, fileRecordWriteEv2, fileRecordReadEv2;
     //private Button fileCreateEv2;
 
@@ -318,6 +318,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
         authD0AEv2 = findViewById(R.id.btnAuthD0AEv2);
         authD1AEv2 = findViewById(R.id.btnAuthD1AEv2);
+        authD2AEv2 = findViewById(R.id.btnAuthD2AEv2);
         authD3ACEv2 = findViewById(R.id.btnAuthD3ACEv2);
         getCardUidEv2 = findViewById(R.id.btnGetCardUidEv2);
         getFileSettingsEv2 = findViewById(R.id.btnGetFileSettingsEv2);
@@ -335,6 +336,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileValueCreditEv2 = findViewById(R.id.btnCreditValueFileEv2);
         fileValueDebitEv2 = findViewById(R.id.btnDebitValueFileEv2);
         fileValueReadEv2 = findViewById(R.id.btnReadValueFileEv2);
+        fileValueSetConfigurationEv2 = findViewById(R.id.btnSetConfigurationValueFileEv2);
+        fileValueDeleteEv2 = findViewById(R.id.btnDeleteValueFileEv2);
 
         fileRecordCreateEv2 = findViewById(R.id.btnCreateRecordFileEv2);
         fileRecordReadEv2 = findViewById(R.id.btnReadRecordFileEv2);
@@ -802,6 +805,51 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     // prepare data for export
                     exportString = desfireAuthenticateEv2.getLogData();
                     exportStringFileName = "auth1a_ev2.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
+                    //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        authD2AEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // authenticate with the read access key = 03...
+                clearOutputFields();
+                String logString = "EV2 First authenticate with DEFAULT AES key number 0x02 = change access rights key";
+                writeToUiAppend(output, logString);
+                if (selectedApplicationId == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
+                    return;
+                }
+
+                // run a self test
+                boolean getSesAuthKeyTestResult = desfireAuthenticateEv2.getSesAuthKeyTest();
+                writeToUiAppend(output, "getSesAuthKeyTestResult: " + getSesAuthKeyTestResult);
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_CAR_AES_DEFAULT);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    SES_AUTH_ENC_KEY = desfireAuthenticateEv2.getSesAuthENCKey();
+                    SES_AUTH_MAC_KEY = desfireAuthenticateEv2.getSesAuthMACKey();
+                    TRANSACTION_IDENTIFIER = desfireAuthenticateEv2.getTransactionIdentifier();
+                    CMD_COUNTER = desfireAuthenticateEv2.getCmdCounter();
+                    writeToUiAppend(output, printData("SES_AUTH_ENC_KEY", SES_AUTH_ENC_KEY));
+                    writeToUiAppend(output, printData("SES_AUTH_MAC_KEY", SES_AUTH_MAC_KEY));
+                    writeToUiAppend(output, printData("TRANSACTION_IDENTIFIER", TRANSACTION_IDENTIFIER));
+                    writeToUiAppend(output, "CMD_COUNTER: " + CMD_COUNTER);
+                    vibrateShort();
+                    // show logData
+
+                    // prepare data for export
+                    exportString = desfireAuthenticateEv2.getLogData();
+                    exportStringFileName = "auth2a_ev2.html";
                     writeToUiToast("your authentication log file is ready for export");
 
                     //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
@@ -1406,6 +1454,45 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
                 vibrateShort();
+            }
+        });
+
+        fileValueSetConfigurationEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "set the Configuration of a Value file EV2";
+                writeToUiAppend(output, logString);
+                // todo skipped, using a fixed fileNumber
+                selectedFileId = "8";
+                fileSelected.setText(selectedFileId);
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                //byte fileIdByte = Byte.parseByte(selectedFileId);
+
+                byte fileIdByte = (byte) 0x08; // fixed
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.setConfigurationValueFileLimit(fileIdByte);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with the APPLICATION MASTER KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return; // don't submit a commit
+                }
+
             }
         });
 

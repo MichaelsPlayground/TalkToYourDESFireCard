@@ -528,6 +528,14 @@
                         android:text="A1 auth" />
 
                     <Button
+                        android:id="@+id/btnAuthD2AEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="A2 auth" />
+
+                    <Button
                         android:id="@+id/btnAuthD3ACEv2"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -700,6 +708,37 @@
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
                         android:text="Read 8" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnSetConfigurationValueFileEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:text="setConf 8" />
+
+                    <Button
+                        android:id="@+id/btnDeleteValueFileEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="Del 8" />
+
+                    <Button
+                        android:id="@+id/btnxxValueFileEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="xx" />
 
                 </LinearLayout>
 
