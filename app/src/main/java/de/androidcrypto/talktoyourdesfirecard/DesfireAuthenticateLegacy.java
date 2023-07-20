@@ -1,8 +1,11 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
+import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
+
 import android.nfc.tech.IsoDep;
 import android.text.TextUtils;
 import android.util.Log;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
@@ -30,6 +33,8 @@ public class DesfireAuthenticateLegacy {
     private IsoDep isoDep;
     private boolean printToLog = true; // print data to log
     private String logData = "";
+
+    private byte[] selectedApplicationIdentifier;
     private boolean authenticateLegacyD40Success = false;
     private boolean authenticateLegacyAesSuccess = false;
     private byte keyNumberUsedForAuthentication = -1;
@@ -39,6 +44,7 @@ public class DesfireAuthenticateLegacy {
 
 
     // some constants
+    private final byte SELECT_APPLICATION_COMMAND = (byte) 0x5A;
     private final byte AUTHENTICATE_DES_2K3DES_COMMAND = (byte) 0x0A;
     private final byte AUTHENTICATE_AES_COMMAND = (byte) 0xAA;
     private final byte READ_STANDARD_FILE_COMMAND = (byte) 0xBD;
@@ -62,6 +68,68 @@ public class DesfireAuthenticateLegacy {
         this.isoDep = isoDep;
         this.printToLog = printToLog;
     }
+
+    /**
+     * section for application handling
+     */
+
+    /**
+     * although the selectApplication does not require any authentication or encryption features this
+     * method is placed here to ensure that selecting of an application invalidates any data used in
+     * authentication (e.g. a session key)
+     * @param applicationIdentifier : 3 bytes
+     * @return true on SUCCESS
+     */
+    public boolean selectApplication(byte[] applicationIdentifier) {
+        logData = "";
+        final String methodName = "selectApplication";
+        log(methodName, methodName);
+        // sanity checks
+        if (applicationIdentifier == null) {
+            Log.e(TAG, methodName + " applicationIdentifier is NULL, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (applicationIdentifier.length != 3) {
+            Log.e(TAG, methodName + " applicationIdentifier length is not 3, found: " + applicationIdentifier.length + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        log(methodName, printData("applicationIdentifier", applicationIdentifier));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(SELECT_APPLICATION_COMMAND, applicationIdentifier);
+            Log.d(TAG, methodName + printData(" apdu", apdu));
+            response = isoDep.transceive(apdu);
+            Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            selectedApplicationIdentifier = applicationIdentifier.clone();
+            invalidateAllAuthentificationData();
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            selectedApplicationIdentifier = null;
+            invalidateAllAuthentificationData();
+            return false;
+        }
+    }
+
 
     /**
      * section for standard files handling (read & write) that needs encryption
@@ -660,7 +728,7 @@ public class DesfireAuthenticateLegacy {
 
     public boolean authenticateD40(byte keyNo, byte[] key) {
         // status WORKING
-        invalidateAllData();
+        invalidateAllAuthentificationData();
         logData = "";
         String methodName = "authenticateD40";
         log(methodName, printData("key", key) + " keyNo: " + keyNo, true);
@@ -956,7 +1024,7 @@ public class DesfireAuthenticateLegacy {
     public boolean authenticateAes(byte keyNo, byte[] key) {
         // status WORKING
         logData = "";
-        invalidateAllData();
+        invalidateAllAuthentificationData();
         String methodName = "authenticateAes";
         log(methodName, printData("key", key) + " keyNo: " + keyNo, true);
         errorCode = new byte[2];
@@ -1482,14 +1550,7 @@ public class DesfireAuthenticateLegacy {
      * section for service methods
      */
 
-    private void invalidateAllData() {
-        authenticateLegacyD40Success = false;
-        authenticateLegacyAesSuccess = false;
-        keyNumberUsedForAuthentication = -1;
-        SessionKey = null;
-    }
-
-    private void invalidateAllDataNonFirst() {
+    private void invalidateAllAuthentificationData() {
         authenticateLegacyD40Success = false;
         authenticateLegacyAesSuccess = false;
         keyNumberUsedForAuthentication = -1;

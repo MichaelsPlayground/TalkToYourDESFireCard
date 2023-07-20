@@ -134,6 +134,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     private Button getCardUidDes, getCardUidAes; // get cardUID * encrypted
+    private Button getTagVersion;
 
     /**
      * section for visualizing DES authentication
@@ -367,6 +368,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         // general handling
         getCardUidDes = findViewById(R.id.btnGetCardUidDes);
         getCardUidAes = findViewById(R.id.btnGetCardUidAes);
+        getTagVersion = findViewById(R.id.btnGetTagVersion);
 
         // visualize DES authentication
         selectApplicationDesVisualizing = findViewById(R.id.btnDesVisualizeAuthSelect);
@@ -515,7 +517,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 writeToUiAppend(output, logString + " with id: " + applicationId.getText().toString());
                 byte[] responseData = new byte[2];
-                boolean success = selectApplication(output, applicationIdentifier, responseData);
+                boolean success = desfireAuthenticateLegacy.selectApplication(applicationIdentifier);
+                responseData = desfireAuthenticateLegacy.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
@@ -2333,6 +2336,181 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
          * section for general handling
          */
 
+        getTagVersion.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // get the tag version data
+                clearOutputFields();
+                String logString = "getCardVersion";
+                writeToUiAppend(output, logString);
+
+                // this predefined in the header
+                // GET_VERSION_COMMAND = (byte) 0x60;
+
+                // manually building the command string
+                byte[] command = new byte[5];
+                command[0] = (byte) 0x90; // fixed as trailer for wrapped commands
+                command[1] = GET_VERSION_COMMAND;
+                command[2] = (byte) 0x00; // is 0x00
+                command[3] = (byte) 0x00; // length of data, i 0 because we do not have any additional data to send
+                command[4] = (byte) 0x00; // trailing '00'
+                writeToUiAppend(output, "build the getVersion command manually");
+                writeToUiAppend(output, printData("command", command));
+
+                // we are sending this command to the PICC
+                byte[] response = new byte[0];
+                try {
+                    response = isoDep.transceive(command);
+                    writeToUiAppend(output, printData("response from PICC", response));
+                } catch (NullPointerException e) {
+                    Log.e(TAG, logString + " transceive failed, NullPointerException:\n" + e.getMessage());
+                    writeToUiAppend(output, "transceive failed, did you forget to tap a tag first ? : " + e.getMessage());
+                    return;
+                } catch (IOException e) {
+                    Log.e(TAG, logString + " transceive failed, IOException:\n" + e.getMessage());
+                    writeToUiAppend(output, "transceive failed: " + e.getMessage());
+                    return;
+                }
+                // example response: length: 9 data: 0401013300160591af
+
+                writeToUiAppend(output, "we received two information's from PICC:");
+                byte[] responseData1 = Arrays.copyOfRange(response, 0, response.length - 2);
+                byte[] responseStatus1 = Arrays.copyOfRange(response, response.length - 2, response.length);
+                writeToUiAppend(output, printData("responseData1", responseData1));
+                writeToUiAppend(output, printData("responseStatus1", responseStatus1));
+
+                // check for status == '0x90af
+                final byte[] statusMoreData = new byte[]{(byte) 0x91, (byte) 0xAF};
+                // check for status == '0x00
+                final byte[] statusOk = new byte[]{(byte) 0x91, (byte) 0x00};
+
+                boolean isResponseStatus1MoreData = Arrays.equals(responseStatus1, statusMoreData);
+                writeToUiAppend(output, "checking that more data will follow from PICC: " + isResponseStatus1MoreData);
+                if (!isResponseStatus1MoreData) {
+                    writeToUiAppend(output, "no more data following, end requesting more data");
+                    return;
+                }
+
+                // now we are asking to get more data from PICC
+
+                // this predefined in the header
+                // MORE_DATA_COMMAND = (byte) 0xAF;
+
+                // manually building the command string
+                command = new byte[5];
+                command[0] = (byte) 0x90; // fixed as trailer for wrapped commands
+                command[1] = MORE_DATA_COMMAND;
+                command[2] = (byte) 0x00; // is 0x00
+                command[3] = (byte) 0x00; // length of data, i 0 because we do not have any additional data to send
+                command[4] = (byte) 0x00; // trailing '00'
+                writeToUiAppend(output, "build the getMoreData command manually");
+                writeToUiAppend(output, printData("command", command));
+
+                // we are sending this command to the PICC
+                response = new byte[0];
+                try {
+                    response = isoDep.transceive(command);
+                    writeToUiAppend(output, printData("response from PICC", response));
+                } catch (NullPointerException e) {
+                    Log.e(TAG, logString + " transceive failed, NullPointerException:\n" + e.getMessage());
+                    writeToUiAppend(output, "transceive failed, did you forget to tap a tag first ? : " + e.getMessage());
+                    return;
+                } catch (IOException e) {
+                    Log.e(TAG, logString + " transceive failed, IOException:\n" + e.getMessage());
+                    writeToUiAppend(output, "transceive failed: " + e.getMessage());
+                    return;
+                }
+                // example response: length: 9 data: 0401010300160591af
+
+                writeToUiAppend(output, "we received two information's from PICC:");
+                byte[] responseData2 = Arrays.copyOfRange(response, 0, response.length - 2);
+                byte[] responseStatus2 = Arrays.copyOfRange(response, response.length - 2, response.length);
+                writeToUiAppend(output, printData("responseData2", responseData2));
+                writeToUiAppend(output, printData("responseStatus2", responseStatus2));
+
+                // check for status == '0x90af
+                boolean isResponseStatus2MoreData = Arrays.equals(responseStatus2, statusMoreData);
+                writeToUiAppend(output, "checking that more data will follow from PICC: " + isResponseStatus2MoreData);
+                if (!isResponseStatus2MoreData) {
+                    writeToUiAppend(output, "no more data following, end requesting more data");
+                    return;
+                }
+
+                // now we are asking to get more data from PICC a second time
+
+                // this predefined in the header
+                // MORE_DATA_COMMAND = (byte) 0xAF;
+
+                // manually building the command string
+                command = new byte[5];
+                command[0] = (byte) 0x90; // fixed as trailer for wrapped commands
+                command[1] = MORE_DATA_COMMAND;
+                command[2] = (byte) 0x00; // is 0x00
+                command[3] = (byte) 0x00; // length of data, i 0 because we do not have any additional data to send
+                command[4] = (byte) 0x00; // trailing '00'
+                writeToUiAppend(output, "build the getMoreData command manually");
+                writeToUiAppend(output, printData("command", command));
+
+                // we are sending this command to the PICC
+                response = new byte[0];
+                try {
+                    response = isoDep.transceive(command);
+                    writeToUiAppend(output, printData("response from PICC", response));
+                } catch (NullPointerException e) {
+                    Log.e(TAG, logString + " transceive failed, NullPointerException:\n" + e.getMessage());
+                    writeToUiAppend(output, "transceive failed, did you forget to tap a tag first ? : " + e.getMessage());
+                    return;
+                } catch (IOException e) {
+                    Log.e(TAG, logString + " transceive failed, IOException:\n" + e.getMessage());
+                    writeToUiAppend(output, "transceive failed: " + e.getMessage());
+                    return;
+                }
+                // example response: length: 16 data: 04597a32501490204664303048229100
+
+                writeToUiAppend(output, "we received two information's from PICC:");
+                byte[] responseData3 = Arrays.copyOfRange(response, 0, response.length - 2);
+                byte[] responseStatus3 = Arrays.copyOfRange(response, response.length - 2, response.length);
+                writeToUiAppend(output, printData("responseData3", responseData3));
+                writeToUiAppend(output, printData("responseStatus3", responseStatus3));
+
+                // check for status == '0x90af
+                boolean isResponseStatus3MoreData = Arrays.equals(responseStatus3, statusMoreData);
+                writeToUiAppend(output, "checking that more data will follow from PICC: " + isResponseStatus3MoreData);
+                if (isResponseStatus3MoreData) {
+                    writeToUiAppend(output, "no more data following, end requesting more data");
+                    return;
+                }
+
+                // check for status == '0x9000
+                boolean isResponseStatus3Ok = Arrays.equals(responseStatus3, statusOk);
+                writeToUiAppend(output, "checking that the status is OK" + isResponseStatus3Ok);
+                if (!isResponseStatus3Ok) {
+                    writeToUiAppend(output, "final status is not '0x9000', aborted");
+                    return;
+                }
+                // now the status is OK and we can analyze the  data
+
+
+
+
+                /*
+                VersionInfo versionInfo = null;
+                try {
+                    versionInfo = getVersionInfo(output);
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "success in getting tagVersion", COLOR_GREEN);
+                } catch (Exception e) {
+                    //throw new RuntimeException(e);
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "getTagVersion Exception: " + e.getMessage(), COLOR_RED);
+                    e.printStackTrace();
+                }
+                if (versionInfo != null) {
+                    writeToUiAppend(output, versionInfo.dump());
+                }
+
+                 */
+            }
+        });
+
 
         getCardUidDes.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -2525,7 +2703,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 writeToUiAppend(output, logString + " with id: " + applicationId.getText().toString());
                 byte[] responseData = new byte[2];
-                boolean success = selectApplication(output, applicationIdentifier, responseData);
+                boolean success = desfireAuthenticateLegacy.selectApplication(applicationIdentifier);
+                responseData = desfireAuthenticateLegacy.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
@@ -2759,7 +2938,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte[] applicationIdentifier = hexStringToByteArray("0100D0"); // lsb
                 applicationId.setText("D00001");
                 writeToUiAppend(output, "select the application with id: " + applicationId.getText().toString());
-                boolean success = selectApplication(output, applicationIdentifier, responseData);
+                boolean success = desfireAuthenticateLegacy.selectApplication(applicationIdentifier);
+                responseData = desfireAuthenticateLegacy.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, "select the application SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application SUCCESS", COLOR_GREEN);
@@ -2823,7 +3003,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte[] applicationIdentifier = hexStringToByteArray("0100D0"); // lsb
                 applicationId.setText("D00001");
                 writeToUiAppend(output, "select the application with id: " + applicationId.getText().toString());
-                boolean success = selectApplication(output, applicationIdentifier, responseData);
+                boolean success = desfireAuthenticateLegacy.selectApplication(applicationIdentifier);
+                responseData = desfireAuthenticateLegacy.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, "select the application SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application SUCCESS", COLOR_GREEN);
@@ -2886,7 +3067,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte[] applicationIdentifier = hexStringToByteArray("0100D0"); // lsb
                 applicationId.setText("D00001");
                 writeToUiAppend(output, "select the application with id: " + applicationId.getText().toString());
-                boolean success = selectApplication(output, applicationIdentifier, responseData);
+                boolean success = desfireAuthenticateLegacy.selectApplication(applicationIdentifier);
+                responseData = desfireAuthenticateLegacy.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, "select the application SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application SUCCESS", COLOR_GREEN);
@@ -2950,7 +3132,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte[] applicationIdentifier = hexStringToByteArray("0100D0"); // lsb
                 applicationId.setText("D00001");
                 writeToUiAppend(output, "select the application with id: " + applicationId.getText().toString());
-                boolean success = selectApplication(output, applicationIdentifier, responseData);
+                boolean success = desfireAuthenticateLegacy.selectApplication(applicationIdentifier);
+                responseData = desfireAuthenticateLegacy.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, "select the application SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application SUCCESS", COLOR_GREEN);
@@ -3013,7 +3196,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte[] applicationIdentifier = hexStringToByteArray("0100D0"); // lsb
                 applicationId.setText("D00001");
                 writeToUiAppend(output, "select the application with id: " + applicationId.getText().toString());
-                boolean success = selectApplication(output, applicationIdentifier, responseData);
+                boolean success = desfireAuthenticateLegacy.selectApplication(applicationIdentifier);
+                responseData = desfireAuthenticateLegacy.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, "select the application SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application SUCCESS", COLOR_GREEN);
@@ -3076,7 +3260,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte[] applicationIdentifier = hexStringToByteArray("0100D0"); // lsb
                 applicationId.setText("D00001");
                 writeToUiAppend(output, "select the application with id: " + applicationId.getText().toString());
-                boolean success = selectApplication(output, applicationIdentifier, responseData);
+                boolean success = desfireAuthenticateLegacy.selectApplication(applicationIdentifier);
+                responseData = desfireAuthenticateLegacy.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, "select the application SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application SUCCESS", COLOR_GREEN);
@@ -3252,60 +3437,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
         if (checkResponse(response)) {
             Log.d(TAG, methodName + " SUCCESS");
-            return true;
-        } else {
-            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
-            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
-            return false;
-        }
-    }
-
-
-    private boolean selectApplication(TextView logTextView, byte[] applicationIdentifier, byte[] methodResponse) {
-        final String methodName = "selectApplication";
-        Log.d(TAG, methodName);
-        // sanity checks
-        if (logTextView == null) {
-            Log.e(TAG, methodName + " logTextView is NULL, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (applicationIdentifier == null) {
-            Log.e(TAG, methodName + " applicationIdentifier is NULL, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (applicationIdentifier.length != 3) {
-            Log.e(TAG, methodName + " applicationIdentifier length is not 3, found: " + applicationIdentifier.length + ", aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-
-        byte[] response = new byte[0];
-        byte[] apdu = new byte[0];
-        try {
-            apdu = wrapMessage(SELECT_APPLICATION_COMMAND, applicationIdentifier);
-            Log.d(TAG, methodName + printData(" apdu", apdu));
-            response = isoDep.transceive(apdu);
-            Log.d(TAG, methodName + printData(" response", response));
-        } catch (IOException e) {
-            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
-            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        byte[] responseBytes = returnStatusBytes(response);
-        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
-        if (checkResponse(response)) {
-            Log.d(TAG, methodName + " SUCCESS");
-            selectedApplicationId = applicationIdentifier.clone();
-            applicationSelected.setText(Utils.bytesToHexNpeUpperCase(applicationIdentifier));
             return true;
         } else {
             Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
