@@ -3199,7 +3199,7 @@ public class DesfireAuthenticateEv2 {
         // error 9D = PERMISSION_DENIED
         //            .. Option 09h: file configuration not allowed anymore as already done once or targeted file is not a Value file
 
-        // status:
+        // status: NOT WORKING (throwing AE error ?)
 
         logData = "";
         final String methodName = "setConfigurationValueFileLimit";
