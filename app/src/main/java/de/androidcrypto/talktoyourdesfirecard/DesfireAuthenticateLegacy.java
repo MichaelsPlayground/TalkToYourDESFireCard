@@ -904,7 +904,7 @@ public class DesfireAuthenticateLegacy {
         log(methodName, printData("cipheredBlock   ", cipheredBlock));
 
         log(methodName, "2 split the ciphertext into blocks of 8 bytes");
-        log(methodName, printData("ciphertext      ", ciphertext));
+        log(methodName, printData("ciphertext     ", ciphertext));
         byte[] ciphertextBlock1 = Arrays.copyOfRange(ciphertext, 0, 8);
         log(methodName, printData("ciphertextBlock1", ciphertextBlock1));
         byte[] ciphertextBlock2 = Arrays.copyOfRange(ciphertext, 8, 16);
@@ -916,7 +916,7 @@ public class DesfireAuthenticateLegacy {
 
         log(methodName, "4 decrypt ct1Xored using TripleDES.decrypt");
         byte[] ct1XoredDecrypted = de.androidcrypto.talktoyourdesfirecard.nfcjlib.TripleDES.decrypt(tdesKey, ct1Xored, 0, 8);
-        log(methodName, printData("ct1 Xored decrypt", ct1XoredDecrypted));
+        log(methodName, printData("ct1Xored decrypt", ct1XoredDecrypted));
 
         log(methodName, "5 copy ct1XoredDecrypted to cipheredBlock");
         cipheredBlock = ct1XoredDecrypted.clone();
@@ -924,7 +924,7 @@ public class DesfireAuthenticateLegacy {
 
         log(methodName, "6 XORing ct2 with cipheredBlock");
         byte[] ct2Xored = xor(ciphertextBlock2, cipheredBlock);
-        log(methodName, printData("ct2 Xored       ", ct2Xored));
+        log(methodName, printData("ct2Xored        ", ct2Xored));
 
         log(methodName, "7 decrypt ct2Xored using TripleDES.decrypt");
         byte[] ct2XoredDecrypted = de.androidcrypto.talktoyourdesfirecard.nfcjlib.TripleDES.decrypt(tdesKey, ct2Xored, 0, 8);
