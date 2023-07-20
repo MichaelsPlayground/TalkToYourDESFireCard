@@ -43,3 +43,30 @@ This app always uses ISO/IEC 7816-4 wrapped comands.
 Mifare type identification procedure AN10833.pdf
 
 Note: a 0x9D error ('Permission denied') may occur when sesTMC reached its maximal value or TMCLimit was reached. 
+
+```plaintext
+However, I can provide you with the following information about the "SET CONFIGURATION" command:
+
+The command is used to configure the settings of a Mifare DESFire EV3 card.
+The command has the following format:
+SET CONFIGURATION <option> <value>
+The <option> field specifies the setting to be configured.
+The <value> field specifies the value for the setting.
+The following table lists the possible options for the <option> field:
+
+Option	Description
+01	Enable or disable the transaction timer.
+02	Set the value of the transaction timer.
+03	Enable or disable the access control feature.
+04	Set the value of the access control key.
+
+
+The value for enabling the transaction timer is 0x01. The value for disabling the transaction timer is 0x00.
+
+enable: private static final byte[] SET_CONFIGURATION_COMMAND = {0x00, 0x03, 0x01, 0x01};
+disable: private static final byte[] SET_CONFIGURATION_COMMAND = {0x00, 0x03, 0x01, 0x00};
+
+```
+
+Mifare® Application Programming Guide for DESFire (2011): https://www.cardlogix.com/wp-content/uploads/MIFARE-Application-Programming-Guide-for-DESFfire_rev.e.pdf
+

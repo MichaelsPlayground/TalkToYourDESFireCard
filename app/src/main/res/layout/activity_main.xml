@@ -468,7 +468,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
-                        android:text="select" />
+                        android:text="sel" />
 
                     <Button
                         android:id="@+id/btnGetAllFileIdsEv2"
@@ -484,7 +484,15 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="all fileSettings" />
+                        android:text="all fs" />
+
+                    <Button
+                        android:id="@+id/btnCompleteFileSettingsEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="compl FS" />
 
                 </LinearLayout>
 
@@ -854,12 +862,12 @@
                         android:text="03->Def" />
 
                     <Button
-                        android:id="@+id/btnx6Ev2"
+                        android:id="@+id/btnEnableTransactionTimerEv2"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="xx" />
+                        android:text="enable TT" />
 
                 </LinearLayout>
 

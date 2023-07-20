@@ -84,7 +84,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for EV2 authentication and communication
      */
 
-    private Button selectApplicationEv2, getAllFileIdsEv2, getAllFileSettingsEv2;
+    private Button selectApplicationEv2, getAllFileIdsEv2, getAllFileSettingsEv2, completeFileSettingsEv2;
 
     private Button authD0AEv2, authD1AEv2, authD3ACEv2;
     private Button getCardUidEv2, getFileSettingsEv2;
@@ -98,6 +98,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button fileCreateFileSetPlain, fileCreateFileSetMaced, fileCreateFileSetEnciphered;
 
     private Button changeKeyD3AtoD3AC, changeKeyD3ACtoD3A;
+    private Button enableTransactionTimerEv2;
 
 
     private Button fileTransactionMacCreateEv2, fileTransactionMacDeleteEv2;
@@ -313,6 +314,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         selectApplicationEv2 = findViewById(R.id.btnSelectApplicationEv2);
         getAllFileIdsEv2 = findViewById(R.id.btnGetAllFileIdsEv2);
         getAllFileSettingsEv2 = findViewById(R.id.btnGetAllFileSettingsEv2);
+        completeFileSettingsEv2 = findViewById(R.id.btnCompleteFileSettingsEv2); // run all 3 commands above
 
         authD0AEv2 = findViewById(R.id.btnAuthD0AEv2);
         authD1AEv2 = findViewById(R.id.btnAuthD1AEv2);
@@ -347,6 +349,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
         changeKeyD3AtoD3AC = findViewById(R.id.btnChangeKeyD3AtoD3ACEv2); // change AES key 03 from DEFAULT to CHANGED
         changeKeyD3ACtoD3A = findViewById(R.id.btnChangeKeyD3ACtoD3AEv2); // change AES key 03 from CHANGED to DEFAULT
+        enableTransactionTimerEv2 = findViewById(R.id.btnEnableTransactionTimerEv2);
 
         // standard files
         fileStandardCreate = findViewById(R.id.btnCreateStandardFile);
@@ -625,6 +628,76 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     for (int i = 0; i < numberOfFfileSettings; i++) {
                         // first check that this entry is not null
                         FileSettings fileSettings = result[i];
+                        if (fileSettings != null) {
+                            writeToUiAppend(output, fileSettings.dump());
+                        }
+                    }
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Depending on the Application Master Keys settings a previous authentication with the Application Master Key is required");
+                }
+            }
+        });
+
+        completeFileSettingsEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "complete file settings (AIO) EV2";
+                writeToUiAppend(output, logString);
+
+                // this is the combined command for select, fileIds and allFileSettings
+                byte[] applicationIdentifier = Utils.hexStringToByteArray(applicationId.getText().toString());
+                if (applicationIdentifier == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you entered a wrong application ID", COLOR_RED);
+                    return;
+                }
+                //Utils.reverseByteArrayInPlace(applicationIdentifier); // change to LSB = change the order
+                if (applicationIdentifier.length != 3) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you did not enter a 6 hex string application ID", COLOR_RED);
+                    return;
+                }
+                writeToUiAppend(output, logString + " with id: " + applicationId.getText().toString());
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.selectApplicationByAidEv2(applicationIdentifier);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    selectedApplicationId = applicationIdentifier.clone();
+                    applicationSelected.setText(bytesToHexNpeUpperCase(selectedApplicationId));
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    selectedApplicationId = null;
+                    applicationSelected.setText("please select an application");
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+
+                byte[] result = desfireAuthenticateEv2.getAllFileIdsEv2();
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (result != null) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppend(output, "found these fileIDs (not sorted): " + bytesToHexNpeUpperCaseBlank(result));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Depending on the Application Master Keys settings a previous authentication with the Application Master Key is required");
+                }
+
+                FileSettings[] fsResult = desfireAuthenticateEv2.getAllFileSettingsEv2();
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (result != null) {
+                    int numberOfFfileSettings = result.length;
+                    for (int i = 0; i < numberOfFfileSettings; i++) {
+                        // first check that this entry is not null
+                        FileSettings fileSettings = fsResult[i];
                         if (fileSettings != null) {
                             writeToUiAppend(output, fileSettings.dump());
                         }
@@ -1720,6 +1793,83 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                 }
+            }
+        });
+
+        enableTransactionTimerEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "enableTransactionTimer EV2";
+                writeToUiAppend(output, logString);
+                // check that an application was selected before
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                // this is manual workflow
+
+                // see Feature & Hints, pages 12 - 15, full enciphered !!
+
+
+                byte[] apdu, response;
+                byte SET_CONFIGURATION_COMMAND = (byte) 0x03;
+                //byte[] parameterEnabling = new byte[]{(byte) 0x04};
+                //byte[] parameterEnabling = new byte[]{(byte) 0x01};
+                byte[] parameterEnabling = new byte[]{(byte) 0x01,(byte) 0x01};
+                //byte[] parameter = new byte[]{(byte) 0x55};
+                byte[] parameter = new byte[]{(byte) 0x55, (byte) 0x01};
+                byte[] responseData = new byte[2];
+                try {
+                    //apdu = wrapMessage(SET_CONFIGURATION_COMMAND, parameter);
+                    apdu = wrapMessage(SET_CONFIGURATION_COMMAND, parameterEnabling);
+                    Log.d(TAG, logString + printData(" apdu", apdu));
+                    response = isoDep.transceive(apdu);
+                    Log.d(TAG, logString + printData(" response", response));
+                } catch (IOException e) {
+                    Log.e(TAG, logString + " transceive failed, IOException:\n" + e.getMessage());
+                    writeToUiAppend(output, "transceive failed: " + e.getMessage());
+                    System.arraycopy(RESPONSE_FAILURE, 0, responseData, 0, 2);
+                    return;
+                }
+                byte[] responseBytes = returnStatusBytes(response);
+                System.arraycopy(responseBytes, 0, responseData, 0, 2);
+                if (checkResponse(response)) {
+                    Log.d(TAG, logString + " SUCCESS");
+                    return;
+                } else {
+                    Log.d(TAG, logString + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+                    Log.d(TAG, logString + " error code: " + EV3.getErrorCode(responseBytes));
+                    return;
+                }
+
+
+                /*
+                byte[] responseData = new byte[2];
+                boolean success = createStandardFilePlainCommunicationDes(output, fileIdByte, fileSizeInt, rbFileFreeAccess.isChecked(), responseData);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.changeApplicationKeyEv2(APPLICATION_KEY_R_NUMBER, APPLICATION_KEY_R_AES_DEFAULT, APPLICATION_KEY_R_AES);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+
+                 */
             }
         });
 
