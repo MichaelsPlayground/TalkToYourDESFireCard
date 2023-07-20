@@ -41,3 +41,5 @@ Type of messaging:
 This app always uses ISO/IEC 7816-4 wrapped comands.  
 
 Mifare type identification procedure AN10833.pdf
+
+Note: a 0x9D error ('Permission denied') may occur when sesTMC reached its maximal value or TMCLimit was reached. 

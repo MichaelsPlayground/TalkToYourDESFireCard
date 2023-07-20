@@ -591,6 +591,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
+                        android:enabled="false"
                         android:text="Cr Stand 2" />
 
                     <Button
@@ -632,6 +633,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
+                        android:enabled="false"
                         android:text="Cr Back 5" />
 
                     <Button
@@ -714,6 +716,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
+                        android:enabled="false"
                         android:text="Cr CyRec 14" />
 
                     <Button
