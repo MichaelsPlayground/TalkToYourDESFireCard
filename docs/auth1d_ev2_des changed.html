@@ -86,7 +86,7 @@ The outer loop is running for i=0 to <16 in steps of 8
 method: authenticateD40
 outer loop i: 0
 method: authenticateD40
-The outer loop is running for j=0 to <8 in steps of 1
+The inner loop is running for j=0 to <8 in steps of 1
 method: authenticateD40
 outer loop i: 0 inner loop j: 0
 method: authenticateD40
@@ -122,7 +122,7 @@ cipheredBlock length: 8 data: 0000000000000000 | rndArndBLeftRotated length: 16 
 method: authenticateD40
 data after  XORing data length: 16 data: d6c8a213398b6f8b91de5fef3a56071c cipheredBlock length: 8 data: 0000000000000000
 method: authenticateD40
-calling TripleDES.decrypt with modifiedKey length: 24 data: d00022446688aaccd00022446688aaccd00022446688aacc data length: 16 data: d6c8a213398b6f8b91de5fef3a56071c i: 0 length: 8
+calling TripleDES.decrypt with TDES key length: 24 data: d00022446688aaccd00022446688aaccd00022446688aacc data length: 16 data: d6c8a213398b6f8b91de5fef3a56071c i: 0 length: 8
 method: authenticateD40
 cipheredBlock length: 8 data: 0376e80a30120ea0 | rndArndBLeftRotated length: 16 data: d6c8a213398b6f8b91de5fef3a56071c | ciphertext length: 16 data: 00000000000000000000000000000000
 method: authenticateD40

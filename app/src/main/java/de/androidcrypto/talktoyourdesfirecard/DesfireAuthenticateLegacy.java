@@ -758,7 +758,7 @@ public class DesfireAuthenticateLegacy {
         log(methodName, "step 10 encrypt rndA || rndB left rotated");
         log(methodName, "using mode case SEND_MODE = XOR w/ previous ciphered block --> decrypt");
         log(methodName, "step 10 encryption magic starting ********************");
-
+        tripleDesSendModeDecryption(tdesKey, rndArndBLeftRotated);
         byte[] ciphertext = new byte[rndArndBLeftRotated.length];
         byte[] cipheredBlock = new byte[8];
         // XOR w/ previous ciphered block --> decrypt
@@ -772,7 +772,7 @@ public class DesfireAuthenticateLegacy {
         log(methodName, "The outer loop is running for i=0 to <" + rndArndBLeftRotated.length + " in steps of 8");
         for (int i = 0; i < rndArndBLeftRotated.length; i += 8) {
             log(methodName, "outer loop i: " + i);
-            log(methodName, "The outer loop is running for j=0 to <8"  + " in steps of 1");
+            log(methodName, "The inner loop is running for j=0 to <8"  + " in steps of 1");
             for (int j = 0; j < 8; j++) {
                 log(methodName, "outer loop i: " + i + " inner loop j: " + j);
                 rndArndBLeftRotated[i + j] ^= cipheredBlock[j];
@@ -781,7 +781,7 @@ public class DesfireAuthenticateLegacy {
                         printData(" | ciphertext", ciphertext));
             }
             log(methodName, "data after  XORing " + printData("data", rndArndBLeftRotated) + printData(" cipheredBlock", cipheredBlock));
-            log(methodName, "calling TripleDES.decrypt with " + printData("modifiedKey", tdesKey) + printData(" data", rndArndBLeftRotated) + " i: " + i + " length: " + 8);
+            log(methodName, "calling TripleDES.decrypt with " + printData("TDES key", tdesKey) + printData(" data", rndArndBLeftRotated) + " i: " + i + " length: " + 8);
             cipheredBlock = TripleDES.decrypt(tdesKey, rndArndBLeftRotated, i, 8);
             log(methodName, printData("cipheredBlock", cipheredBlock) +
                     printData(" | rndArndBLeftRotated", rndArndBLeftRotated) +
@@ -873,6 +873,41 @@ public class DesfireAuthenticateLegacy {
             return false;
         }
     }
+
+    // this is just a manual method to test the SEND encryption magic
+    public void tripleDesSendModeDecryption(byte[] tdesKeyExt, byte[] ciphertextExt) {
+        String methodName = "tripleDesSendModeDecryption";
+        // sanity checks
+        if ((tdesKeyExt == null) || (tdesKeyExt.length != 24)) return;
+        if ((ciphertextExt == null) || (ciphertextExt.length != 16)) return;
+
+        // using cloned data to avoid any change on data outside this method
+        byte[] tdesKey = tdesKeyExt.clone();
+        byte[] ciphertext = ciphertextExt.clone();
+        int ciphertextLength = ciphertext.length;
+        byte[] plaintext = new byte[ciphertextLength]; // the result array after decryption
+        log(methodName, "the ciphertext is " + ciphertextLength +
+                " bytes long so we need to run " + (ciphertextLength / 8) +
+                " rounds to decrypt (length / 8)");
+
+        log(methodName, "******** manual decryption text start ********");
+        log(methodName, "SEND mode means: XORing the plaintext with previous ciphered block, than DEcrypt");
+        log(methodName, printData("tdesKey", tdesKey));
+        log(methodName, printData("ciphertext", ciphertext));
+
+        log(methodName, "1 starting with an empty 'cipheredBlock' of 8 bytes length = DES block length");
+        byte[] cipheredBlock = new byte[8];
+        log(methodName, printData("cipheredBlock", cipheredBlock));
+
+        log(methodName, "2 split the ciphertext into blocks of 8 bytes of the ciphertext");
+        byte[] ciphertextBlock1 = Arrays.copyOfRange(ciphertext, 0, 8);
+        log(methodName, printData("ciphertextBlock1", ciphertextBlock1));
+
+
+
+        log(methodName, "******** manual decryption text end **********");
+    }
+
 
     /**
      * authenticateAes uses the legacy authentication method with command 0xAA
