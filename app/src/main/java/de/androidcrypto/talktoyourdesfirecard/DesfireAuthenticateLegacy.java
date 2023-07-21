@@ -107,6 +107,7 @@ public class DesfireAuthenticateLegacy {
         try {
             apdu = wrapMessage(SELECT_APPLICATION_COMMAND, applicationIdentifier);
             Log.d(TAG, methodName + printData(" apdu", apdu));
+            // sample 905a000003d0d1d200
             response = isoDep.transceive(apdu);
             Log.d(TAG, methodName + printData(" response", response));
         } catch (IOException e) {

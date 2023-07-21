@@ -3233,7 +3233,7 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         // last 01 means: Free GetValue not allowed, LimitedCredit enabled
 
         // Data (FileNo || Lower Limit || Upper Limit || Value || ValueOption)
-        byte[] data = hexStringToByteArray("0800000000E80300000000000001");
+        byte[] data = hexStringToByteArray("0800000000E80300000000000001"); // 12 bytes, first 08 is fileNumber
         log(methodName, printData("data", data));
 
         // Encrypting the Command Data
@@ -3259,7 +3259,7 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
 
         // fixed data
         // padding is 2 bytes
-        byte[] dataPadded = hexStringToByteArray("0800000000E803000000000000018000"); // 16 bytes
+        byte[] dataPadded = hexStringToByteArray("0800000000E803000000000000018000"); // 16 bytes, first 08 is fileNumber
         log(methodName, printData("dataPadded", dataPadded));
 
         // Encrypted Data Block 1 = E(KSesAuthENC, Data Input)

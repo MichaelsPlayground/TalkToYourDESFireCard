@@ -151,7 +151,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for constants
      */
 
-    private final byte[] APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("D1D2D3"); // AID 'D1 D2 D3'
+    private final byte[] APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("D0D1D2"); // AID 'D0 D1 D2'
     private final byte APPLICATION_NUMBER_OF_KEYS = (byte) 0x05; // maximum 5 keys for secured access
     private final byte APPLICATION_MASTER_KEY_SETTINGS = (byte) 0x0F; // 'amks'
     /**
@@ -172,8 +172,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * byte = 3: Fully DES/3DES/AES enciphered communication
      */
 
-    private final byte STANDARD_FILE_FREE_ACCESS_ID = (byte) 0x01; // file ID with free access
-    private final byte STANDARD_FILE_KEY_SECURED_ACCESS_ID = (byte) 0x02; // file ID with key secured access
+    private final byte STANDARD_FILE_FREE_ACCESS_ID = (byte) 0x00; // file ID with free access
+    private final byte STANDARD_FILE_KEY_SECURED_ACCESS_ID = (byte) 0x01; // file ID with key secured access
     // settings for key secured access depend on RadioButtons rbFileFreeAccess, rbFileKeySecuredAccess
     // key 0 is the  Application Master Key
     private final byte ACCESS_RIGHTS_RW_CAR_FREE = (byte) 0xEE; // Read&Write Access (free) & ChangeAccessRights (free)
@@ -531,6 +531,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 boolean success = desfireAuthenticateLegacy.selectApplication(applicationIdentifier);
                 responseData = desfireAuthenticateLegacy.getErrorCode();
                 if (success) {
+                    // manually copy the aid
+                    selectedApplicationId = applicationIdentifier.clone();
+                    applicationSelected.setText(bytesToHexNpeUpperCase(selectedApplicationId));
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     vibrateShort();
@@ -2087,7 +2090,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
                     return;
                 }
-                String dataToWrite = fileStandardData.getText().toString();
+                String dataToWrite = Utils.getTimestamp() + " 123456789012"; // gives a 32 bytes long string
+                //String dataToWrite = fileStandardData.getText().toString();
                 if (TextUtils.isEmpty(dataToWrite)) {
                     //writeToUiAppend(errorCode, "please enter some data to write");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "please enter some data to write", COLOR_RED);
@@ -2919,7 +2923,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 int hardwareStorageSizeInt = (int)Math.pow (2, hardwareStorageSize >> 1); // get the storage size in bytes
 
                 writeToUiAppend(output, "hardwareType: " + Utils.byteToHex(hardwareType) + hardwareTypeName);
-                writeToUiAppend(output, "hardwareStorageSize: " + hardwareStorageSizeInt);
+                writeToUiAppend(output, "hardwareStorageSize (byte): " + Utils.byteToHex(hardwareStorageSize));
+                writeToUiAppend(output, "hardwareStorageSize (int): " + hardwareStorageSizeInt);
                 writeToUiAppend(output, "weekProduction: " + Utils.byteToHex(weekProduction));
                 writeToUiAppend(output, "yearProduction: " + Utils.byteToHex(yearProduction));
 
@@ -3790,6 +3795,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         try {
             apdu = wrapMessage(CREATE_APPLICATION_COMMAND, parameter);
             Log.d(TAG, methodName + printData(" apdu", apdu));
+            // sample: 90ca000005d0d1d20f0500
+            //       0x90CA000005D1D2D30F0500
             response = isoDep.transceive(apdu);
             Log.d(TAG, methodName + printData(" response", response));
         } catch (IOException e) {
@@ -3942,6 +3949,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         try {
             apdu = wrapMessage(CREATE_STANDARD_FILE_COMMAND, parameter);
             Log.d(TAG, methodName + printData(" apdu", apdu));
+            // sample free access: 90cd0000070000eeee20000000
+            // sample key secured:
             response = isoDep.transceive(apdu);
             Log.d(TAG, methodName + printData(" response", response));
         } catch (IOException e) {
@@ -4007,6 +4016,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         try {
             apdu = wrapMessage(READ_STANDARD_FILE_COMMAND, parameter);
             Log.d(TAG, methodName + printData(" apdu", apdu));
+            // sample: 903d00002700000000200000323032332e30372e32312031373a30343a30342031323334353637383930313200 (45 bytes)
             response = isoDep.transceive(apdu);
             Log.d(TAG, methodName + printData(" response", response));
         } catch (IOException e) {

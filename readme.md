@@ -31,6 +31,8 @@ System level security measures for MIFARE installations: https://www.nxp.com/doc
 
 For differences between Mifare DESFire EVx versions see: MIFARE DESFire EV3 contactless multi-application IC MF3DHx3_SDS.pdf (page 5)
 
+DESFire protocol (overview about DESFire EV1 commands): https://github.com/revk/DESFireAES/blob/master/DESFire.pdf
+
 Type of messaging:
 - plain communication
 - MACed communication
