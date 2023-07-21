@@ -4016,9 +4016,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         try {
             apdu = wrapMessage(READ_STANDARD_FILE_COMMAND, parameter);
             Log.d(TAG, methodName + printData(" apdu", apdu));
-            // sample: 903d00002700000000200000323032332e30372e32312031373a30343a30342031323334353637383930313200 (45 bytes)
+            // sample: 90bd0000070000000020000000 (13 bytes)
             response = isoDep.transceive(apdu);
             Log.d(TAG, methodName + printData(" response", response));
+            // sample: 323032332e30372e32312031373a30343a3034203132333435363738393031329100 (34 bytes)
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
@@ -4200,6 +4201,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         try {
             apdu = wrapMessage(WRITE_STANDARD_FILE_COMMAND, parameter);
             Log.d(TAG, methodName + printData(" apdu", apdu));
+            // sample:  903d00002700000000200000323032332e30372e32312031373a30343a30342031323334353637383930313200 (45 bytes)
             response = isoDep.transceive(apdu);
             Log.d(TAG, methodName + printData(" response", response));
         } catch (IOException e) {
