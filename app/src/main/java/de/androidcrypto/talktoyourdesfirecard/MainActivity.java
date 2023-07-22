@@ -4017,6 +4017,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             apdu = wrapMessage(READ_STANDARD_FILE_COMMAND, parameter);
             Log.d(TAG, methodName + printData(" apdu", apdu));
             // sample: 90bd0000070000000020000000 (13 bytes)
+            //       0x903D00002400000000000000
             response = isoDep.transceive(apdu);
             Log.d(TAG, methodName + printData(" response", response));
             // sample: 323032332e30372e32312031373a30343a3034203132333435363738393031329100 (34 bytes)
