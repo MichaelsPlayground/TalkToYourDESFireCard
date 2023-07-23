@@ -33,6 +33,8 @@ For differences between Mifare DESFire EVx versions see: MIFARE DESFire EV3 cont
 
 DESFire protocol (overview about DESFire EV1 commands): https://github.com/revk/DESFireAES/blob/master/DESFire.pdf
 
+NFCJLIB library: https://github.com/andrade/nfcjlib
+
 Type of messaging:
 - plain communication
 - MACed communication

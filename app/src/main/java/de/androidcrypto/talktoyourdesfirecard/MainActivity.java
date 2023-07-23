@@ -5,6 +5,7 @@ import static de.androidcrypto.talktoyourdesfirecard.Utils.bytesToHexNpeUpperCas
 import static de.androidcrypto.talktoyourdesfirecard.Utils.bytesToHexNpeUpperCaseBlank;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
+import static de.androidcrypto.talktoyourdesfirecard.Utils.reverseByteArrayInPlace;
 
 import android.app.Activity;
 import android.app.Dialog;
@@ -3949,8 +3950,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         try {
             apdu = wrapMessage(CREATE_STANDARD_FILE_COMMAND, parameter);
             Log.d(TAG, methodName + printData(" apdu", apdu));
-            // sample free access: 90cd0000070000eeee20000000
-            // sample key secured:
+            // sample free access: 90cd0000070000eeee20000000 (13 bytes)
+            // sample key secured: 90cd0000070100123420000000 (13 bytes)
             response = isoDep.transceive(apdu);
             Log.d(TAG, methodName + printData(" response", response));
         } catch (IOException e) {
@@ -4573,6 +4574,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 tagIdByte = tag.getId();
                 writeToUiAppend(output, "tag id: " + Utils.bytesToHex(tagIdByte));
                 Log.d(TAG, "tag id: " + Utils.bytesToHex(tagIdByte));
+
                 writeToUiAppend(output, "NFC tag connected");
                 writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The app and DESFire tag are ready to use", COLOR_GREEN);
             }

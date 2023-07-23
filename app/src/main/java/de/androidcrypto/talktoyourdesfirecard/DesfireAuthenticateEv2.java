@@ -4175,6 +4175,21 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         }
     }
 
+    public boolean changeFileSettingsEv2(byte fileNumber) {
+
+        // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 34 - 35 for SDM example
+        // see NTAG 424 DNA NT4H2421Gx.pdf pages 65 - 69 for fields and errors
+        // see NTAG 424 DNA NT4H2421Gx.pdf pages 69 - 70 for getFileSettings with responses incl. SDM
+        // see NTAG 424 DNA NT4H2421Gx.pdf pages 71 - 72 for getFileCounters
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 23 - 25 for general workflow with FULL communication
+
+
+
+        return false;
+    }
+
+
+
     private boolean getSelectedFileSettings(byte fileNumber) {
         Log.d(TAG, "getSelectedFileSettings for fileNumber " + fileNumber);
         // no sanity checks are done !
