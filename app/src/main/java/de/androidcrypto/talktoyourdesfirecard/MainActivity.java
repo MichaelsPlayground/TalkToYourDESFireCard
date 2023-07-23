@@ -149,6 +149,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button changeKeyDes01ToChanged2DesVisualizing, changeKeyDes01ToDefault2DesVisualizing, authDesVisualizingC2;
 
     /**
+     * section for SDM tasks
+     */
+
+    private Button createNdefFile256, sdmChangeFileSettings;
+
+    /**
      * section for constants
      */
 
@@ -396,6 +402,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         // this is for changing the CHANGED key to CHANGED 2 key and from CHANGED 2 key to DEFAULT key
         changeKeyDes01ToChanged2DesVisualizing = findViewById(R.id.btnDesVisualizeChangeKeyDes01ToChanged2);
         changeKeyDes01ToDefault2DesVisualizing = findViewById(R.id.btnDesVisualizeChangeKeyDes01ToDefault2);
+
+        // methods for sdm
+        createNdefFile256 = findViewById(R.id.btnCreateNdef256);
+        sdmChangeFileSettings = findViewById(R.id.btnSdmChangeFileSettings);
+
 
         // some presets
         applicationId.setText(Utils.bytesToHexNpeUpperCase(APPLICATION_IDENTIFIER));
@@ -3743,6 +3754,84 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        /**
+         * section for sdm handling
+         */
+
+        sdmChangeFileSettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "SDM changeFileSettings";
+                writeToUiAppend(output, logString);
+
+                byte[] ndefApplication = hexStringToByteArray("010000"); // the AID is 00 00 01 but data is in low endian
+                byte ndefFileId = (byte) 0x02;
+                writeToUiAppend(output, "fileNumber (fixed): " + ndefFileId + printData(" ndefApplication", ndefApplication));
+
+                byte[] responseData = new byte[2];
+                writeToUiAppend(output, logString + " step 1: select ndef application");
+                // select the application
+                boolean success = desfireAuthenticateLegacy.selectApplication(ndefApplication);
+                responseData = desfireAuthenticateLegacy.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, "select the application SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+
+                // don't forget to run an auth to get a SessionKey
+                String logString2 = "step 2: EV2 First authenticate with DEFAULT AES key number 0x00 = application master key";
+                writeToUiAppend(output, logString2);
+
+                exportString = "";
+                exportStringFileName = "auth.html";
+
+                success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString2 + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    SES_AUTH_ENC_KEY = desfireAuthenticateEv2.getSesAuthENCKey();
+                    SES_AUTH_MAC_KEY = desfireAuthenticateEv2.getSesAuthMACKey();
+                    TRANSACTION_IDENTIFIER = desfireAuthenticateEv2.getTransactionIdentifier();
+                    CMD_COUNTER = desfireAuthenticateEv2.getCmdCounter();
+                    writeToUiAppend(output, printData("SES_AUTH_ENC_KEY", SES_AUTH_ENC_KEY));
+                    writeToUiAppend(output, printData("SES_AUTH_MAC_KEY", SES_AUTH_MAC_KEY));
+                    writeToUiAppend(output, printData("TRANSACTION_IDENTIFIER", TRANSACTION_IDENTIFIER));
+                    writeToUiAppend(output, "CMD_COUNTER: " + CMD_COUNTER);
+                    vibrateShort();
+                    // show logData
+/*
+                    // prepare data for export
+                    exportString = desfireAuthenticateEv2.getLogData();
+                    exportStringFileName = "auth0a_ev2.html";
+                    writeToUiToast("your authentication log file is ready for export");
+*/
+                    //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString2 + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+                writeToUiAppend(output, logString + " step 3: change the fileSettings");
+                success = desfireAuthenticateEv2.changeFileSettingsEv2(ndefFileId);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a ?? ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error: " + EV3.getErrorCode(responseData), COLOR_RED);
+                    return;
+                }
+            }
+        });
     }
 
     /**

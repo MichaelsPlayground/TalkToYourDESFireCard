@@ -33,6 +33,10 @@ For differences between Mifare DESFire EVx versions see: MIFARE DESFire EV3 cont
 
 DESFire protocol (overview about DESFire EV1 commands): https://github.com/revk/DESFireAES/blob/master/DESFire.pdf
 
+NTAG 424 DNA NT4H2421Gx.pdf: https://www.nxp.com/docs/en/data-sheet/NT4H2421Gx.pdf
+
+NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf: https://www.nxp.com/docs/en/application-note/AN12196.pdf
+
 NFCJLIB library: https://github.com/andrade/nfcjlib
 
 Type of messaging:

@@ -74,6 +74,7 @@ public class DesfireAuthenticateEv2 {
 
     private static final String TAG = DesfireAuthenticateEv2.class.getName();
 
+
     private IsoDep isoDep;
     private boolean printToLog = true; // print data to log
     private String logData;
@@ -128,8 +129,7 @@ public class DesfireAuthenticateEv2 {
     private final byte DELETE_TRANSACTION_MAC_FILE_COMMAND = (byte) 0xDF;
 
     private final byte CHANGE_KEY_SECURE_COMMAND = (byte) 0xC4;
-
-
+    private static final byte CHANGE_FILE_SETTINGS_COMMAND = (byte) 0x5F;
 
 
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
@@ -4183,9 +4183,181 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         // see NTAG 424 DNA NT4H2421Gx.pdf pages 71 - 72 for getFileCounters
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 23 - 25 for general workflow with FULL communication
 
+        // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 34 - 35
+        // Change NDEF file settings using Cmd.ChangeFileSettings using CommMode.Full
+        // this is based on the changeFileSettings on a NTAG 424 DNA tag
 
+        // status WORKING (getFileSettings is returning more data)
+        // 00 40 00 E0 00 01 00 C1 F1 21 20 00 00 43 00 00 43 00 00 (19 bytes)
+        //    FileOpt
 
-        return false;
+        String logData = "";
+        final String methodName = "changeFileSettingsEv2";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        // sanity checks
+        if (fileNumber < 0) {
+            Log.d(TAG, "fileNumber < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        // Encrypting the Command Data
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        // MAC_Input
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(HEADER_MAC, 0, HEADER_MAC.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        // build the cmdData, is a bit complex due to a lot of options - here it is shortened
+        byte[] commandData = hexStringToByteArray("4000E0C1F121200000430000430000");
+        log(methodName, printData("commandData", commandData));
+/*
+from: NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf page 34
+CmdData example: 4000E0C1F121200000430000430000
+40 00E0 C1 F121 200000 430000 430000
+40h = FileOption (SDM and
+Mirroring enabled), CommMode: plain
+00E0h = AccessRights (FileAR.ReadWrite: 0x0, FileAR.Change: 0x0, FileAR.Read: 0xE, FileAR.Write; 0x0)
+C1h =
+• UID mirror: 1
+• SDMReadCtr: 1
+• SDMReadCtrLimit: 0
+• SDMENCFileData: 0
+• ASCII Encoding mode: 1
+F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0x2, FileAR.SDMFileRead: 0x1)
+200000h = ENCPICCDataOffset
+430000h = SDMMACOffset
+430000h = SDMMACInputOffset
+ */
+
+        // eventually some padding is necessary with 0x80..00
+        // our fix commandData from example has 15 bytes so we do need 16 bytes
+        byte[] commandDataPadded = hexStringToByteArray("4000E0C1F12120000043000043000080");
+        log(methodName, printData("commandDataPadded", commandDataPadded));
+
+        // E(KSesAuthENC, IVc, CmdData || Padding (if necessary))
+        byte[] encryptedData = AES.encrypt(ivForCmdData, SesAuthENCKey, commandDataPadded);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // Generating the MAC for the Command APDU
+        // Cmd || CmdCounter || TI || CmdHeader = fileNumber || E(KSesAuthENC, CmdData)
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(CHANGE_FILE_SETTINGS_COMMAND); // 0x5F
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(fileNumber);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // error in Features and Hints, page 57, point 28:
+        // Data (FileNo || Offset || DataLenght || Data) is NOT correct, as well not the Data Message
+        // correct is the following concatenation:
+
+        // Data (CmdHeader = fileNumber || Encrypted Data || MAC)
+        ByteArrayOutputStream baosWriteDataCommand = new ByteArrayOutputStream();
+        baosWriteDataCommand.write(fileNumber);
+        baosWriteDataCommand.write(encryptedData, 0, encryptedData.length);
+        baosWriteDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] writeDataCommand = baosWriteDataCommand.toByteArray();
+        log(methodName, printData("writeDataCommand", writeDataCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(CHANGE_FILE_SETTINGS_COMMAND, writeDataCommand);
+            // my apdu       905f00001902aeba9fc1ec7acf5fe1c346e2b4a95939208b9b755076992800
+            // gives error   9D Permission denied error
+/*
+from NTAG424DNA sheet page 69:
+PERMISSION_DENIED
+- 9Dh PICC level (MF) is selected.
+- access right Change of targeted file has access conditions set to Fh.
+- Enabling Secure Dynamic Messaging (FileOption Bit 6 set to 1b) is only allowed for FileNo 02h.
+ */
+            // expected APDU 905F0000190261B6D97903566E84C3AE5274467E89EAD799B7C1A0EF7A0400 (31 bytes)
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+
+        // verifying the received Response MAC
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        byte[] macInput2 = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput2", macInput2));
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return true;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return false;
+        }
     }
 
 
