@@ -4301,6 +4301,8 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         try {
             apdu = wrapMessage(CHANGE_FILE_SETTINGS_COMMAND, writeDataCommand);
             // my apdu       905f00001902aeba9fc1ec7acf5fe1c346e2b4a95939208b9b755076992800
+
+            // when I append sample data this change
             // gives error   9D Permission denied error
 /*
 from NTAG424DNA sheet page 69:
