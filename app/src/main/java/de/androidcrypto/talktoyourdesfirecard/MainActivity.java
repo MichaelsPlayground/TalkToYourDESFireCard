@@ -3772,8 +3772,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte[] responseData = new byte[2];
                 writeToUiAppend(output, logString + " step 1: select ndef application");
                 // select the application
-                boolean success = desfireAuthenticateLegacy.selectApplication(ndefApplication);
-                responseData = desfireAuthenticateLegacy.getErrorCode();
+                //boolean success = desfireAuthenticateLegacy.selectApplication(ndefApplication);
+                //responseData = desfireAuthenticateLegacy.getErrorCode();
+                boolean success = desfireAuthenticateEv2.selectApplicationByAidEv2(ndefApplication);
+                responseData = desfireAuthenticateEv2.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, "select the application SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application SUCCESS", COLOR_GREEN);

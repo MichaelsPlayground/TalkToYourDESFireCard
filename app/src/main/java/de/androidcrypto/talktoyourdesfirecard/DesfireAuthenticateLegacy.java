@@ -938,7 +938,7 @@ public class DesfireAuthenticateLegacy {
 
     /**
      * manually runs the TripleDES DEcryption using the SEND mode means:
-     * XORing the ciphertext with previous ciphered block, than DEcrypt
+     * XORing the ciphertext with previous ciphered block, then DEcrypt
      * The algorithm is Triple DES using the CBC mode
      * @param tdesKeyExt : a 24 bytes long TDES key
      * @param ciphertextExt : a 16 bytes long array with the ciphertext to decrypt
@@ -965,7 +965,7 @@ public class DesfireAuthenticateLegacy {
                 " rounds to decrypt (length / 8)");
 
         log(methodName, "******** manual decryption text start ********");
-        log(methodName, "SEND mode means: XORing the ciphertext with previous ciphered block, than DEcrypt");
+        log(methodName, "SEND mode means: XORing the ciphertext with previous ciphered block, then DEcrypt");
         log(methodName, printData("tdesKey", tdesKey));
 
         log(methodName, "1 starting with an empty 'cipheredBlock' of 8 bytes length = DES block length");

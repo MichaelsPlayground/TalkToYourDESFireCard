@@ -4257,7 +4257,8 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
 
         // eventually some padding is necessary with 0x80..00
         // our fix commandData from example has 15 bytes so we do need 16 bytes
-        byte[] commandDataPadded = hexStringToByteArray("4000E0C1F12120000043000043000080");
+        //byte[] commandDataPadded = hexStringToByteArray("4000E0C1F12120000043000043000080");
+        byte[] commandDataPadded = hexStringToByteArray("40EEEEC1F12120000043000043000080");
         log(methodName, printData("commandDataPadded", commandDataPadded));
 
         // E(KSesAuthENC, IVc, CmdData || Padding (if necessary))
