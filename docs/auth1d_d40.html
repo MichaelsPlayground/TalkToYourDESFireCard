@@ -36,7 +36,7 @@ method: authenticateD40
 method: authenticateD40
 - TDES key length: 24 data: d00022446688aaccd00022446688aaccd00022446688aacc
 method: authenticateD40
-step 06 decrypt the encRndB using TripeDES.decrypt with key key length: 8 data: d00022446688aacc iv0 length: 8 data: 0000000000000000
+step 06 decrypt the encRndB using TripleDES.decrypt with key key length: 8 data: d00022446688aacc iv0 length: 8 data: 0000000000000000
 method: authenticateD40
 - encrypted rndB length: 8 data: eb0533b4bc89afcf
 method: authenticateD40
@@ -182,7 +182,7 @@ The iv is set to 8 * 0x00
 method: authenticateD40
 iv0 length: 8 data: 0000000000000000
 method: authenticateD40
-step 13 decrypt the encrypted rndA left rotated using TripeDES.decrypt with key key length: 8 data: d00022446688aacc iv0 length: 8 data: 0000000000000000
+step 13 decrypt the encrypted rndA left rotated using TripleDES.decrypt with key key length: 8 data: d00022446688aacc iv0 length: 8 data: 0000000000000000
 method: authenticateD40
 - encrypted left rotated rndA length: 8 data: eb0533b4bc89afcf
 method: authenticateD40

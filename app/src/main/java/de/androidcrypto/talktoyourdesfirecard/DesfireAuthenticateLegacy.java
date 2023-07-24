@@ -797,7 +797,7 @@ public class DesfireAuthenticateLegacy {
 
         // start the decryption
         byte[] iv0 = new byte[8];
-        log(methodName, "step 06 decrypt the encRndB using TripeDES.decrypt with key " + printData("key", key) + printData(" iv0", iv0));
+        log(methodName, "step 06 decrypt the encRndB using TripleDES.decrypt with key " + printData("key", key) + printData(" iv0", iv0));
         log(methodName, printData("- encrypted rndB", encryptedRndB));
         byte[] rndB = TripleDES.decrypt(iv0, tdesKey, encryptedRndB);
         log(methodName, printData("- decrypted rndB", rndB));
@@ -892,7 +892,7 @@ public class DesfireAuthenticateLegacy {
         log(methodName, "The iv is set to 8 * 0x00");
         log(methodName, printData("iv0", iv0));
 
-        log(methodName, "step 13 decrypt the encrypted rndA left rotated using TripeDES.decrypt with key " + printData("key", key) + printData(" iv0", iv0));
+        log(methodName, "step 13 decrypt the encrypted rndA left rotated using TripleDES.decrypt with key " + printData("key", key) + printData(" iv0", iv0));
         log(methodName, printData("- encrypted left rotated rndA", encryptedRndB));
         byte[] decryptedRndALeftRotated = TripleDES.decrypt(iv0, tdesKey, encryptedRndA);
         log(methodName, printData("- decrypted left rotated rndA", decryptedRndALeftRotated));
