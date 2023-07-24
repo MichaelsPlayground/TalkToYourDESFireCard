@@ -4382,6 +4382,261 @@ PERMISSION_DENIED
     }
 
     /**
+     * section for NDEF handling
+     */
+
+    public boolean createNdefApplicationIsoDes(TextView logTextView) {
+        // note: all data is hardcoded !
+
+        if (logTextView == null) return false;
+
+        // MIFARE DESFire CreateApplication using the default AID 000001h (see section 6.4.1 for the definition of the allowed AID values),
+        // key settings equal to 0Fh, NumOfKeys equal to 01h, File-ID equal to 10E1h, DF-name equal to D2760000850101
+        // Command: 90 CA 00 00 0E 01 00 00 0F 21 10 E1 D2 76 00 00 85 01 01 00h
+
+        // todo change this is rough code from MIFARE DESFire as Type 4 Tag AN11004.pdf
+
+        String logData = "";
+        final String methodName = "createApplicationIsoDes";
+        log(methodName, "started", true);
+
+        byte createApplicationCommand = (byte) 0xCA;
+        byte[] commandSequence = Utils.hexStringToByteArray("90CA00000E0100000F2110E1D276000085010100"); // this is the command for 0e0e
+        // byte[] commandSequence = Utils.hexStringToByteArray("90CA00000E0100000F2110E1D276000085010100"); this is the command in the pdf
+        byte[] response;
+        try {
+            Log.d(TAG, printData("commandSequence", commandSequence));
+            response = isoDep.transceive(commandSequence);
+            Log.d(TAG, printData("response", response));
+        } catch (Exception e) {
+            Log.e(TAG, "error on running the createApplicationIsoDes command " + e.getMessage());
+            return false;
+        }
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE");
+            return false;
+        }
+    }
+
+    public boolean selectNdefApplicationIso(TextView logTextView) {
+        String logData = "";
+        final String methodName = "createApplicationIsoDes";
+        log(methodName, "started", true);
+
+        // todo change this is rough programming
+        byte[] commandSequence = Utils.hexStringToByteArray("905A00000301000000");
+        //byte selectApplicationCommand = (byte) 0x5A;
+        byte[] response;
+        try {
+            Log.d(TAG, printData("commandSequence", commandSequence));
+            response = isoDep.transceive(commandSequence);
+            Log.d(TAG, printData("response", response));
+        } catch (Exception e) {
+            Log.e(TAG,  methodName +  " ERROR " + e.getMessage());
+            return false;
+        }
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE");
+            return false;
+        }
+    }
+
+    public boolean createNdefContainerFileIso(TextView logTextView) {
+
+        // this code is taken from MIFARE DESFire as Type 4 Tag AN11004.pdf
+        // this is raw code with fixed data, todo CHANGE
+        /*
+        step 4
+        MIFARE DESFire CreateStdDataFile with FileNo equal to 01h (CC File DESFire FID),
+        ISO FileID equal to E103h, ComSet equal to 00h, AccessRights equal to EEEEh,
+        FileSize bigger equal to 00000Fh
+        Command: 90 CD 00 00 09 01 03 E1 00 00 E0 0F 00 00 00h
+        NOTE: There is an error in the command, the Access Rights do have a wrong value
+
+        step 6
+        MIFARE DESFire CreateStdDataFile with FileNo equal to 02h (NDEF File DESFire FID),
+        ISO FileID equal to E104h, ComSet equal to 00h, AccessRights equal to EEE0h,
+        FileSize equal to 000800h (2048 Bytes)
+        Command: 90 CD 00 00 09 02 04 E1 00 E0 EE 00 08 00 00h
+         */
+
+        String logData = "";
+        final String methodName = "createNdefContainerFileIso";
+        log(methodName, "started", true);
+
+        byte[] commandSequence = Utils.hexStringToByteArray("90CD0000090103E100EEEE0F000000");
+        byte createApplicationCommand = (byte) 0xCD;
+        byte[] response;
+        try {
+            Log.d(TAG, printData("commandSequence", commandSequence));
+            response = isoDep.transceive(commandSequence);
+            Log.d(TAG, printData("response", response));
+        } catch (Exception e) {
+            Log.e(TAG,  methodName +  " ERROR " + e.getMessage());
+            return false;
+        }
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE");
+            return false;
+        }
+    }
+
+    public boolean writeToNdefContainerFileIso(TextView logTextView) {
+
+        String logData = "";
+        final String methodName = "writeToNdefContainerFileIso";
+        log(methodName, "started", true);
+
+        byte[] NDEF_CONTAINER = Utils.hexStringToByteArray("000F20003A00340406E10401000000"); // 256 byte
+        byte FILE_ID_01 = (byte) 0x01;
+        // build the apdu
+        byte[] offset = new byte[]{(byte) 0x00, (byte) 0xf00, (byte) 0x00}; // write at the beginning, fixed
+        byte[] lengthOfData = Utils.intTo3ByteArrayInversed(NDEF_CONTAINER.length);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(FILE_ID_01); // fileNumber
+        baos.write(offset, 0, offset.length);
+        baos.write(lengthOfData, 0, lengthOfData.length);
+        baos.write(NDEF_CONTAINER, 0, NDEF_CONTAINER.length);
+        byte[] commandParameter = baos.toByteArray();
+        byte writeStandardFileCommand = (byte) 0x3D;
+        byte[] wrappedCommand;
+        byte[] response;
+        try {
+            Log.d(TAG, printData("commandParameter", commandParameter));
+            wrappedCommand = wrapMessage(writeStandardFileCommand, commandParameter);
+            Log.d(TAG, printData("wrappedCommand", wrappedCommand));
+            response = isoDep.transceive(wrappedCommand);
+            Log.d(TAG, printData("response", response));
+        } catch (Exception e) {
+            Log.e(TAG,  methodName +  " ERROR " + e.getMessage());
+            return false;
+        }
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE");
+            return false;
+        }
+    }
+
+    public boolean createNdefFile2Iso(TextView logTextView) {
+
+        // this code is taken from MIFARE DESFire as Type 4 Tag AN11004.pdf
+        // this is raw code with fixed data, todo CHANGE
+        /*
+        step 4
+        MIFARE DESFire CreateStdDataFile with FileNo equal to 01h (CC File DESFire FID),
+        ISO FileID equal to E103h, ComSet equal to 00h, AccessRights equal to EEEEh,
+        FileSize bigger equal to 00000Fh
+        Command: 90 CD 00 00 09 01 03 E1 00 00 E0 0F 00 00 00h
+        NOTE: There is an error in the command, the Access Rights do have a wrong value
+
+        step 6
+        MIFARE DESFire CreateStdDataFile with FileNo equal to 02h (NDEF File DESFire FID),
+        ISO FileID equal to E104h, ComSet equal to 00h, AccessRights equal to EEE0h,
+        FileSize equal to 000800h (2048 Bytes)
+        Command: 90 CD 00 00 09 02 04 E1 00 E0 EE 00 08 00 00h
+         */
+
+        String logData = "";
+        final String methodName = "createNdefFile2Iso";
+        log(methodName, "started", true);
+
+        //byte[] commandSequence = Utils.hexStringToByteArray("90CD0000090204E140E0EE00010000"); // 256 byte // ERROR 9d error
+        //byte[] commandSequence = Utils.hexStringToByteArray("90CD0000120204E14000E0C1F12120000043000043000000"); // error 7e command length error
+        byte[] commandSequence = Utils.hexStringToByteArray("90CD0204E100EEE0000100BF25B5B1446EFC2E00"); // this seems to work, taken from TapLinx
+        byte[] commandSequenceSdm1 = Utils.hexStringToByteArray("90CD0204E100EEE0000100BF25B5B1446EFC2E00"); // error 7e
+        byte[] commandSequenceSdm2 = Utils.hexStringToByteArray("90CD0204E140EEE0000100E922B3C4DFBEF1E600");// error 7e
+        byte[] response;
+        byte[] wrappedCommand;
+        try {
+            /*
+            Log.d(TAG, printData("commandParameter", commandParameter));
+            wrappedCommand = wrapMessage(createNdefFile2Command, commandParameter);
+            Log.d(TAG, printData("wrappedCommand", wrappedCommand));
+            response = isoDep.transceive(wrappedCommand);
+             */
+            //Log.d(TAG, printData("commandSequence", commandSequence));
+            //response = isoDep.transceive(commandSequence);
+            Log.d(TAG, printData("commandSequenceSdm1", commandSequenceSdm1));
+            response = isoDep.transceive(commandSequenceSdm1);
+            Log.d(TAG, printData("response", response));
+        } catch (Exception e) {
+            Log.e(TAG,  methodName +  " ERROR " + e.getMessage());
+            return false;
+        }
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE");
+            return false;
+        }
+    }
+
+    public boolean writeToNdefFile2Iso(TextView logTextView) {
+
+        String logData = "";
+        final String methodName = "writeToNdefFile2Iso";
+        log(methodName, "started", true);
+
+        //byte[] NDEF_CONTAINER = Utils.hexStringToByteArray("000F20003A00340406E10401000000"); // 256 byte
+
+        byte[] NDEF_Message = Utils.hexStringToByteArray("0056D10152550463686F6F73652E75726C2E636F6D2F6E7461673432343F653D3030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303939");
+/*
+# NDEF file contents:
+[000] 00 56 D1 01 52 55 04 63 68 6F 6F 73 65 2E 75 72 |.V..RU.choose.ur|
+[010] 6C 2E 63 6F 6D 2F 6E 74 61 67 34 32 34 3F 65 3D |l.com/ntag424?e=|
+[020] 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 |0000000000000000|
+[030] 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 |0000000000000000|
+[040] 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 |0000000000000000|
+[050] 30 30 30 30 30 30 39 39 00 00 00 00 00 00 00 00 |00000099........|
+ */
+        Log.d(TAG, printData("NDEF_Message",NDEF_Message));
+
+        byte FILE_ID_02 = (byte) 0x02;
+        // build the apdu
+        byte[] offset = new byte[]{(byte) 0x00, (byte) 0xf00, (byte) 0x00}; // write at the beginning, fixed
+        byte[] lengthOfData = Utils.intTo3ByteArrayInversed(NDEF_Message.length);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(FILE_ID_02); // fileNumber
+        baos.write(offset, 0, offset.length);
+        baos.write(lengthOfData, 0, lengthOfData.length);
+        baos.write(NDEF_Message, 0, NDEF_Message.length);
+        byte[] commandParameter = baos.toByteArray();
+        byte writeStandardFileCommand = (byte) 0x3D;
+        byte[] wrappedCommand;
+        byte[] response;
+        try {
+            Log.d(TAG, printData("commandParameter", commandParameter));
+            wrappedCommand = wrapMessage(writeStandardFileCommand, commandParameter);
+            Log.d(TAG, printData("wrappedCommand", wrappedCommand));
+            response = isoDep.transceive(wrappedCommand);
+            Log.d(TAG, printData("response", response));
+        } catch (Exception e) {
+            Log.e(TAG,  methodName +  " ERROR " + e.getMessage());
+            return false;
+        }
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE");
+            return false;
+        }
+    }
+
+    /**
      * section for key handling and byte operations
      */
 

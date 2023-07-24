@@ -3758,6 +3758,96 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
          * section for sdm handling
          */
 
+        createNdefFile256.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "SDM createNdefFile256";
+                writeToUiAppend(output, logString);
+
+                // this is running the complete workflow to setup an NDEF application
+                // we do need an empty tag so best option is to format the tag before
+
+                // select the master file application
+                writeToUiAppend(output, "");
+                writeToUiAppend(output, "1. MIFARE DESFire SelectApplication with AID equal to 000000h (PICC level)");
+                boolean success = desfireAuthenticateEv2.selectApplicationByAidEv2(new byte[3]);
+                if (!success) {
+                    writeToUiAppend(output, "Error during SelectApplication with AID equal to 000000h (PICC level), aborted");
+                    return;
+                }
+
+                byte[] AID_NDEF = Utils.hexStringToByteArray("010000"); // the AID is 00 00 01 but data is in low endian
+                byte[] ISO_APPLICATION_ID = Utils.hexStringToByteArray("10E1"); // the AID is E110 but written in low endian
+                byte APPLICATION_KEY_SETTINGS = (byte) 0x0F;
+                byte numberOfKeys = (byte) 0x21; // number of keys: 1, TDES keys
+                //byte COMMUNICATION_SETTINGS = (byte) 0x0f;
+                byte FILE_ID_01 = (byte) 0x01;
+                byte[] ISO_FILE_ID_01 = Utils.hexStringToByteArray("03E1"); // the file ID is E103 but written as low endian
+                int FILE_01_SIZE = 15;
+
+                byte FILE_ID_02 = (byte) 0x02;
+                byte[] ISO_FILE_ID_02 = Utils.hexStringToByteArray("04E1");// the file ID is E104 but written as low endian
+                int FILE_02_SIZE = 256; // NDEF FileSize equal to 000100h (256 Bytes)
+                byte[] ISO_DF = Utils.hexStringToByteArray("D2760000850101"); // this is the AID for NDEF
+
+                writeToUiAppend(output, "");
+                writeToUiAppend(output, "2. MIFARE DESFire CreateApplication using the default AID 000001h");
+                success = desfireAuthenticateEv2.createNdefApplicationIsoDes(output);
+                if (!success) {
+                    writeToUiAppend(output, "Error during CreateApplication using the default AID 000001h, aborted");
+                    return;
+                }
+
+                writeToUiAppend(output, "");
+                writeToUiAppend(output, "3. MIFARE DESFire SelectApplication (Select previously created application)");
+                success = desfireAuthenticateEv2.selectNdefApplicationIso(output);
+                if (!success) {
+                    writeToUiAppend(output, "Error during SelectApplication using the default AID 000001h, aborted");
+                    return;
+                }
+
+                // step 04 create the NDEF container = standard file
+                writeToUiAppend(output, "");
+                writeToUiAppend(output, "4. MIFARE DESFire NDEF Container CreateStdDataFile with FileNo equal to 01h");
+                success = desfireAuthenticateEv2.createNdefContainerFileIso(output);
+                if (!success) {
+                    writeToUiAppend(output, "Error during NDEF Container CreateStdDataFile with FileNo equal to 01, aborted");
+                    return;
+                }
+
+                // step 05 write to standard file
+                writeToUiAppend(output, "");
+                writeToUiAppend(output, "5. MIFARE DESFire WriteData to write the content of the CC File with CCLEN equal to 000Fh");
+                success = desfireAuthenticateEv2.writeToNdefContainerFileIso(output);
+                if (!success) {
+                    writeToUiAppend(output, "Error during NDEF WriteData to write the content of the CC File with CCLEN equal to 000Fh, aborted");
+                    return;
+                }
+
+                // step 06 create a standard file
+                writeToUiAppend(output, "");
+                writeToUiAppend(output, "6. MIFARE DESFire NDEF File2 CreateStdDataFile with FileNo equal to 02h");
+                success = desfireAuthenticateEv2.createNdefFile2Iso(output);
+                if (!success) {
+                    writeToUiAppend(output, "Error during NDEF File2 CreateStdDataFile with FileNo equal to 02, aborted");
+                    return;
+                }
+
+                // step 07 write to standard file
+                writeToUiAppend(output, "");
+                writeToUiAppend(output, "7. MIFARE DESFire NDEF File2 WriteStdDataFile with FileNo equal to 02h");
+                success = desfireAuthenticateEv2.writeToNdefFile2Iso(output);
+                if (!success) {
+                    writeToUiAppend(output, "Error during NDEF File2 CreateStdDataFile with FileNo equal to 02, aborted");
+                    return;
+                }
+                writeToUiAppend(output, logString + " SUCCESS");
+                vibrateShort();
+                return;
+            }
+        });
+
         sdmChangeFileSettings.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
