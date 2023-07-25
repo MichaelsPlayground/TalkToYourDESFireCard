@@ -106,6 +106,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button completeTransactionMacFileEv2;
 
     /**
+     * section for SDM tasks
+     */
+
+    private Button createNdefFile256Ev2, sdmChangeFileSettingsEv2, sdmTestFileSettingsEv2;
+
+    /**
      * section for standard file handling
      */
 
@@ -147,12 +153,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button changeKeyDes00ToChangedDesVisualizing, changeKeyDes00ToDefaultDesVisualizing;
     private Button changeKeyDes01ToChangedDesVisualizing, changeKeyDes01ToDefaultDesVisualizing, authDesVisualizingC;
     private Button changeKeyDes01ToChanged2DesVisualizing, changeKeyDes01ToDefault2DesVisualizing, authDesVisualizingC2;
-
-    /**
-     * section for SDM tasks
-     */
-
-    private Button createNdefFile256, sdmChangeFileSettings;
 
     /**
      * section for constants
@@ -330,6 +330,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         getCardUidEv2 = findViewById(R.id.btnGetCardUidEv2);
         getFileSettingsEv2 = findViewById(R.id.btnGetFileSettingsEv2);
 
+        // methods for sdm
+        createNdefFile256Ev2 = findViewById(R.id.btnCreateNdef256);
+        sdmChangeFileSettingsEv2 = findViewById(R.id.btnSdmChangeFileSettings);
+        sdmTestFileSettingsEv2 = findViewById(R.id.btnSdmTestFileSettings);
+
         //fileCreateEv2 = findViewById(R.id.btnCreateFilesEv2);
 
         fileStandardCreateEv2 = findViewById(R.id.btnCreateStandardFileEv2);
@@ -402,10 +407,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         // this is for changing the CHANGED key to CHANGED 2 key and from CHANGED 2 key to DEFAULT key
         changeKeyDes01ToChanged2DesVisualizing = findViewById(R.id.btnDesVisualizeChangeKeyDes01ToChanged2);
         changeKeyDes01ToDefault2DesVisualizing = findViewById(R.id.btnDesVisualizeChangeKeyDes01ToDefault2);
-
-        // methods for sdm
-        createNdefFile256 = findViewById(R.id.btnCreateNdef256);
-        sdmChangeFileSettings = findViewById(R.id.btnSdmChangeFileSettings);
 
 
         // some presets
@@ -3758,7 +3759,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
          * section for sdm handling
          */
 
-        createNdefFile256.setOnClickListener(new View.OnClickListener() {
+        createNdefFile256Ev2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 clearOutputFields();
@@ -3848,7 +3849,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
-        sdmChangeFileSettings.setOnClickListener(new View.OnClickListener() {
+        sdmChangeFileSettingsEv2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 clearOutputFields();
@@ -3924,6 +3925,51 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
             }
         });
+
+        sdmTestFileSettingsEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "SDM testFileSettings";
+                writeToUiAppend(output, logString);
+
+                // this is only testing the FileSettings class when input is SDM enriched data
+                // typical getFileSettings respond 00 40 00 E0 00 01 00 C1 F1 21 20 00 00 43 00 00 43 00 00 (19 bytes)
+                // response from NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf, page 21
+                // response from 0040EEEE000100D1FE001F00004400004400002000006A0000
+
+                byte[] fileSettingsStandardResponse = Utils.hexStringToByteArray("0003301F000100"); // Standard file: FileType || FileOption || AccessRights || FileSize
+                byte[] fileSettingsSdmResponse =    Utils.hexStringToByteArray("004000E0000100C1F121200000430000430000");
+                //byte[] fileSettingsSdm424Response = Utils.hexStringToByteArray("0040EEEE000100D1FE001F00004400004400002000006A0000");
+                byte[] fileSettingsSdm424Response = Utils.hexStringToByteArray("004000E0000100F12121200000430000430000");
+/*
+40h = FileOption (SDM and
+Mirroring enabled), CommMode: plain
+00E0h = AccessRights (FileAR.ReadWrite: 0x0, FileAR.Change: 0x0, FileAR.Read: 0xE, FileAR.Write; 0x0)
+C1h =
+• UID mirror: 1
+• SDMReadCtr: 1
+• SDMReadCtrLimit: 0
+• SDMENCFileData: 0
+• ASCII Encoding mode: 1
+• F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0x2, FileAR.SDMFileRead: 0x1)
+• 200000h = ENCPICCDataOffset
+• 430000h = SDMMACOffset
+• 430000h = SDMMACInputOffset
+*/
+                byte fileNumber = (byte) 0x01;
+                FileSettings fileSettingsStandard = new FileSettings(fileNumber, fileSettingsStandardResponse);
+                writeToUiAppend(output, fileSettingsStandard.dump());
+                fileNumber = (byte) 0x02;
+                FileSettings fileSettingsSdm = new FileSettings(fileNumber, fileSettingsSdmResponse);
+                writeToUiAppend(output, fileSettingsSdm.dump());
+                fileNumber = (byte) 0x03;
+                FileSettings fileSettingsSdm424 = new FileSettings(fileNumber, fileSettingsSdm424Response);
+                writeToUiAppend(output, fileSettingsSdm424.dump());
+            }
+        });
+
+
     }
 
     /**

@@ -34,10 +34,32 @@ public class FileSettings {
     private byte[] recordsExisting; // 3 bytes
     private int recordsExistingInt;
     // the following variables are available for transaction mac files
-    byte fileOption;
-    byte tmKeyOption;
-    byte tmKeyVersion;
-    byte[] tmcLimit; // is optional and present if Bit5 of FileOption set. Length is depending on AES mode (4 byte) or LRP mde (2 byte)
+    private byte tmkFileOption;
+    private byte tmKeyOption;
+    private byte tmKeyVersion;
+    private byte[] tmcLimit; // is optional and present if Bit5 of FileOption set. Length is depending on AES mode (4 byte) or LRP mde (2 byte)
+    // section for sdm enriched file settings
+    private boolean isNonStandardFileOption = false; // is set to true when fileOptions > 3
+    private boolean isSdmEnabled = false;
+    private byte sdmFileOption; // in use when isSdmEnabled == true
+    private boolean isSdmOptionsBit0_Encode = false; // Encoding mode, only true ASCII when set
+    // bit 1-3 RFU
+    private boolean isSdmOptionsBit4_SDMENCFileData = false; // SDMENCFileData, true = enabled
+    private boolean isSdmOptionsBit5_SDMReadCtrLimit = false; // SDMReadCtrLimit, true = enabled
+    private boolean isSdmOptionsBit6_SDMReadCtr = false; // SDMReadCtr, true = enabled
+    private boolean isSdmOptionsBit7_UID = false; // UID (only for mirroring), true = enabled
+    private byte[] SDM_AccessRights = new byte[2];
+    private byte SDM_MetaReadAccessRight;
+    private byte SDM_FileReadAccessRight;
+    private byte SDM_CtrRetAccessRight;
+    private byte[] SDM_UIDOffset;
+    private byte[] SDM_ReadCtrOffset;
+    private byte[] SDM_PICCDataOffset;
+    private byte[] SDM_MACInputOffset;
+    private byte[] SDM_ENCOffset;
+    private byte[] SDM_ENCLength;
+    private byte[] SDM_MACOffset;
+    private byte[] SDM_ReadCtrLimit;
 
     private byte[] completeResponse; // the complete data returned on getFileSettings command
 
@@ -75,7 +97,7 @@ public class FileSettings {
             fileSizeInt = 12; // default
             fileSize = intTo3ByteArrayInversed(fileSizeInt);
 
-            fileOption = completeResponse[position]; // need to differentiate later, e.g. bit 1-0 contain the communicationSettings
+            tmkFileOption = completeResponse[position]; // need to differentiate later, e.g. bit 1-0 contain the communicationSettings
             communicationSettings = (byte) 0x00; // todo change, this is hardcoded and not read
             if (communicationSettings == (byte) 0x00) communicationSettingsName = COMMUNICATION_SETTING_NAME_PLAIN;
             if (communicationSettings == (byte) 0x01) communicationSettingsName = COMMUNICATION_SETTING_NAME_CMACED;
@@ -139,7 +161,19 @@ public class FileSettings {
             // standard and backup file
             fileSize = Arrays.copyOfRange(completeResponse, position, position + 3);
             fileSizeInt = byteArrayLength3InversedToInt(fileSize);
-            return;
+            // enhancement for Secure Data Management (SDM) enriched content
+            if (communicationSettings > 3) {
+                // this is a SDM enriched getFileSettings respond because the fileOption
+                // (the byte where the communication settings are included) is 40 or something else
+                // we need to work on bit basis now to find out all options
+                isNonStandardFileOption = true;
+                // as more data may follow we are setting the position to the new value
+                position = position + 3; // position after fileSize
+                analyzeSdmEnrichedFileSettings(position);
+            } else {
+                // this is a regular getFileSettingsResponse, finishing
+                return;
+            }
         }
         if (fileType == (byte) 0x02) {
             // value file
@@ -178,6 +212,158 @@ public class FileSettings {
         }
     }
 
+    /**
+     * if byte 1 of the fileSettingsRespond ("communication settings") is > 3 we received a
+     * Secure Data Messaging (SDM) enriched fileSettingsRespond
+     * Analyzing is done on bit basis of byte 1 and reading additional optional values
+     * This is based on NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf and
+     * NTAG 424 DNA NT4H2421Gx.pdf 'getFileSettings' pages 69 - 71
+     *                         and 'changeFileSettings' page 65 - 71
+     *
+     * At the moment the SDM enriched fileSettings may occur on Standard files only ?
+     */
+    private void analyzeSdmEnrichedFileSettings(int position) {
+        // typical getFileSettings respond 00 40 00 E0 00 01 00 C1 F1 21 20 00 00 43 00 00 43 00 00 (19 bytes)
+        // I'm using the name 'fileOption' for byte 1 that is communication settings without SDM
+        sdmFileOption = communicationSettings;
+        boolean fileOptionBit0 = testBit(sdmFileOption, 0);
+        // communication settings: if bit0 is unset: Plain, No protection: message is transmitted in plain text
+        // communication settings: if bit0 is set:   MACed or FullEnciphered, depending on bit1
+        boolean fileOptionBit1 = testBit(sdmFileOption, 1); // communication settings
+        // communication settings: if bit1 is unset: MACed, MAC protection for integrity and authenticity
+        // communication settings: if bit1 is set:   FullEnciphered, Full protection for integrity, authenticity and confidentiality, also referred to as "Full Protection" mode
+        // new value for communication settings
+        if (!fileOptionBit0) {
+            // plain mode
+            communicationSettings = (byte) 0x00;
+            communicationSettingsName = COMMUNICATION_SETTING_NAME_PLAIN;
+        } else {
+            // MACed or FullEnciphered
+            if (!fileOptionBit1) {
+                communicationSettings = (byte) 0x01;
+                communicationSettingsName = COMMUNICATION_SETTING_NAME_CMACED;
+            } else {
+                communicationSettings = (byte) 0x03;
+                communicationSettingsName = COMMUNICATION_SETTING_NAME_ENCRYPTED;
+            }
+        }
+        // analyzing the other bits
+        // bits 2-5 and 7 are RFU
+        boolean fileOptionBit6 = testBit(sdmFileOption, 6); // if bit6 is unset: Secure Dynamic Messaging and Mirroring disabled
+        if (fileOptionBit6) {
+            // sdm is enabled
+            isSdmEnabled = true;
+        } else {
+            // sdm is disabled
+            isSdmEnabled = false;
+        }
+
+        // if not enabled no further to do's, finish analysis
+        if (!isSdmEnabled) {
+            return;
+        }
+        // now we can analyze for the next byte that is SDM options
+        byte sdmOptions = completeResponse[position];
+        isSdmOptionsBit0_Encode = testBit(sdmOptions, 0); // Encoding mode, only true ASCII when set
+        // bit 1-3 RFU
+        isSdmOptionsBit4_SDMENCFileData = testBit(sdmOptions, 4); // SDMENCFileData, true = enabled
+        isSdmOptionsBit5_SDMReadCtrLimit = testBit(sdmOptions, 5); // SDMReadCtrLimit, true = enabled
+        isSdmOptionsBit6_SDMReadCtr = testBit(sdmOptions, 6); // SDMReadCtr, true = enabled
+        isSdmOptionsBit7_UID = testBit(sdmOptions, 7); // UID (only for mirroring), true = enabled
+        position ++;
+        // SDMAccessRights, 2 bytes, [Optional, present if FileOption[Bit 6] set]
+        // at this point FileOption bit6 is set (SDM enabled)
+        SDM_AccessRights = Arrays.copyOfRange(completeResponse, position, position + 2);
+        position = position + 2;
+
+        // bit 15-12 SDMMetaReadAccessRight
+        SDM_MetaReadAccessRight = (byte) ((SDM_AccessRights[0] >> 4) & 0x0f);
+        // Bit 11- 8 SDMFileReadAccessRight
+        SDM_FileReadAccessRight = (byte) (SDM_AccessRights[0] & 0x0f);
+        // Bit 7-4 RFU
+        // Bit 3-0
+        SDM_CtrRetAccessRight = (byte) (SDM_AccessRights[1] & 0x0f);
+
+        // UIDOffset 3 bytes
+        // [Optional, present if ((SDMOptions[Bit 7] = 1b) AND (SDMMetaRead access right = Eh)]
+        // Mirror position (LSB first) for UID
+        // 0h .. (FileSize - UIDLength) = Offset within the file
+        if (isSdmOptionsBit7_UID && (SDM_MetaReadAccessRight == (byte) 0x0E)) {
+            SDM_UIDOffset = Arrays.copyOfRange(completeResponse, position, position + 3);
+            position = position + 3;
+        }
+
+        // SDMReadCtrOffset 3 bytes
+        // [Optional, present if ((SDMOptions[Bit 6] = 1b) AND (SDMMetaRead access right = Eh)]
+        // Mirror position (LSB first) for SDMReadCtr
+        // 0h .. (FileSize - SDMReadCtrLength) = Offset within the file
+        // FFFFFFh = No SDMReadCtr mirroring
+        if (isSdmOptionsBit6_SDMReadCtr && (SDM_MetaReadAccessRight == (byte) 0x0E)) {
+            SDM_ReadCtrOffset = Arrays.copyOfRange(completeResponse, position, position + 3);
+            position = position + 3;
+        }
+
+        // PICCDataOffset 3 bytes
+        // [Optional, present if SDMMetaRead access right =0h..4h] - Note: 4h value is for NTAG424DNA
+        // Mirror position (LSB first) for encrypted PICCData
+        // 0h .. (FileSize - PICCDataLength) = Offset within the file
+        if ((SDM_MetaReadAccessRight > 0) && (SDM_MetaReadAccessRight < 14)) {
+            SDM_PICCDataOffset = Arrays.copyOfRange(completeResponse, position, position + 3);
+            position = position + 3;
+        }
+
+        // SDMMACInputOffset 3 bytes
+        // [Optional, present if SDMFileRead access right != Fh]
+        // Offset in the file where the SDM MAC computation starts (LSB first)
+        // 0h .. (SDMMACOffset) = Offset within the file
+        if (SDM_FileReadAccessRight != (byte) 0x0F) {
+            SDM_MACInputOffset = Arrays.copyOfRange(completeResponse, position, position + 3);
+            position = position + 3;
+        }
+
+        // SDMENCOffset 3 bytes
+        // [Optional, present if ((SDMFileRead access right != Fh) AND (SDMOptions[Bit 4] = 1b))]
+        // SDMENCFileData mirror position (LSB first)
+        // SDMMACInputOffset .. (SDMMACOffset - 32) = Offset within the file
+        if ((isSdmOptionsBit4_SDMENCFileData) && (SDM_FileReadAccessRight != (byte) 0x0F)) {
+            SDM_ENCOffset = Arrays.copyOfRange(completeResponse, position, position + 3);
+            position = position + 3;
+        }
+
+        // SDMENCLength 3 bytes
+        // Optional, present if ((SDMFileRead access right != Fh) AND (SDMOptions[Bit 4] = 1b))]
+        // Length of the SDMENCFileData (LSB first)
+        // 32 .. (SDMMACOffset - SDMENCOffset) = Offset within the file, must be multiple of 32
+        if ((isSdmOptionsBit4_SDMENCFileData) && (SDM_FileReadAccessRight != (byte) 0x0F)) {
+            SDM_ENCLength = Arrays.copyOfRange(completeResponse, position, position + 3);
+            position = position + 3;
+        }
+
+        // SDMMACOffset 3 bytes
+        // [Optional, present if SDMFileRead access right != Fh]
+        // SDMMAC mirror position (LSB first)
+        // SDMMACInputOffset .. (FileSize - 16) [if (SDMFileRead access right != Fh) AND (SDMOptions[Bit 4] = 0b)] = Offset within the file
+        // (SDMENCOffset + SDMENCLength) .. (FileSize- 16) [if (SDMFileRead access right != Fh) AND (SDMOptions[Bit 4] = 1b)] = Offset within the file
+        if (SDM_FileReadAccessRight != (byte) 0x0F) {
+            SDM_MACOffset = Arrays.copyOfRange(completeResponse, position, position + 3);
+            position = position + 3;
+        }
+
+        // SDMReadCtrLimit 3 bytes
+        // [Optional, present if SDMOptions[Bit 5] = 1b]
+        // SDMReadCtrLimit value (LSB first)
+        // Full range
+        if (isSdmOptionsBit5_SDMReadCtrLimit) {
+            SDM_ReadCtrLimit = Arrays.copyOfRange(completeResponse, position, position + 3);
+            // position = position + 3; // finished
+        }
+
+        // typical getFileSettings respond 00 40 00 E0 00 01 00 C1 F1 21 20 00  00 43 00 00 43 00 00 (19 bytes)
+        // response from NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf, page 21
+        // response from 0040EEEE000100D1FE00 1F 00004400004400002000006A0000
+
+    }
+
     public String dump() {
         StringBuilder sb = new StringBuilder();
         sb.append("fileNumber: ").append(byteToHex(fileNumber)).append("\n");
@@ -205,11 +391,34 @@ public class FileSettings {
         }
         if (fileType == (byte) 0x05) {
             sb.append("fileSize: ").append(byteArrayLength3InversedToInt(fileSize)).append("\n");
-            sb.append("fileOption: ").append(fileOption).append("\n");
+            sb.append("fileOption: ").append(tmkFileOption).append("\n");
             sb.append("tmKeyOption: ").append(tmKeyOption).append("\n");
             sb.append("tmKeyVersion: ").append(tmKeyVersion).append("\n");
             sb.append("tmcLimit: ").append(bytesToHexNpeUpperCase(tmcLimit)).append("\n");
             sb.append("don't rely on communicationSettings and tmcLimit !").append("\n");
+        }
+        if (isNonStandardFileOption) {
+            sb.append("non standard fileOption found").append("\n");
+            sb.append("sdmFileOption: ").append(sdmFileOption).append("\n");
+            sb.append("isSdmEnabled: ").append(isSdmEnabled).append("\n");
+            sb.append("isSdmOptionsBit0_Encode: ").append(isSdmOptionsBit0_Encode).append("\n");
+            sb.append("isSdmOptionsBit4_SDMENCFileData: ").append(isSdmOptionsBit4_SDMENCFileData).append("\n");
+            sb.append("isSdmOptionsBit5_SDMReadCtrLimit: ").append(isSdmOptionsBit5_SDMReadCtrLimit).append("\n");
+            sb.append("isSdmOptionsBit6_SDMReadCtr: ").append(isSdmOptionsBit6_SDMReadCtr).append("\n");
+            sb.append("isSdmOptionsBit7_UID: ").append(isSdmOptionsBit7_UID).append("\n");
+            sb.append("SDM_AccessRights: ").append(bytesToHexNpeUpperCase(SDM_AccessRights)).append("\n");
+            sb.append("SDM_MetaReadAccessRight: ").append(byteToHex(SDM_MetaReadAccessRight)).append("\n");
+            sb.append("SDM_FileReadAccessRight: ").append(byteToHex(SDM_FileReadAccessRight)).append("\n");
+            sb.append("SDM_CtrRetAccessRight: ").append(byteToHex(SDM_CtrRetAccessRight)).append("\n");
+            sb.append("optional values depending on bit settings (LSB)").append("\n");
+            sb.append("SDM_UIDOffset      ").append(bytesToHexNpeUpperCase(SDM_UIDOffset)).append("\n");
+            sb.append("SDM_ReadCtrOffset  ").append(bytesToHexNpeUpperCase(SDM_ReadCtrOffset)).append("\n");
+            sb.append("SDM_PICCDataOffset ").append(bytesToHexNpeUpperCase(SDM_PICCDataOffset)).append("\n");
+            sb.append("SDM_MACInputOffset ").append(bytesToHexNpeUpperCase(SDM_MACInputOffset)).append("\n");
+            sb.append("SDM_ENCOffset      ").append(bytesToHexNpeUpperCase(SDM_ENCOffset)).append("\n");
+            sb.append("SDM_ENCLength      ").append(bytesToHexNpeUpperCase(SDM_ENCLength)).append("\n");
+            sb.append("SDM_MACOffset      ").append(bytesToHexNpeUpperCase(SDM_MACOffset)).append("\n");
+            sb.append("SDM_ReadCtrLimit   ").append(bytesToHexNpeUpperCase(SDM_ReadCtrLimit)).append("\n");
         }
         return sb.toString();
     }
@@ -241,6 +450,43 @@ public class FileSettings {
             result.append(Integer.toString((b & 0xff) + 0x100, 16).substring(1));
         return result.toString().toUpperCase();
     }
+
+    // position is 0 based starting from right to left
+    private static byte setBitInByte(byte input, int pos) {
+        return (byte) (input | (1 << pos));
+    }
+
+    // position is 0 based starting from right to left
+    private static byte unsetBitInByte(byte input, int pos) {
+        return (byte) (input & ~(1 << pos));
+    }
+
+    // https://stackoverflow.com/a/29396837/8166854
+    private static boolean testBit(byte b, int n) {
+        int mask = 1 << n; // equivalent of 2 to the nth power
+        return (b & mask) != 0;
+    }
+
+    // https://stackoverflow.com/a/29396837/8166854
+    private static boolean testBit(byte[] array, int n) {
+        int index = n >>> 3; // divide by 8
+        int mask = 1 << (n & 7); // n modulo 8
+        return (array[index] & mask) != 0;
+    }
+
+    // get the byte encoded value of a 4 bit chunk, index is counting from LEFT to RIGHT
+    // https://stackoverflow.com/a/14533405/8166854
+    private byte getByteFromByteArray4BitChunk(byte[] data, int index) {
+        if (index % 2 == 0) {
+            return (byte) (data[index/2] >>> 4); // unsigned bit shift
+        }else{
+            return (byte) (data[index/2] & 0x0F);
+        }
+    }
+
+    /**
+     * section for getter
+     */
 
     public byte getFileNumber() {
         return fileNumber;
@@ -288,5 +534,77 @@ public class FileSettings {
 
     public int getRecordsExistingInt() {
         return recordsExistingInt;
+    }
+
+    public boolean isNonStandardFileOption() {
+        return isNonStandardFileOption;
+    }
+
+    public boolean isSdmEnabled() {
+        return isSdmEnabled;
+    }
+
+    public boolean isSdmOptionsBit0_Encode() {
+        return isSdmOptionsBit0_Encode;
+    }
+
+    public boolean isSdmOptionsBit4_SDMENCFileData() {
+        return isSdmOptionsBit4_SDMENCFileData;
+    }
+
+    public boolean isSdmOptionsBit5_SDMReadCtrLimit() {
+        return isSdmOptionsBit5_SDMReadCtrLimit;
+    }
+
+    public boolean isSdmOptionsBit6_SDMReadCtr() {
+        return isSdmOptionsBit6_SDMReadCtr;
+    }
+
+    public boolean isSdmOptionsBit7_UID() {
+        return isSdmOptionsBit7_UID;
+    }
+
+    public byte getSDM_MetaReadAccessRight() {
+        return SDM_MetaReadAccessRight;
+    }
+
+    public byte getSDM_FileReadAccessRight() {
+        return SDM_FileReadAccessRight;
+    }
+
+    public byte getSDM_CtrRetAccessRight() {
+        return SDM_CtrRetAccessRight;
+    }
+
+    public byte[] getSDM_UIDOffset() {
+        return SDM_UIDOffset;
+    }
+
+    public byte[] getSDM_ReadCtrOffset() {
+        return SDM_ReadCtrOffset;
+    }
+
+    public byte[] getSDM_PICCDataOffset() {
+        return SDM_PICCDataOffset;
+    }
+
+    public byte[] getSDM_MACInputOffset() {
+        return SDM_MACInputOffset;
+    }
+
+    public byte[] getSDM_ENCOffset() {
+        return SDM_ENCOffset;
+    }
+
+    public byte[] getSDM_ENCLength() {
+        return SDM_ENCLength;
+    }
+
+    public byte[] getSDM_MACOffset() {
+        return SDM_MACOffset;
+    }
+
+    public byte[] getSDM_ReadCtrLimit() {
+        return SDM_ReadCtrLimit;
     }
 }
