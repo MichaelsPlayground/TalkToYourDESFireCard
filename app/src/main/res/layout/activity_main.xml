@@ -68,6 +68,7 @@
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
                     android:focusable="false"
+                    android:typeface="monospace"
                     android:text="choose an operation ..."
                     tools:ignore="KeyboardInaccessibleWidget" />
             </com.google.android.material.textfield.TextInputLayout>

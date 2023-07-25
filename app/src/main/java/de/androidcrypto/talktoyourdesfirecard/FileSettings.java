@@ -62,6 +62,9 @@ public class FileSettings {
     private byte[] SDM_ReadCtrLimit;
 
     private byte[] completeResponse; // the complete data returned on getFileSettings command
+    private int completeResponseLength; // the complete data length
+    private boolean isUnexpectedResponseLength = false;
+    private String unexpectedResponseLengthPositionName = "";
 
     public static final String STANDARD_FILE_TYPE = "Standard";
     public static final String BACKUP_FILE_TYPE = "Backup";
@@ -77,6 +80,7 @@ public class FileSettings {
         this.fileNumber = fileNumber;
         this.completeResponse = completeResponse;
         if (completeResponse == null) return;
+        this.completeResponseLength = completeResponse.length;
         if (completeResponse.length < 6) return;
         analyze();
     }
@@ -284,11 +288,14 @@ public class FileSettings {
         // Bit 3-0
         SDM_CtrRetAccessRight = (byte) (SDM_AccessRights[1] & 0x0f);
 
+        // before trying to get the data for each element a length check is done to prevent ArrayIndexOutOfBoundsException
+
         // UIDOffset 3 bytes
         // [Optional, present if ((SDMOptions[Bit 7] = 1b) AND (SDMMetaRead access right = Eh)]
         // Mirror position (LSB first) for UID
         // 0h .. (FileSize - UIDLength) = Offset within the file
         if (isSdmOptionsBit7_UID && (SDM_MetaReadAccessRight == (byte) 0x0E)) {
+            checkUnexpectedResponseLength(position, 3, "UIDOffset");
             SDM_UIDOffset = Arrays.copyOfRange(completeResponse, position, position + 3);
             position = position + 3;
         }
@@ -299,6 +306,7 @@ public class FileSettings {
         // 0h .. (FileSize - SDMReadCtrLength) = Offset within the file
         // FFFFFFh = No SDMReadCtr mirroring
         if (isSdmOptionsBit6_SDMReadCtr && (SDM_MetaReadAccessRight == (byte) 0x0E)) {
+            if(!checkUnexpectedResponseLength(position, 3, "ReadCtrOffset")) return;
             SDM_ReadCtrOffset = Arrays.copyOfRange(completeResponse, position, position + 3);
             position = position + 3;
         }
@@ -308,6 +316,7 @@ public class FileSettings {
         // Mirror position (LSB first) for encrypted PICCData
         // 0h .. (FileSize - PICCDataLength) = Offset within the file
         if ((SDM_MetaReadAccessRight > 0) && (SDM_MetaReadAccessRight < 14)) {
+            if(!checkUnexpectedResponseLength(position, 3, "MetaReadAccessRight")) return;
             SDM_PICCDataOffset = Arrays.copyOfRange(completeResponse, position, position + 3);
             position = position + 3;
         }
@@ -317,6 +326,7 @@ public class FileSettings {
         // Offset in the file where the SDM MAC computation starts (LSB first)
         // 0h .. (SDMMACOffset) = Offset within the file
         if (SDM_FileReadAccessRight != (byte) 0x0F) {
+            if(!checkUnexpectedResponseLength(position, 3, "MACInputOffset")) return;
             SDM_MACInputOffset = Arrays.copyOfRange(completeResponse, position, position + 3);
             position = position + 3;
         }
@@ -326,6 +336,7 @@ public class FileSettings {
         // SDMENCFileData mirror position (LSB first)
         // SDMMACInputOffset .. (SDMMACOffset - 32) = Offset within the file
         if ((isSdmOptionsBit4_SDMENCFileData) && (SDM_FileReadAccessRight != (byte) 0x0F)) {
+            if(!checkUnexpectedResponseLength(position, 3, "ENCOffset")) return;
             SDM_ENCOffset = Arrays.copyOfRange(completeResponse, position, position + 3);
             position = position + 3;
         }
@@ -335,6 +346,7 @@ public class FileSettings {
         // Length of the SDMENCFileData (LSB first)
         // 32 .. (SDMMACOffset - SDMENCOffset) = Offset within the file, must be multiple of 32
         if ((isSdmOptionsBit4_SDMENCFileData) && (SDM_FileReadAccessRight != (byte) 0x0F)) {
+            if(!checkUnexpectedResponseLength(position, 3, "ENCLength")) return;
             SDM_ENCLength = Arrays.copyOfRange(completeResponse, position, position + 3);
             position = position + 3;
         }
@@ -345,6 +357,7 @@ public class FileSettings {
         // SDMMACInputOffset .. (FileSize - 16) [if (SDMFileRead access right != Fh) AND (SDMOptions[Bit 4] = 0b)] = Offset within the file
         // (SDMENCOffset + SDMENCLength) .. (FileSize- 16) [if (SDMFileRead access right != Fh) AND (SDMOptions[Bit 4] = 1b)] = Offset within the file
         if (SDM_FileReadAccessRight != (byte) 0x0F) {
+            if(!checkUnexpectedResponseLength(position, 3, "MACOffset")) return;
             SDM_MACOffset = Arrays.copyOfRange(completeResponse, position, position + 3);
             position = position + 3;
         }
@@ -354,6 +367,7 @@ public class FileSettings {
         // SDMReadCtrLimit value (LSB first)
         // Full range
         if (isSdmOptionsBit5_SDMReadCtrLimit) {
+            if(!checkUnexpectedResponseLength(position, 3, "ReadCtrLimit")) return;
             SDM_ReadCtrLimit = Arrays.copyOfRange(completeResponse, position, position + 3);
             // position = position + 3; // finished
         }
@@ -362,6 +376,15 @@ public class FileSettings {
         // response from NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf, page 21
         // response from 0040EEEE000100D1FE00 1F 00004400004400002000006A0000
 
+    }
+
+    private boolean checkUnexpectedResponseLength(int position, int readLength, String positionName) {
+        if ((position + readLength) > completeResponseLength) {
+            isUnexpectedResponseLength = true;
+            unexpectedResponseLengthPositionName = positionName;
+            return false;
+        }
+        return true;
     }
 
     public String dump() {
@@ -399,7 +422,7 @@ public class FileSettings {
         }
         if (isNonStandardFileOption) {
             sb.append("non standard fileOption found").append("\n");
-            sb.append("sdmFileOption: ").append(sdmFileOption).append("\n");
+            sb.append("sdmFileOption: ").append(byteToHex(sdmFileOption)).append("\n");
             sb.append("isSdmEnabled: ").append(isSdmEnabled).append("\n");
             sb.append("isSdmOptionsBit0_Encode: ").append(isSdmOptionsBit0_Encode).append("\n");
             sb.append("isSdmOptionsBit4_SDMENCFileData: ").append(isSdmOptionsBit4_SDMENCFileData).append("\n");
@@ -419,6 +442,9 @@ public class FileSettings {
             sb.append("SDM_ENCLength      ").append(bytesToHexNpeUpperCase(SDM_ENCLength)).append("\n");
             sb.append("SDM_MACOffset      ").append(bytesToHexNpeUpperCase(SDM_MACOffset)).append("\n");
             sb.append("SDM_ReadCtrLimit   ").append(bytesToHexNpeUpperCase(SDM_ReadCtrLimit)).append("\n");
+            if (isUnexpectedResponseLength) {
+                sb.append("unexpectedResponseLength of reading ").append(unexpectedResponseLengthPositionName).append("\n");
+            }
         }
         return sb.toString();
     }
