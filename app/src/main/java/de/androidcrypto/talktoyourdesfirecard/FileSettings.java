@@ -9,6 +9,19 @@ import java.util.Arrays;
  *
  */
 
+/**
+ * The class is running as expected for fileSettingResponses for a file without enabled
+ * Secure Data Messaging (SDM)
+ *
+ * As there is no public available documentation regarding this feature the class uses test data
+ * for an NTAG424DNA tag:
+ * NTAG 424 DNA NT4H2421Gx.pdf: https://www.nxp.com/docs/en/data-sheet/NT4H2421Gx.pdf
+ * NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf: https://www.nxp.com/docs/en/application-note/AN12196.pdf
+ *
+ * I cannot test the analyzed data with a real tag and I'm suspicious with the analyzed values for
+ * all of the offset and length values following the SDM Access Rights, so please do not rely on these values !
+ */
+
 public class FileSettings {
 
     private byte fileNumber;
@@ -315,7 +328,7 @@ public class FileSettings {
         // [Optional, present if SDMMetaRead access right =0h..4h] - Note: 4h value is for NTAG424DNA
         // Mirror position (LSB first) for encrypted PICCData
         // 0h .. (FileSize - PICCDataLength) = Offset within the file
-        if ((SDM_MetaReadAccessRight > 0) && (SDM_MetaReadAccessRight < 14)) {
+        if ((SDM_MetaReadAccessRight >= 0) && (SDM_MetaReadAccessRight < 14)) {
             if(!checkUnexpectedResponseLength(position, 3, "MetaReadAccessRight")) return;
             SDM_PICCDataOffset = Arrays.copyOfRange(completeResponse, position, position + 3);
             position = position + 3;
