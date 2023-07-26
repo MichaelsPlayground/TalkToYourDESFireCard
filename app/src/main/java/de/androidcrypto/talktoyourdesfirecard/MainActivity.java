@@ -4155,6 +4155,8 @@ C1h =
                 writeToUiAppend(output, printData("sdmMacTruncated", sdmMacTruncated));
                 writeToUiAppend(output, "The sdmMac matches macData value: " + Arrays.equals(macData, sdmMacTruncated));
 
+                // todo: the decryption is working but the MAC verification fails
+                // although the test is success
 
                 // finishing
                 if (iv != null) return;
