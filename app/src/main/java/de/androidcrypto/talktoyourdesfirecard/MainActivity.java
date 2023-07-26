@@ -4001,7 +4001,7 @@ C1h =
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                     return;
                 }
-
+/*
                 // don't forget to run an auth to get a SessionKey
                 String logString2 = "step 2: EV2 First authenticate with DEFAULT AES key number 0x00 = application master key";
                 writeToUiAppend(output, logString2);
@@ -4010,6 +4010,9 @@ C1h =
                 exportStringFileName = "auth.html";
 
                 success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+                //success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+                //success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+
                 responseData = desfireAuthenticateEv2.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, logString2 + " SUCCESS");
@@ -4028,7 +4031,7 @@ C1h =
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString2 + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                 }
-
+*/
                 // TapLinx formatT4T is using DES application keys
                 /*
                 boolean suc = desfireAuthenticateLegacy.authenticateD40(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_DES_DEFAULT);
