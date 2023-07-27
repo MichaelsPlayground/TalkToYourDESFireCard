@@ -75,8 +75,6 @@ import javax.crypto.spec.SecretKeySpec;
 public class DesfireAuthenticateEv2 {
 
     private static final String TAG = DesfireAuthenticateEv2.class.getName();
-
-
     private IsoDep isoDep;
     private boolean printToLog = true; // print data to log
     private String logData;
@@ -94,6 +92,7 @@ public class DesfireAuthenticateEv2 {
 
     // some constants
     private final byte SELECT_APPLICATION_BY_AID_COMMAND = (byte) 0x5A;
+    private final byte SELECT_APPLICATION_ISO_COMMAND = (byte) 0xA4;
     private final byte AUTHENTICATE_AES_EV2_FIRST_COMMAND = (byte) 0x71;
     private final byte AUTHENTICATE_AES_EV2_NON_FIRST_COMMAND = (byte) 0x77;
     private final byte GET_CARD_UID_COMMAND = (byte) 0x51;
@@ -136,6 +135,7 @@ public class DesfireAuthenticateEv2 {
 
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
+    private final byte[] RESPONSE_ISO_OK = new byte[]{(byte) 0x90, (byte) 0x00};
     private final byte[] RESPONSE_AUTHENTICATION_ERROR = new byte[]{(byte) 0x91, (byte) 0xAE};
     private final byte[] RESPONSE_MORE_DATA_AVAILABLE = new byte[]{(byte) 0x91, (byte) 0xAF};
     private final byte[] RESPONSE_FAILURE = new byte[]{(byte) 0x91, (byte) 0xFF}; // general, undefined failure
@@ -191,6 +191,8 @@ public class DesfireAuthenticateEv2 {
     public final byte CYCLIC_RECORD_FILE_PLAIN_NUMBER = (byte) 0x0C; // 12
     public final byte CYCLIC_RECORD_FILE_MACED_NUMBER = (byte) 0x0D; // 13
     public final byte CYCLIC_RECORD_FILE_ENCRYPTED_NUMBER = (byte) 0x0E; // 14
+
+    public final static byte[] NDEF_APPLICATION_DF_NAME = hexStringToByteArray("D2760000850101");
 
     private static final byte MAXIMUM_NUMBER_OF_KEYS = 5; // the maximum of keys per application is 14
     private final int MAXIMUM_NUMBER_OF_FILES = 32; // as per datasheet DESFire EV3 this is valid for EV1, EV2 and EV3
@@ -4730,7 +4732,7 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
 
     public boolean selectNdefApplicationIso(TextView logTextView) {
         String logData = "";
-        final String methodName = "createApplicationIsoDes";
+        final String methodName = "selectApplicationIso";
         log(methodName, "started", true);
 
         // todo change this is rough programming
@@ -4751,6 +4753,46 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
             return true;
         } else {
             Log.d(TAG, methodName + " FAILURE");
+            return false;
+        }
+    }
+
+    public boolean selectApplicationByDfNameIso(byte[] dfApplicationName) {
+        String logData = "";
+        final String methodName = "selectApplicationByDfNameIso";
+        log(methodName, "started", true);
+        log(methodName, printData("dfApplicationName", dfApplicationName));
+
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        // build command
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write((byte) 0x00);
+        baos.write(SELECT_APPLICATION_ISO_COMMAND);
+        baos.write((byte) 0x04); // select by DF name
+        baos.write((byte) 0x0C);
+        baos.write(dfApplicationName.length);
+        baos.write(dfApplicationName, 0, dfApplicationName.length);
+        baos.write((byte) 0x00); // le
+        byte[] apdu = baos.toByteArray();
+        log(methodName, printData("apdu", apdu));
+        byte[] response;
+        try {
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+        } catch (IOException e) {
+            log(methodName, "IOException: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (checkResponseIso(response)) {
+            log(methodName, methodName + " SUCCESS");
+            return true;
+        } else {
+            log(methodName, methodName + " FAILURE");
             return false;
         }
     }
@@ -6155,6 +6197,18 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
             return false;
         } // not ok
         if (Arrays.equals(RESPONSE_OK, returnStatusBytes(data))) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    private boolean checkResponseIso(@NonNull byte[] data) {
+        // simple sanity check
+        if (data.length < 2) {
+            return false;
+        } // not ok
+        if (Arrays.equals(RESPONSE_ISO_OK, returnStatusBytes(data))) {
             return true;
         } else {
             return false;
