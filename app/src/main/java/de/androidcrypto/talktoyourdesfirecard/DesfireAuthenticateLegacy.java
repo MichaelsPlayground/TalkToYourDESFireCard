@@ -30,6 +30,7 @@ public class DesfireAuthenticateLegacy {
 
     private static final String TAG = DesfireAuthenticateLegacy.class.getName();
 
+
     private IsoDep isoDep;
     private boolean printToLog = true; // print data to log
     private String logData = "";
@@ -52,6 +53,7 @@ public class DesfireAuthenticateLegacy {
     private final byte GET_FILE_SETTINGS_COMMAND = (byte) 0xF5;
     private final byte CHANGE_FILE_SETTINGS_COMMAND = (byte) 0x5F;
     private final byte CHANGE_KEY_COMMAND = (byte) 0xC4;
+    private final byte FORMAT_PICC_COMMAND = (byte) 0xFC;
 
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
@@ -61,6 +63,10 @@ public class DesfireAuthenticateLegacy {
     private final byte[] RESPONSE_FAILURE_MISSING_GET_FILE_SETTINGS = new byte[]{(byte) 0x91, (byte) 0xFD};
     private final byte[] RESPONSE_FAILURE_MISSING_AUTHENTICATION = new byte[]{(byte) 0x91, (byte) 0xFE};
     private final byte[] RESPONSE_FAILURE = new byte[]{(byte) 0x91, (byte) 0xFF};
+
+    public static final byte[] MASTER_APPLICATION_IDENTIFIER = new byte[3];
+    public final byte[] MASTER_APPLICATION_KEY_DES_DEFAULT = Utils.hexStringToByteArray("0000000000000000"); // default DES key with 8 nulls
+    public final byte MASTER_APPLICATION_KEY_NUMBER = (byte) 0x00;
 
     private static final int MAXIMUM_FILE_SIZE = 32; // standard files could get larger but to avoid any framing this is hardcoded limit
 
@@ -709,8 +715,59 @@ public class DesfireAuthenticateLegacy {
         }
     }
 
+    /**
+     * section for general handling
+     */
 
+    public boolean formatPicc() {
+        logData = "";
+        final String methodName = "formatPicc";
+        log(methodName, methodName);
 
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            log(methodName,"no or lost connection to the card, aborted");
+            Log.e(TAG, methodName + " no or lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        // the first step is to select the Master Application
+        boolean success = selectApplication(MASTER_APPLICATION_IDENTIFIER);
+        if (!success) {
+            log(methodName,"selection of Master Application failed, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        // the second step is to authentication with Master Application key
+        log(methodName, "trying to authenticate with MASTER_APPLICATION_KEY_NUMBER 01 DES DEFAULT");
+        success = authenticateD40(MASTER_APPLICATION_KEY_NUMBER, MASTER_APPLICATION_KEY_DES_DEFAULT);
+        if (!success) {
+            log(methodName,"authenticate failed, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        // now we are formatting the card
+        byte[] response = new byte[0];
+        byte[] wrappedCommand;
+        try {
+            wrappedCommand = wrapMessage(FORMAT_PICC_COMMAND, null);
+            Log.d(TAG, printData("wrappedCommand", wrappedCommand));
+            response = isoDep.transceive(wrappedCommand);
+            Log.d(TAG, printData("response", response));
+            System.arraycopy(response, 0, errorCode, 0, 2);
+            if (checkResponse(response)) {
+                return true;
+            } else {
+                return false;
+            }
+        } catch (IOException e) {
+            log(methodName, "IOException: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+    }
 
     /**
      * section for authentication

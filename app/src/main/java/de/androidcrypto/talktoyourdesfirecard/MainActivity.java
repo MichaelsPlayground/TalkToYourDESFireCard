@@ -11,6 +11,7 @@ import static de.androidcrypto.talktoyourdesfirecard.Utils.reverseByteArrayInPla
 import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
@@ -40,6 +41,7 @@ import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
@@ -145,7 +147,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     private Button getCardUidDes, getCardUidAes; // get cardUID * encrypted
-    private Button getTagVersion;
+    private Button getTagVersion, formatPicc;
 
     /**
      * section for visualizing DES authentication
@@ -396,6 +398,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         getCardUidDes = findViewById(R.id.btnGetCardUidDes);
         getCardUidAes = findViewById(R.id.btnGetCardUidAes);
         getTagVersion = findViewById(R.id.btnGetTagVersion);
+        formatPicc = findViewById(R.id.btnFormatPicc);
 
         // visualize DES authentication
         selectApplicationDesVisualizing = findViewById(R.id.btnDesVisualizeAuthSelect);
@@ -3134,6 +3137,59 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        formatPicc.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // get the free memory on the tag
+                clearOutputFields();
+                String logString = "format the PICC";
+                writeToUiAppend(output, logString);
+
+                // open a confirmation dialog
+                DialogInterface.OnClickListener dialogClickListener = new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        switch (which) {
+                            case DialogInterface.BUTTON_POSITIVE:
+                                //Yes button clicked
+
+                                boolean success = desfireAuthenticateLegacy.formatPicc();
+                                byte[] responseData = desfireAuthenticateLegacy.getErrorCode();
+                                if (success) {
+                                    writeToUiAppend(output, logString + " SUCCESS");
+                                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                                    vibrateShort();
+                                } else {
+                                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                                }
+                                break;
+                            case DialogInterface.BUTTON_NEGATIVE:
+                                //No button clicked
+                                // nothing to do
+                                writeToUiAppend(output, "format of the PICC aborted");
+                                break;
+                        }
+                    }
+                };
+                final String selectedFolderString = "You are going to format the PICC " + "\n\n" +
+                        "Do you want to proceed ?";
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+
+                builder.setMessage(selectedFolderString).setPositiveButton(android.R.string.yes, dialogClickListener)
+                        .setNegativeButton(android.R.string.no, dialogClickListener)
+                        .setTitle("FORMAT the PICC")
+                        .show();
+        /*
+        If you want to use the "yes" "no" literals of the user's language you can use this
+        .setPositiveButton(android.R.string.yes, dialogClickListener)
+        .setNegativeButton(android.R.string.no, dialogClickListener)
+         */
+            }
+        });
+
+
+
         /**
          * section for DES visualizing
          */
@@ -3835,8 +3891,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 // step 06 create a standard file
                 writeToUiAppend(output, "");
-                writeToUiAppend(output, "6. MIFARE DESFire NDEF File2 CreateStdDataFile with FileNo equal to 02h");
-                success = desfireAuthenticateEv2.createNdefFile2Iso(output);
+                writeToUiAppend(output, "6. MIFARE DESFire NDEF File2 CreateStdDataFile with FileNo equal to 02h SDM");
+                //success = desfireAuthenticateEv2.createNdefFile2Iso(output); // this is the regular NDEF file 02 without SDM feature
+                success = desfireAuthenticateEv2.createNdefFile2IsoSdm(output); // not working !
                 if (!success) {
                     writeToUiAppend(output, "Error during NDEF File2 CreateStdDataFile with FileNo equal to 02, aborted");
                     return;
@@ -3915,9 +3972,20 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
                 } else {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString2 + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
                 }
-                writeToUiAppend(output, logString + " step 3: change the fileSettings");
-                success = desfireAuthenticateEv2.changeFileSettingsEv2(ndefFileId);
+
+                // run a test
+                boolean testSuccess = desfireAuthenticateEv2.changeFileSettingsSdmEv2Test();
+                if (testSuccess) {
+                    writeToUiAppend(output, "changeFileSettingsSdmEv2Test SUCCESS");
+                } else {
+                    writeToUiAppend(output, "changeFileSettingsSdmEv2Test FAILURE");
+                }
+
+
+                writeToUiAppend(output, logString + " step 3: change the fileSettings SDM");
+                success = desfireAuthenticateEv2.changeFileSettingsSdmEv2(ndefFileId);
                 responseData = desfireAuthenticateEv2.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");

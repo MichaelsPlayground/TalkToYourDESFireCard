@@ -4177,7 +4177,11 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         }
     }
 
-    public boolean changeFileSettingsEv2(byte fileNumber) {
+    public boolean changeFileSettingsSdmEv2(byte fileNumber) {
+
+        // status: NOT WORKING
+        // eventually the file needs to get the sdm options on setup even if disabled
+        // todo check with real tag if fileSettings are "prepared" for SDM usage
 
         // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 34 - 35 for SDM example
         // see NTAG 424 DNA NT4H2421Gx.pdf pages 65 - 69 for fields and errors
@@ -4189,12 +4193,8 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         // Change NDEF file settings using Cmd.ChangeFileSettings using CommMode.Full
         // this is based on the changeFileSettings on a NTAG 424 DNA tag
 
-        // status WORKING (getFileSettings is returning more data)
-        // 00 40 00 E0 00 01 00 C1 F1 21 20 00 00 43 00 00 43 00 00 (19 bytes)
-        //    FileOpt
-
         String logData = "";
-        final String methodName = "changeFileSettingsEv2";
+        final String methodName = "changeFileSettingsSdmEv2";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
         // sanity checks
@@ -4236,8 +4236,8 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         log(methodName, printData("ivForCmdData", ivForCmdData));
 
         // build the cmdData, is a bit complex due to a lot of options - here it is shortened
-        //byte[] commandData = hexStringToByteArray("4000E0C1F121200000430000430000");
-        byte[] commandData = hexStringToByteArray("40EEEEC1F121200000320000450000"); // this is the data of the working TapLinx command
+        //byte[] commandData = hexStringToByteArray ("4000E0C1F121200000430000430000"); // feature & hints
+        byte[] commandData = hexStringToByteArray("40EEEEC1F121200000500000500000"); // this is the data of the working TapLinx command
 
         log(methodName, printData("commandData", commandData));
 /*
@@ -4266,9 +4266,12 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         // 4000E0D1F1211F00004400004400004000008A00008000000000000000000000
 
         // our fix commandData from example has 15 bytes so we do need 16 bytes
-        byte[] commandDataPadded = hexStringToByteArray("4000E0C1F12120000043000043000080");
-        //byte[] commandDataPadded = hexStringToByteArray("40EEEEC1F12120000043000043000080");
+        //byte[] commandDataPadded = hexStringToByteArray("40EEEEC1F12120000050000050000080");
+        //byte[] commandDataPadded = hexStringToByteArray ("40EEEEC1F12120000043000043000080");
         //byte[] commandDataPadded = hexStringToByteArray("4000E0D1F1211F00004400004400004000008A00008000000000000000000000");
+
+        // this is the commandPadded from Feature & Hints
+        byte[] commandDataPadded = hexStringToByteArray("4000E0C1F12120000043000043000080");
 
         // this is the command from working TapLinx example
         //byte[] commandDataPadded = hexStringToByteArray("40EEEEC1F12120000032000045000080");
@@ -4376,6 +4379,128 @@ PERMISSION_DENIED
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
             return false;
         }
+    }
+
+    public boolean changeFileSettingsSdmEv2Test () {
+
+        /**
+         * follows the instructions in NTAG424DNA Feature & Hints, pages 34 + 35
+         */
+
+        final String methodName = "changeFileSettingsSdmEv2Test";
+        log(methodName, "started", true);
+
+        byte[] SesAuthENCKeyTest = hexStringToByteArray("1309C877509E5A215007FF0ED19CA564");
+        byte[] SesAuthMACKeyTest = hexStringToByteArray("4C6626F5E72EA694202139295C7A7FC7");
+        byte[] TI = hexStringToByteArray("9D00C4DF");
+        int commandCounterTest = 1;
+        byte fileNumberTest = (byte) 0x02;
+
+        byte[] commandDataTest = hexStringToByteArray("4000E0C1F121200000430000430000");
+
+        // Encrypting the Command Data
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        // MAC_Input
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(commandCounterTest);
+        log(methodName, "CmdCounter: " + commandDataTest);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(HEADER_MAC, 0, HEADER_MAC.length);
+        baosIvInput.write(TI, 0, TI.length);
+        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKeyTest));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKeyTest, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        // build the cmdData, is a bit complex due to a lot of options - here it is shortened
+        byte[] commandData = hexStringToByteArray ("4000E0C1F121200000430000430000"); // feature & hints
+        //byte[] commandData = hexStringToByteArray("40EEEEC1F121200000500000500000"); // this is the data of the working TapLinx command
+
+        log(methodName, printData("commandData", commandData));
+/*
+from: NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf page 34
+CmdData example: 4000E0C1F121200000430000430000
+40 00E0 C1 F121 200000 430000 430000
+40h = FileOption (SDM and
+Mirroring enabled), CommMode: plain
+00E0h = AccessRights (FileAR.ReadWrite: 0x0, FileAR.Change: 0x0, FileAR.Read: 0xE, FileAR.Write; 0x0)
+C1h =
+• UID mirror: 1
+• SDMReadCtr: 1
+• SDMReadCtrLimit: 0
+• SDMENCFileData: 0
+• ASCII Encoding mode: 1
+F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0x2, FileAR.SDMFileRead: 0x1)
+200000h = ENCPICCDataOffset
+430000h = SDMMACOffset
+430000h = SDMMACInputOffset
+ */
+
+        // eventually some padding is necessary with 0x80..00
+
+        // this is from https://community.nxp.com/t5/NFC/NTAG-424-DNA-Change-NDEF-File-Settings-problem/td-p/1328599
+        // 40 00 E0 D1 F1 21 1F 00 00 44 00 00 44 00 00 40 00 00 8A 00 00 80 00 00 00 00 00 00 00 00 00 00
+        // 4000E0D1F1211F00004400004400004000008A00008000000000000000000000
+
+        // our fix commandData from example has 15 bytes so we do need 16 bytes
+        byte[] commandDataPadded = hexStringToByteArray("4000E0C1F12120000043000043000080");
+        //byte[] commandDataPadded = hexStringToByteArray ("40EEEEC1F12120000043000043000080");
+        //byte[] commandDataPadded = hexStringToByteArray("4000E0D1F1211F00004400004400004000008A00008000000000000000000000");
+
+        // this is the command from working TapLinx example
+        //byte[] commandDataPadded = hexStringToByteArray("40EEEEC1F12120000032000045000080");
+
+        log(methodName, printData("commandDataPadded", commandDataPadded));
+
+        // E(KSesAuthENC, IVc, CmdData || Padding (if necessary))
+        byte[] encryptedData = AES.encrypt(ivForCmdData, SesAuthENCKeyTest, commandDataPadded);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // Generating the MAC for the Command APDU
+        // Cmd || CmdCounter || TI || CmdHeader = fileNumber || E(KSesAuthENC, CmdData)
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(CHANGE_FILE_SETTINGS_COMMAND); // 0x5F
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TI, 0, TI.length);
+        baosMacInput.write(fileNumberTest);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKeyTest));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKeyTest, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // error in Features and Hints, page 57, point 28:
+        // Data (FileNo || Offset || DataLenght || Data) is NOT correct, as well not the Data Message
+        // correct is the following concatenation:
+
+        // Data (CmdHeader = fileNumber || Encrypted Data || MAC)
+        ByteArrayOutputStream baosWriteDataCommand = new ByteArrayOutputStream();
+        baosWriteDataCommand.write(fileNumberTest);
+        baosWriteDataCommand.write(encryptedData, 0, encryptedData.length);
+        baosWriteDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] writeDataCommand = baosWriteDataCommand.toByteArray();
+        log(methodName, printData("writeDataCommand", writeDataCommand));
+
+        byte[] writeDataCommand_expected = hexStringToByteArray("0261B6D97903566E84C3AE5274467E89EAD799B7C1A0EF7A04");
+        log(methodName, printData("changeFileSettingsCommand_expected", writeDataCommand_expected));
+        if (!Arrays.equals(writeDataCommand_expected, writeDataCommand)) {
+            Log.d(TAG, "changeFileSettingsFileCommand Test FAILURE, aborted");
+            return false;
+        }
+        return true;
     }
 
 
@@ -4636,6 +4761,78 @@ PERMISSION_DENIED
         }
     }
 
+    public boolean createNdefFile2IsoSdm(TextView logTextView) {
+
+        /**
+         * this method tries to create a Standard file with enabled SDM features
+         *
+         * STATUS NOT WORKING
+         */
+
+        // this code is taken from MIFARE DESFire as Type 4 Tag AN11004.pdf
+        // this is raw code with fixed data, todo CHANGE
+        /*
+        step 4
+        MIFARE DESFire CreateStdDataFile with FileNo equal to 01h (CC File DESFire FID),
+        ISO FileID equal to E103h, ComSet equal to 00h, AccessRights equal to EEEEh,
+        FileSize bigger equal to 00000Fh
+        Command: 90 CD 00 00 09 01 03 E1 00 00 E0 0F 00 00 00h
+        NOTE: There is an error in the command, the Access Rights do have a wrong value
+
+        step 6
+        MIFARE DESFire CreateStdDataFile with FileNo equal to 02h (NDEF File DESFire FID),
+        ISO FileID equal to E104h, ComSet equal to 00h, AccessRights equal to EEE0h,
+        FileSize equal to 000800h (2048 Bytes)
+        Command: 90 CD 00 00 09 02 04 E1 00 E0 EE 00 08 00 00h
+         */
+
+        String logData = "";
+        final String methodName = "createNdefFile2IsoSdm";
+        log(methodName, "started", true);
+
+        //byte[] commandSequence = Utils.hexStringToByteArray("90CD0000090204E140E0EE00010000"); // 256 byte // ERROR 9d error
+        //byte[] commandSequence = Utils.hexStringToByteArray("90CD0000120204E14000E0C1F12120000043000043000000"); // error 7e command length error
+        //byte[] commandSequence = Utils.hexStringToByteArray    ("90CD0000090204E100EEEE00010000");
+        // org 90CD0000090204E100EEEE00010000
+        //     90CD0000 09 02 04E1 00 EEEE 000100 00 // header || length || fileNumber || isoFileId || fileOptions || access rights || length (256) || le
+        //     90CD0000 xx 02 04E1 40 EEEE 000100 C1 F121 2A0000 500000 500000 00
+        // header || 15h/21d length || fileNumber || isoFileId || fileOptions || access rights || length (256) || C1 sdmOptions || F121 sdmAccessRights || 2A0000 piccOffset || 500000 macInputOffset || 500000 macOffset || le
+        //     90CD0000150204E140EEEE000100C1F1212A000050000050000000
+        // not working ! eventually this work on change only ??
+        //byte[] commandSequence = Utils.hexStringToByteArray    ("90CD0000150204E140EEEE000100C1F1212A000050000050000000");
+
+        // this is a little changed enabling code similar to TapLinx
+        byte[] commandSequence = Utils.hexStringToByteArray    ("90CD00000D0204E140EEEE0001005BC1F12100");
+
+        byte[] commandSequenceSdm1 = Utils.hexStringToByteArray("90CD0204E100EEE0000100BF25B5B1446EFC2E00"); // error 7e
+        byte[] commandSequenceSdm2 = Utils.hexStringToByteArray("90CD0204E140EEE0000100E922B3C4DFBEF1E600");// error 7e
+        byte[] response;
+        byte[] wrappedCommand;
+        try {
+            /*
+            Log.d(TAG, printData("commandParameter", commandParameter));
+            wrappedCommand = wrapMessage(createNdefFile2Command, commandParameter);
+            Log.d(TAG, printData("wrappedCommand", wrappedCommand));
+            response = isoDep.transceive(wrappedCommand);
+             */
+            Log.d(TAG, printData("commandSequence", commandSequence));
+            response = isoDep.transceive(commandSequence);
+            //Log.d(TAG, printData("commandSequenceSdm1", commandSequenceSdm1));
+            //response = isoDep.transceive(commandSequenceSdm1);
+            Log.d(TAG, printData("response", response));
+        } catch (Exception e) {
+            Log.e(TAG,  methodName +  " ERROR " + e.getMessage());
+            return false;
+        }
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE");
+            return false;
+        }
+    }
+
     public boolean createNdefFile2IsoFrozen(TextView logTextView) {
 
         // this code is taken from MIFARE DESFire as Type 4 Tag AN11004.pdf
@@ -4694,11 +4891,12 @@ PERMISSION_DENIED
         final String methodName = "writeToNdefFile2Iso";
         log(methodName, "started", true);
 
-        String ndefSampleBackendUrl = "https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac=0000000000000000";
+        //String ndefSampleBackendUrl = "https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac=0000000000000000";
+        String ndefSampleBackendUrl = "https://sdm.nfcdeveloper.com/tag?picc_data"; // cannot we send all data ?? framing ??
         NdefRecord ndefRecord = NdefRecord.createUri(ndefSampleBackendUrl);
         NdefMessage ndefMessage = new NdefMessage(ndefRecord);
         byte[] ndefMessageBytesHeadless = ndefMessage.toByteArray();
-        // now we do have the NDEF message but  it needs to get wrapped by '0x00 || (byte) (length of NdefMessage)
+        // now we do have the NDEF message but it needs to get wrapped by '0x00 || (byte) (length of NdefMessage)
         byte[] ndefMessageBytes = new byte[ndefMessageBytesHeadless.length + 2];
         System.arraycopy(new byte[]{(byte) 0x00, (byte) (ndefMessageBytesHeadless.length)}, 0, ndefMessageBytes, 0, 2);
         System.arraycopy(ndefMessageBytesHeadless, 0, ndefMessageBytes, 2, ndefMessageBytesHeadless.length);
@@ -4717,7 +4915,7 @@ PERMISSION_DENIED
         byte writeStandardFileCommand = (byte) 0x3D;
 
         // this  are sample data with a timestamp
-        commandParameter = hexStringToByteArray("02000000200000323032332e30372e32372031323a35333a353220313233343536373839303132");
+        //commandParameter = hexStringToByteArray("02000000200000323032332e30372e32372031323a35333a353220313233343536373839303132");
         // commandParameter length: 39 data: 02000000200000323032332e30372e32372031323a35333a353220313233343536373839303132
         // wrappedCommand   length: 45 data: 903d00002702000000200000323032332e30372e32372031323a35333a35322031323334353637383930313200
 
