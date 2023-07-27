@@ -4270,8 +4270,8 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         //byte[] commandDataPadded = hexStringToByteArray ("40EEEEC1F12120000043000043000080");
         //byte[] commandDataPadded = hexStringToByteArray("4000E0D1F1211F00004400004400004000008A00008000000000000000000000");
 
-        // this is the commandPadded from Feature & Hints
-        byte[] commandDataPadded = hexStringToByteArray("4000E0C1F12120000043000043000080");
+        // this is the commandPadded from working TapLinx example
+        byte[] commandDataPadded = hexStringToByteArray("40EEEEC1F1212A000050000050000080");
 
         // this is the command from working TapLinx example
         //byte[] commandDataPadded = hexStringToByteArray("40EEEEC1F12120000032000045000080");
@@ -4802,7 +4802,8 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         //byte[] commandSequence = Utils.hexStringToByteArray    ("90CD0000150204E140EEEE000100C1F1212A000050000050000000");
 
         // this is a little changed enabling code similar to TapLinx
-        byte[] commandSequence = Utils.hexStringToByteArray    ("90CD00000D0204E140EEEE0001005BC1F12100");
+        //byte[] commandSequence = Utils.hexStringToByteArray     ("90CD00000D0204E140EEEE0001005BC1F12100");
+        byte[] commandSequence = Utils.hexStringToByteArray    ("90CD0000090204E140EEEE00010000");
 
         byte[] commandSequenceSdm1 = Utils.hexStringToByteArray("90CD0204E100EEE0000100BF25B5B1446EFC2E00"); // error 7e
         byte[] commandSequenceSdm2 = Utils.hexStringToByteArray("90CD0204E140EEE0000100E922B3C4DFBEF1E600");// error 7e
@@ -4891,9 +4892,10 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         final String methodName = "writeToNdefFile2Iso";
         log(methodName, "started", true);
 
-        //String ndefSampleBackendUrl = "https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac=0000000000000000";
-        String ndefSampleBackendUrl = "https://sdm.nfcdeveloper.com/tag?picc_data"; // cannot we send all data ?? framing ??
+        String ndefSampleBackendUrl = "https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac=0000000000000000";
+        //String ndefSampleBackendUrl = "https://sdm.nfcdeveloper.com/tag?picc_data"; // cannot we send all data ?? framing ??
         NdefRecord ndefRecord = NdefRecord.createUri(ndefSampleBackendUrl);
+        //NdefRecord ndefRecord = NdefRecord.createUri(ndefSampleBackendUrl);
         NdefMessage ndefMessage = new NdefMessage(ndefRecord);
         byte[] ndefMessageBytesHeadless = ndefMessage.toByteArray();
         // now we do have the NDEF message but it needs to get wrapped by '0x00 || (byte) (length of NdefMessage)
@@ -4902,15 +4904,21 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         System.arraycopy(ndefMessageBytesHeadless, 0, ndefMessageBytes, 2, ndefMessageBytesHeadless.length);
         Log.d(TAG, printData("NDEF Message bytes", ndefMessageBytes));
 
+        // todo find a better solution for framing !
+        // truncating to 43 bytes to avoid framing
+        byte[] ndefMessageBytesTruncated = Arrays.copyOf(ndefMessageBytes, 43);
+
         byte FILE_ID_02 = (byte) 0x02;
         // build the apdu
         byte[] offset = new byte[]{(byte) 0x00, (byte) 0xf00, (byte) 0x00}; // write at the beginning, fixed
-        byte[] lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytes.length);
+        //byte[] lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytes.length);
+        byte[] lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesTruncated.length);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         baos.write(FILE_ID_02); // fileNumber
         baos.write(offset, 0, offset.length);
         baos.write(lengthOfData, 0, lengthOfData.length);
-        baos.write(ndefMessageBytes, 0, ndefMessageBytes.length);
+        //baos.write(ndefMessageBytes, 0, ndefMessageBytes.length);
+        baos.write(ndefMessageBytesTruncated, 0, ndefMessageBytesTruncated.length);
         byte[] commandParameter = baos.toByteArray();
         byte writeStandardFileCommand = (byte) 0x3D;
 
