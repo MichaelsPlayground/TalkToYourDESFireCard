@@ -3975,6 +3975,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
 
+                /*
                 // run a test
                 boolean testSuccess = desfireAuthenticateEv2.changeFileSettingsSdmEv2Test();
                 if (testSuccess) {
@@ -3982,9 +3983,22 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 } else {
                     writeToUiAppend(output, "changeFileSettingsSdmEv2Test FAILURE");
                 }
+                */
 
-
-                writeToUiAppend(output, logString + " step 3: change the fileSettings SDM");
+                // get the existing file settings
+                // we need the MACed execution to run this command
+                writeToUiAppend(output, logString + " step 3: get the existing fileSettingsMac SDM");
+                byte[] fileSettingsLoad = desfireAuthenticateEv2.getFileSettingsMacEv2(ndefFileId);
+                writeToUiAppend(output, printData("fileSettings", fileSettingsLoad));
+                if ((fileSettingsLoad == null) || (fileSettingsLoad.length < 6)) {
+                    writeToUiAppend(output, "Error on reading fileSettings, aborted");
+                    return;
+                }
+                FileSettings fs = new FileSettings(ndefFileId, fileSettingsLoad);
+                if (fs != null) {
+                    writeToUiAppend(output, fs.dump());
+                }
+                writeToUiAppend(output, logString + " step 4: change the fileSettings SDM");
                 success = desfireAuthenticateEv2.changeFileSettingsSdmEv2(ndefFileId);
                 responseData = desfireAuthenticateEv2.getErrorCode();
                 if (success) {

@@ -4126,7 +4126,7 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
      * Note: depending on the application master key settings this requires an preceding authentication
      *       with the application master key
      * @fileNumber: the file number we need to read the settings from
-     * @return an array of bytes with all available fileIds
+     * @return an array of bytes with all available fileSettings
      */
 
     public byte[] getFileSettingsEv2(byte fileNumber) {
@@ -4177,6 +4177,138 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         }
     }
 
+    public byte[] getFileSettingsMacEv2(byte fileNumber) {
+        // this version has to be used when an authentication was run before because now we do
+        // need a MACed communication
+        String logData = "";
+        final String methodName = "getFileSettingsMacEv2";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        // sanity checks
+        if (fileNumber < 0) {
+            Log.d(TAG, "fileNumber < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+            return null;
+        }
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+            return null;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        // Cmd || CmdCounter || TI || CmdHeader = fileNumber || n/a
+        // F500007A21085E02 (8 byte)
+        // MAC_Input
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(GET_FILE_SETTINGS_COMMAND);
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(fileNumber);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Data (CmdHeader = fileNumber || Encrypted Data || MAC)
+        ByteArrayOutputStream baosWriteDataCommand = new ByteArrayOutputStream();
+        baosWriteDataCommand.write(fileNumber);
+        baosWriteDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] writeDataCommand = baosWriteDataCommand.toByteArray();
+        log(methodName, printData("writeDataCommand", writeDataCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(GET_FILE_SETTINGS_COMMAND, writeDataCommand); //0261B6D97903566E84C3AE5274467E89EAD799B7C1A0EF7A04 25d = 19b
+            // comApdu       905F0000190261B6D97903566E84C3AE5274467E89EAD799B7C1A0EF7A0400
+            // my apdu       905f00001902d7bff30bb6d212e512ddf49942a754f7003b5d104371344200
+
+            // when I append sample data this change
+            // gives error   9D Permission denied error
+/*
+from NTAG424DNA sheet page 69:
+PERMISSION_DENIED
+- 9Dh PICC level (MF) is selected.
+- access right Change of targeted file has access conditions set to Fh.
+- Enabling Secure Dynamic Messaging (FileOption Bit 6 set to 1b) is only allowed for FileNo 02h.
+ */
+            // expected APDU 905F0000190261B6D97903566E84C3AE5274467E89EAD799B7C1A0EF7A0400 (31 bytes)
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now verifying the received MAC");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return null;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+
+        // response length: 17 data: 0000eeee0001003962b203d8f988559100 (if not SDM enabled)
+        // the response is 17 bytes long: fileSettings 7 byte || 16 byte response MAC || error code
+        int responseLength = response.length;
+        errorCode = Arrays.copyOfRange(response, responseLength - 2, responseLength);
+        byte[] responseMACTruncatedReceived = Arrays.copyOfRange(response, responseLength - 8 - 2, responseLength - 2);
+        byte[] responseData = Arrays.copyOfRange(response, 0, responseLength - 8 - 2);
+        log(methodName, printData("responseFull", response));
+        log(methodName, printData("responseData", responseData));
+        log(methodName, printData("responseMac ", responseMACTruncatedReceived));
+
+        // verifying the received Response MAC
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        // ### THIS is NEW TO OTHER CALCULATIONS
+        responseMacBaos.write(responseData, 0, responseData.length);
+        byte[] macInput2 = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput2", macInput2));
+        //responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2); // calculated before, here wrong data
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return responseData;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return null;
+        }
+    }
+
     public boolean changeFileSettingsSdmEv2(byte fileNumber) {
 
         // status: NOT WORKING
@@ -4214,9 +4346,8 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
             return false;
         }
 
-        // Encrypting the Command Data
         // IV_Input (IV_Label || TI || CmdCounter || Padding)
-        // MAC_Input
+        // Generating the MAC for the Command APDU
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
