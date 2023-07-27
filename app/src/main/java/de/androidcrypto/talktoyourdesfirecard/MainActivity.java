@@ -3144,7 +3144,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 clearOutputFields();
                 String logString = "DES visualizing select an application";
                 writeToUiAppend(output, logString);
-                byte[] applicationIdentifier = hexStringToByteArray("0100D0"); // lsb
+                //byte[] applicationIdentifier = hexStringToByteArray("0100D0"); // lsb
+                byte[] applicationIdentifier = hexStringToByteArray("D00001");
                 applicationId.setText("D00001");
                 if (applicationIdentifier == null) {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you entered a wrong application ID", COLOR_RED);
@@ -3162,6 +3163,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    selectedApplicationId = applicationIdentifier.clone();
                     vibrateShort();
                 } else {
                     writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
@@ -3798,7 +3800,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 writeToUiAppend(output, "");
                 writeToUiAppend(output, "2. MIFARE DESFire CreateApplication using the default AID 000001h");
-                success = desfireAuthenticateEv2.createNdefApplicationIsoDes(output);
+                //success = desfireAuthenticateEv2.createNdefApplicationIsoDes(output);
+                success = desfireAuthenticateEv2.createNdefApplicationIsoAes(output);
                 if (!success) {
                     writeToUiAppend(output, "Error during CreateApplication using the default AID 000001h, aborted");
                     return;
@@ -4075,16 +4078,20 @@ C1h =
                 String logString = "SDM decryptNdefManual EV2";
                 writeToUiAppend(output, logString);
 
+                // empty template
+                // String ndefSampleUrl = "https://choose.aburl.com/ntag424?e=00000000000000000000000000000000&c=0000000000000000";
+
                 // this is static data
                 byte[] iv = new byte[16]; // default AES iv
                 byte[] key = new byte[16]; // default AES key
-                byte[] encryptedNdefData = hexStringToByteArray("3297CD2D5893896D8E4213E6B77BFD7D");
+                byte[] encryptedNdefData = hexStringToByteArray("9AE19A07072580D459A4A920FA5A7842");
                 // SDM decryptNdefManual EV2 decryptedNdefData length: 16 data: c7045140325014900500001f8c94e251
                 // piccDataTag: C7
                 // uid length: 7 data: 04514032501490
                 // readCtr length: 3 data: 050000
                 // randomPadding length: 5 data: 1f8c94e251
 
+                /*
                 // sample data from Features & Hints
                 byte[] encryptedNdefDataSample = hexStringToByteArray("EF963FF7828658A599F3041510671E88");
                 byte[] decryptedNdefDataSampleExpected = hexStringToByteArray("C704DE5F1EACC0403D0000DA5CF60941");
@@ -4099,8 +4106,8 @@ C1h =
                 } else {
                     writeToUiAppend(output, logString + " decryptedNdefDataSample is NULL");
                 }
-
                 writeToUiAppend(output, "now decrypting tag data");
+                */
                 byte[] decryptedNdefData = desfireAuthenticateEv2.decryptNdefDataEv2(iv, key, encryptedNdefData);
                 byte[] uid = new byte[0];
                 byte[] readCtr = new byte[0];
@@ -4123,7 +4130,6 @@ C1h =
                 writeToUiAppend(output, "now verifying the MAC");
                 byte[] sdmFileReadKey = new byte[16]; // default AES key // is set to key 1 in TapLinx
 
-
 /*
                 // sample data
                 byte[] uidSample = hexStringToByteArray("04DE5F1EACC040");
@@ -4144,7 +4150,7 @@ C1h =
 */
                 // read data
                 writeToUiAppend(output, "MAC - working with real data");
-                byte[] macData = hexStringToByteArray("7DD9D08F8F9684B1");
+                byte[] macData = hexStringToByteArray("6AE1C36FEB5721D2");
                 writeToUiAppend(output, printData("macData from NDEF", macData));
                 byte[] sesSDMFileReadMACKey = desfireAuthenticateEv2.getSesSDMFileReadMACKey(sdmFileReadKey, uid, readCtr);
                 writeToUiAppend(output, printData("sesSDMFileReadMACKey", sesSDMFileReadMACKey));
@@ -4154,104 +4160,6 @@ C1h =
                 byte[] sdmMacTruncated = desfireAuthenticateEv2.truncateMAC(sdmMac);
                 writeToUiAppend(output, printData("sdmMacTruncated", sdmMacTruncated));
                 writeToUiAppend(output, "The sdmMac matches macData value: " + Arrays.equals(macData, sdmMacTruncated));
-
-                // todo: the decryption is working but the MAC verification fails
-                // although the test is success
-
-                // finishing
-                if (iv != null) return;
-
-
-
-
-
-
-                byte[] ndefApplication = hexStringToByteArray("010000"); // the AID is 00 00 01 but data is in low endian
-
-                // this is when using TapLinx formatT4T NDEF files
-                //byte[] ndefApplication = hexStringToByteArray("115427"); // used by TapLinx formatT4T
-
-                byte ndefFileId = (byte) 0x02;
-                writeToUiAppend(output, "fileNumber (fixed): " + ndefFileId + printData(" ndefApplication", ndefApplication));
-
-                byte[] responseData = new byte[2];
-                writeToUiAppend(output, logString + " step 1: select ndef application");
-                // select the application
-                //boolean success = desfireAuthenticateLegacy.selectApplication(ndefApplication);
-                //responseData = desfireAuthenticateLegacy.getErrorCode();
-                boolean success = desfireAuthenticateEv2.selectApplicationByAidEv2(ndefApplication);
-                responseData = desfireAuthenticateEv2.getErrorCode();
-                if (success) {
-                    writeToUiAppend(output, "select the application SUCCESS");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application SUCCESS", COLOR_GREEN);
-                    vibrateShort();
-                } else {
-                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "select the application FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
-                    return;
-                }
-/*
-                // don't forget to run an auth to get a SessionKey
-                String logString2 = "step 2: EV2 First authenticate with DEFAULT AES key number 0x00 = application master key";
-                writeToUiAppend(output, logString2);
-
-                exportString = "";
-                exportStringFileName = "auth.html";
-
-                success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
-                //success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
-                //success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_CAR_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
-
-                responseData = desfireAuthenticateEv2.getErrorCode();
-                if (success) {
-                    writeToUiAppend(output, logString2 + " SUCCESS");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    SES_AUTH_ENC_KEY = desfireAuthenticateEv2.getSesAuthENCKey();
-                    SES_AUTH_MAC_KEY = desfireAuthenticateEv2.getSesAuthMACKey();
-                    TRANSACTION_IDENTIFIER = desfireAuthenticateEv2.getTransactionIdentifier();
-                    CMD_COUNTER = desfireAuthenticateEv2.getCmdCounter();
-                    writeToUiAppend(output, printData("SES_AUTH_ENC_KEY", SES_AUTH_ENC_KEY));
-                    writeToUiAppend(output, printData("SES_AUTH_MAC_KEY", SES_AUTH_MAC_KEY));
-                    writeToUiAppend(output, printData("TRANSACTION_IDENTIFIER", TRANSACTION_IDENTIFIER));
-                    writeToUiAppend(output, "CMD_COUNTER: " + CMD_COUNTER);
-                    vibrateShort();
-                    // show logData
-                    //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
-                } else {
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString2 + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
-                }
-*/
-                // TapLinx formatT4T is using DES application keys
-                /*
-                boolean suc = desfireAuthenticateLegacy.authenticateD40(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_DES_DEFAULT);
-                if (suc) {
-                    writeToUiAppend(output, "Auth SUCCESS");
-                } else {
-                    writeToUiAppend(output, "Auth FAILURE");
-                    return;
-                }
-                */
-
-                writeToUiAppend(output, logString + " step 3: get the fileSettings");
-                byte[] response = desfireAuthenticateEv2.getFileSettingsEv2(ndefFileId);
-                responseData = desfireAuthenticateEv2.getErrorCode();
-                writeToUiAppend(output, printData("response", response));
-                if (checkResponse(responseData)) {
-                    writeToUiAppend(output, logString + " SUCCESS");
-                    FileSettings fileSettings = new FileSettings(ndefFileId, response);
-                    writeToUiAppend(output, fileSettings.dump());
-
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    vibrateShort();
-                } else {
-                    if (checkAuthenticationError(responseData)) {
-                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a ?? ACCESS KEY ?");
-                    }
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error: " + EV3.getErrorCode(responseData), COLOR_RED);
-                    return;
-                }
-
-
             }
         });
 

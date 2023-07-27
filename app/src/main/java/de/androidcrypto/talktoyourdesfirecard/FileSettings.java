@@ -293,13 +293,17 @@ public class FileSettings {
         SDM_AccessRights = Arrays.copyOfRange(completeResponse, position, position + 2);
         position = position + 2;
 
-        // bit 15-12 SDMMetaReadAccessRight
-        SDM_MetaReadAccessRight = (byte) ((SDM_AccessRights[0] >> 4) & 0x0f);
-        // Bit 11- 8 SDMFileReadAccessRight
-        SDM_FileReadAccessRight = (byte) (SDM_AccessRights[0] & 0x0f);
-        // Bit 7-4 RFU
-        // Bit 3-0
-        SDM_CtrRetAccessRight = (byte) (SDM_AccessRights[1] & 0x0f);
+        /*
+        sdmAccessRights F121 are mapped to:
+        F = RFU, please just use F as value
+        1 = SDM Counter Ret Access Rights 0x00 to 0x0D: Targeted AppKey 0x0E : Free 0x0F : No Access
+        2 = SDM Meta Read Access Rights   0x00 to 0x0D: Encrypted PICC data mirroring using the targeted AppKey 0x0E : Plain PICC data mirroring 0x0F : No PICC data mirroring
+        1 = SDM File Read Access Rights   0x00 to 0x0D: Targeted AppKey 0x0F : No SDM for Reading
+         */
+        // SDM_AccessRights = Utils.hexStringToByteArray("1234"); // testing
+        SDM_CtrRetAccessRight = (byte) (SDM_AccessRights[0] & 0x0f);
+        SDM_MetaReadAccessRight = (byte) ((SDM_AccessRights[1] >> 4) & 0x0f);
+        SDM_FileReadAccessRight = (byte) (SDM_AccessRights[1] & 0x0f);
 
         // before trying to get the data for each element a length check is done to prevent ArrayIndexOutOfBoundsException
 
