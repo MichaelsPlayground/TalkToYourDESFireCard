@@ -4370,8 +4370,39 @@ PERMISSION_DENIED
 
         // build the cmdData, is a bit complex due to a lot of options - here it is shortened
         //byte[] commandData = hexStringToByteArray ("4000E0C1F121200000430000430000"); // feature & hints
-        byte[] commandData = hexStringToByteArray("40EEEEC1F121200000500000500000"); // this is the data of the working TapLinx command
+        //byte[] commandData = hexStringToByteArray("40EEEEC1F121200000500000500000"); // this is the data of the working TapLinx command
 
+        byte communicationSettingsByte = (byte) 0x00;
+        /*
+        if (communicationSettings.name().equals(CommunicationSettings.Plain.name())) communicationSettingsByte = (byte) 0x00;
+        if (communicationSettings.name().equals(CommunicationSettings.MACed.name())) communicationSettingsByte = (byte) 0x01;
+        if (communicationSettings.name().equals(CommunicationSettings.Full.name())) communicationSettingsByte = (byte) 0x03;
+        byte accessRightsRwCar = (byte) ((keyRW << 4) | (keyCar & 0x0F)); // Read&Write Access & ChangeAccessRights
+        byte accessRightsRW = (byte) ((keyR << 4) | (keyW & 0x0F)) ; // Read Access & Write Access
+
+         */
+        // sample values from NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf page 34
+        byte fileOption = (byte) 0x40; // enable SDM and mirroring, Plain communication
+        byte accessRightsRwCar = (byte) 0xEE;
+        byte accessRightsRW = (byte) 0xEE;
+        byte sdmOptions = (byte) 0xC1; // UID mirror = 1, SDMReadCtr = 1, SDMReadCtrLimit = 0, SDMENCFileData = 0, ASCII Encoding mode = 1
+        int encPiccDataOffset = 32;
+        int SDMMACOffset = 67;
+        int SDMMACInputOffset = 67;
+        byte[] encPiccDataOffsetByte = intTo3ByteArrayInversed(encPiccDataOffset);
+        byte[] SDMMACOffsetByte = intTo3ByteArrayInversed(SDMMACOffset);
+        byte[] SDMMACInputOffsetByte = intTo3ByteArrayInversed(SDMMACInputOffset);
+
+        ByteArrayOutputStream baosCommandData = new ByteArrayOutputStream();
+        baosCommandData.write(fileOption);
+        baosCommandData.write(accessRightsRwCar);
+        baosCommandData.write(accessRightsRW);
+        // add mirroring data
+        baosCommandData.write(sdmOptions);
+        baosCommandData.write(encPiccDataOffsetByte, 0, encPiccDataOffsetByte.length);
+        baosCommandData.write(SDMMACOffsetByte, 0, SDMMACOffsetByte.length);
+        baosCommandData.write(SDMMACInputOffsetByte, 0, SDMMACInputOffsetByte.length);
+        byte[] commandData = baosCommandData.toByteArray();
         log(methodName, printData("commandData", commandData));
 /*
 from: NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf page 34
@@ -4404,9 +4435,9 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         //byte[] commandDataPadded = hexStringToByteArray("4000E0D1F1211F00004400004400004000008A00008000000000000000000000");
 
         // this is the commandPadded from working TapLinx example
-        byte[] commandDataPadded = hexStringToByteArray("40EEEEC1F1212A000050000050000080");
-
-        // this is the command from working TapLinx example
+        //byte[] commandDataPadded = hexStringToByteArray("40EEEEC1F1212A000050000050000080");
+        byte[] commandDataPadded = paddingWriteData(commandData);
+                // this is the command from working TapLinx example
         //byte[] commandDataPadded = hexStringToByteArray("40EEEEC1F12120000032000045000080");
 
         log(methodName, printData("commandDataPadded", commandDataPadded));
