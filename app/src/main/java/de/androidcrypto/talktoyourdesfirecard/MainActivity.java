@@ -3987,6 +3987,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 */
 
+                /*
+
                 // get the existing file settings
                 // we need the MACed execution to run this command
                 writeToUiAppend(output, logString + " step 3: get the existing fileSettingsMac SDM");
@@ -4000,6 +4002,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 if (fs != null) {
                     writeToUiAppend(output, fs.dump());
                 }
+
+                 */
+
                 writeToUiAppend(output, logString + " step 4: change the fileSettings SDM");
                 success = desfireAuthenticateEv2.changeFileSettingsSdmEv2(ndefFileId);
                 responseData = desfireAuthenticateEv2.getErrorCode();

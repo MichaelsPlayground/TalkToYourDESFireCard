@@ -4382,28 +4382,40 @@ PERMISSION_DENIED
 
          */
         // sample values from NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf page 34
+        byte[] fileNumberIso = hexStringToByteArray("04E1");
         byte fileOption = (byte) 0x40; // enable SDM and mirroring, Plain communication
         byte accessRightsRwCar = (byte) 0xEE;
         byte accessRightsRW = (byte) 0xEE;
         byte sdmOptions = (byte) 0xC1; // UID mirror = 1, SDMReadCtr = 1, SDMReadCtrLimit = 0, SDMENCFileData = 0, ASCII Encoding mode = 1
-        int encPiccDataOffset = 32;
-        int SDMMACOffset = 67;
-        int SDMMACInputOffset = 67;
+        byte[] sdmAccessRights = hexStringToByteArray("F121");
+        int encPiccDataOffset = 42;
+        int SDMMACOffset = 80;
+        int SDMMACInputOffset = 80;
         byte[] encPiccDataOffsetByte = intTo3ByteArrayInversed(encPiccDataOffset);
         byte[] SDMMACOffsetByte = intTo3ByteArrayInversed(SDMMACOffset);
         byte[] SDMMACInputOffsetByte = intTo3ByteArrayInversed(SDMMACInputOffset);
 
         ByteArrayOutputStream baosCommandData = new ByteArrayOutputStream();
+        //baosCommandData.write(fileNumber);
+        //baosCommandData.write(fileNumberIso, 0, fileNumberIso.length);
         baosCommandData.write(fileOption);
         baosCommandData.write(accessRightsRwCar);
         baosCommandData.write(accessRightsRW);
         // add mirroring data
         baosCommandData.write(sdmOptions);
+        baosCommandData.write(sdmAccessRights, 0, sdmAccessRights.length);
         baosCommandData.write(encPiccDataOffsetByte, 0, encPiccDataOffsetByte.length);
         baosCommandData.write(SDMMACOffsetByte, 0, SDMMACOffsetByte.length);
         baosCommandData.write(SDMMACInputOffsetByte, 0, SDMMACInputOffsetByte.length);
         byte[] commandData = baosCommandData.toByteArray();
         log(methodName, printData("commandData", commandData));
+
+
+        // tapLinx real working: 5F0240EEEEC1F1212A0000500000500000
+        // tapLinx             : 5F 02 40 EEEE C1 F121 2A0000 500000 500000
+        // my data                     40 eeee c1 f121 2a0000 500000 500000 80
+
+
 /*
 from: NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf page 34
 CmdData example: 4000E0C1F121200000430000430000
@@ -4437,8 +4449,13 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         // this is the commandPadded from working TapLinx example
         //byte[] commandDataPadded = hexStringToByteArray("40EEEEC1F1212A000050000050000080");
         byte[] commandDataPadded = paddingWriteData(commandData);
+        //byte[] commandDataPadded = commandData.clone(); // as command data is exact 16 bytes long
+
                 // this is the command from working TapLinx example
         //byte[] commandDataPadded = hexStringToByteArray("40EEEEC1F12120000032000045000080");
+
+        // real    : 40 00e0 c1 f121 200000 430000 430000
+        // features: 40 00E0 C1 F121 200000 430000 430000
 
         log(methodName, printData("commandDataPadded", commandDataPadded));
 
@@ -4456,6 +4473,9 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         baosMacInput.write(encryptedData, 0, encryptedData.length);
         byte[] macInput = baosMacInput.toByteArray();
         log(methodName, printData("macInput", macInput));
+
+        // real    : 5f 0100 8361da6a 02 dbfbbfd2c6ab4e9db3b1ee157a80bd2c
+        // features: 5F 0100 9D00C4DF 02 61B6D97903566E84C3AE5274467E89EA
 
         // generate the MAC (CMAC) with the SesAuthMACKey
         log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
@@ -4482,8 +4502,8 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         byte[] responseMACTruncatedReceived;
         try {
             apdu = wrapMessage(CHANGE_FILE_SETTINGS_COMMAND, writeDataCommand); //0261B6D97903566E84C3AE5274467E89EAD799B7C1A0EF7A04 25d = 19b
-            // comApdu       905F0000190261B6D97903566E84C3AE5274467E89EAD799B7C1A0EF7A0400
-            // my apdu       905f00001902d7bff30bb6d212e512ddf49942a754f7003b5d104371344200
+            // comApdu       905F0000 1902 61B6D97903566E84C3AE5274467E89EA D799B7C1A0EF7A0400
+            // my apdu       905f0000 1902 8f0c98bc5fe8a88d0b6cb9737f979165 22ac650107743c9200
 
             // when I append sample data this change
             // gives error   9D Permission denied error
@@ -5138,22 +5158,51 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         System.arraycopy(ndefMessageBytesHeadless, 0, ndefMessageBytes, 2, ndefMessageBytesHeadless.length);
         Log.d(TAG, printData("NDEF Message bytes", ndefMessageBytes));
 
-        // todo find a better solution for framing !
-        // truncating to 43 bytes to avoid framing
-        byte[] ndefMessageBytesTruncated = Arrays.copyOf(ndefMessageBytes, 43);
+        // splitting the data in chunks of 40 bytes
+        // truncating to 40 bytes to avoid framing
+        int ndefMessageBytesLength  = ndefMessageBytes.length;
+        Log.d(TAG, "ndefMessageBytesLength: " + ndefMessageBytesLength);
+        byte[] ndefMessageBytesA40 = Arrays.copyOf(ndefMessageBytes, 40);
+        byte[] ndefMessageBytesB40 = Arrays.copyOfRange(ndefMessageBytes, 40, 80);
+        byte[] ndefMessageBytesC = Arrays.copyOfRange(ndefMessageBytes, 80, ndefMessageBytesLength);
+
+        // write the data in 3 steps
 
         byte FILE_ID_02 = (byte) 0x02;
         // build the apdu
-        byte[] offset = new byte[]{(byte) 0x00, (byte) 0xf00, (byte) 0x00}; // write at the beginning, fixed
-        //byte[] lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytes.length);
-        byte[] lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesTruncated.length);
+        byte[] offset = Utils.intTo3ByteArrayInversed(0);
+        byte[] lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesA40.length);
+        //byte[] lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesTruncated.length);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         baos.write(FILE_ID_02); // fileNumber
         baos.write(offset, 0, offset.length);
         baos.write(lengthOfData, 0, lengthOfData.length);
-        //baos.write(ndefMessageBytes, 0, ndefMessageBytes.length);
-        baos.write(ndefMessageBytesTruncated, 0, ndefMessageBytesTruncated.length);
-        byte[] commandParameter = baos.toByteArray();
+        baos.write(ndefMessageBytesA40, 0, ndefMessageBytesA40.length);
+        //baos.write(ndefMessageBytesTruncated, 0, ndefMessageBytesTruncated.length);
+        byte[] commandParameterA = baos.toByteArray();
+
+        offset = Utils.intTo3ByteArrayInversed(40);
+        lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesB40.length);
+        //byte[] lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesTruncated.length);
+        baos = new ByteArrayOutputStream();
+        baos.write(FILE_ID_02); // fileNumber
+        baos.write(offset, 0, offset.length);
+        baos.write(lengthOfData, 0, lengthOfData.length);
+        baos.write(ndefMessageBytesB40, 0, ndefMessageBytesB40.length);
+        //baos.write(ndefMessageBytesTruncated, 0, ndefMessageBytesTruncated.length);
+        byte[] commandParameterB = baos.toByteArray();
+
+        offset = Utils.intTo3ByteArrayInversed(80);
+        lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesC.length);
+        //byte[] lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesTruncated.length);
+        baos = new ByteArrayOutputStream();
+        baos.write(FILE_ID_02); // fileNumber
+        baos.write(offset, 0, offset.length);
+        baos.write(lengthOfData, 0, lengthOfData.length);
+        baos.write(ndefMessageBytesC, 0, ndefMessageBytesC.length);
+        //baos.write(ndefMessageBytesTruncated, 0, ndefMessageBytesTruncated.length);
+        byte[] commandParameterC = baos.toByteArray();
+
         byte writeStandardFileCommand = (byte) 0x3D;
 
         // this  are sample data with a timestamp
@@ -5164,11 +5213,27 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         byte[] wrappedCommand;
         byte[] response;
         try {
-            Log.d(TAG, printData("commandParameter", commandParameter));
-            wrappedCommand = wrapMessage(writeStandardFileCommand, commandParameter);
+            // step 1
+            Log.d(TAG, printData("commandParameterA", commandParameterA));
+            wrappedCommand = wrapMessage(writeStandardFileCommand, commandParameterA);
             Log.d(TAG, printData("wrappedCommand", wrappedCommand));
             response = isoDep.transceive(wrappedCommand);
             Log.d(TAG, printData("response", response));
+
+            // step 2
+            Log.d(TAG, printData("commandParameterB", commandParameterB));
+            wrappedCommand = wrapMessage(writeStandardFileCommand, commandParameterB);
+            Log.d(TAG, printData("wrappedCommand", wrappedCommand));
+            response = isoDep.transceive(wrappedCommand);
+            Log.d(TAG, printData("response", response));
+
+            // step 3
+            Log.d(TAG, printData("commandParameterC", commandParameterC));
+            wrappedCommand = wrapMessage(writeStandardFileCommand, commandParameterC);
+            Log.d(TAG, printData("wrappedCommand", wrappedCommand));
+            response = isoDep.transceive(wrappedCommand);
+            Log.d(TAG, printData("response", response));
+
         } catch (Exception e) {
             Log.e(TAG,  methodName +  " ERROR " + e.getMessage());
             return false;
