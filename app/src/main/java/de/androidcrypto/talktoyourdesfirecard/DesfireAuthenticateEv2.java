@@ -4970,7 +4970,7 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         /**
          * this method tries to create a Standard file with enabled SDM features
          *
-         * STATUS NOT WORKING
+         * STATUS WORKING
          */
 
         // this code is taken from MIFARE DESFire as Type 4 Tag AN11004.pdf
@@ -4994,34 +4994,64 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         final String methodName = "createNdefFile2IsoSdm";
         log(methodName, "started", true);
 
-        //byte[] commandSequence = Utils.hexStringToByteArray("90CD0000090204E140E0EE00010000"); // 256 byte // ERROR 9d error
-        //byte[] commandSequence = Utils.hexStringToByteArray("90CD0000120204E14000E0C1F12120000043000043000000"); // error 7e command length error
-        //byte[] commandSequence = Utils.hexStringToByteArray    ("90CD0000090204E100EEEE00010000");
-        // org 90CD0000090204E100EEEE00010000
-        //     90CD0000 09 02 04E1 00 EEEE 000100 00 // header || length || fileNumber || isoFileId || fileOptions || access rights || length (256) || le
-        //     90CD0000 xx 02 04E1 40 EEEE 000100 C1 F121 2A0000 500000 500000 00
-        // header || 15h/21d length || fileNumber || isoFileId || fileOptions || access rights || length (256) || C1 sdmOptions || F121 sdmAccessRights || 2A0000 piccOffset || 500000 macInputOffset || 500000 macOffset || le
-        //     90CD0000150204E140EEEE000100C1F1212A000050000050000000
-        // not working ! eventually this work on change only ??
-        //byte[] commandSequence = Utils.hexStringToByteArray    ("90CD0000150204E140EEEE000100C1F1212A000050000050000000");
+        // build the command
+        byte fileNumber = (byte) 0x02;
+        byte[] fileNumberIso = hexStringToByteArray("04E1");
+        byte fileType = (byte) 0x00; // standard file
+        int fileSize = 256;
+        byte[] fileSizeByte = intTo3ByteArrayInversed(fileSize);
+        byte fileOption = (byte) 0x40; // enable SDM and mirroring, Plain communication
+        byte accessRightsRwCar = (byte) 0xEE;
+        byte accessRightsRW = (byte) 0xEE;
+        byte sdmOptions = (byte) 0xC1; // UID mirror = 1, SDMReadCtr = 1, SDMReadCtrLimit = 0, SDMENCFileData = 0, ASCII Encoding mode = 1
+        int encPiccDataOffset = 32;
+        int SDMMACOffset = 67;
+        int SDMMACInputOffset = 67;
+        byte[] encPiccDataOffsetByte = intTo3ByteArrayInversed(encPiccDataOffset);
+        byte[] SDMMACOffsetByte = intTo3ByteArrayInversed(SDMMACOffset);
+        byte[] SDMMACInputOffsetByte = intTo3ByteArrayInversed(SDMMACInputOffset);
+
+        ByteArrayOutputStream baosCommandData = new ByteArrayOutputStream();
+        baosCommandData.write(fileNumber);
+        baosCommandData.write(fileNumberIso, 0, fileNumberIso.length);
+        //baosCommandData.write(fileType);
+        baosCommandData.write(fileOption);
+        baosCommandData.write(accessRightsRwCar);
+        baosCommandData.write(accessRightsRW);
+        baosCommandData.write(fileSizeByte, 0, fileSizeByte.length);
+        //baosCommandData.write(sdmOptions);
+        //baosCommandData.write(encPiccDataOffsetByte, 0, encPiccDataOffsetByte.length);
+        //baosCommandData.write(SDMMACOffsetByte, 0, SDMMACOffsetByte.length);
+        //baosCommandData.write(SDMMACInputOffsetByte, 0, SDMMACInputOffsetByte.length);
+        byte[] commandData = baosCommandData.toByteArray();
+        Log.d(TAG, printData("commandData", commandData));
+        /*
+        ByteArrayOutputStream baosCommandData = new ByteArrayOutputStream();
+        baosCommandData.write(fileNumber);
+        baosCommandData.write(fileOption);
+        baosCommandData.write(accessRightsRwCar);
+        baosCommandData.write(accessRightsRW);
+        baosCommandData.write(fileSizeByte, 0, fileSizeByte.length);
+        baosCommandData.write(sdmOptions);
+        baosCommandData.write(encPiccDataOffsetByte, 0, encPiccDataOffsetByte.length);
+        baosCommandData.write(SDMMACOffsetByte, 0, SDMMACOffsetByte.length);
+        baosCommandData.write(SDMMACInputOffsetByte, 0, SDMMACInputOffsetByte.length);
+        byte[] commandData = baosCommandData.toByteArray();
+        Log.d(TAG, printData("commandData", commandData));
+         */
 
         // this is a little changed enabling code similar to TapLinx
         //byte[] commandSequence = Utils.hexStringToByteArray     ("90CD00000D0204E140EEEE0001005BC1F12100");
-        byte[] commandSequence = Utils.hexStringToByteArray    ("90CD0000090204E140EEEE00010000");
+        //byte[] commandSequence = Utils.hexStringToByteArray    ("90CD0000090204E140EEEE00010000");
 
         byte[] commandSequenceSdm1 = Utils.hexStringToByteArray("90CD0204E100EEE0000100BF25B5B1446EFC2E00"); // error 7e
         byte[] commandSequenceSdm2 = Utils.hexStringToByteArray("90CD0204E140EEE0000100E922B3C4DFBEF1E600");// error 7e
         byte[] response;
         byte[] wrappedCommand;
         try {
-            /*
-            Log.d(TAG, printData("commandParameter", commandParameter));
-            wrappedCommand = wrapMessage(createNdefFile2Command, commandParameter);
+            wrappedCommand = wrapMessage(CREATE_STANDARD_FILE_COMMAND, commandData);
             Log.d(TAG, printData("wrappedCommand", wrappedCommand));
             response = isoDep.transceive(wrappedCommand);
-             */
-            Log.d(TAG, printData("commandSequence", commandSequence));
-            response = isoDep.transceive(commandSequence);
             //Log.d(TAG, printData("commandSequenceSdm1", commandSequenceSdm1));
             //response = isoDep.transceive(commandSequenceSdm1);
             Log.d(TAG, printData("response", response));
