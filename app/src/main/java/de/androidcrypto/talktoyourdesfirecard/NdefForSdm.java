@@ -184,6 +184,9 @@ public class NdefForSdm {
      * Use the getters named in errorCodeReason to retrieve the fileOption byte, the sdmOptions byte
      * and offset byte arrays.
      * Note: I did not test if the SDM enablement is allowed only for file number 2 as with NTAG 424 DNA tags
+     *
+     * For detailed information on 'ChangeFileSettings' command see
+     * NTAG 424 DNA NT4H2421Gx.pdf pages 65 - 69
      */
 
     public String complexUrlBuilder(int fileNumber, CommunicationSettings communicationSetting, int keyRW, int keyCar, int keyR, int keyW,
@@ -287,7 +290,11 @@ public class NdefForSdm {
 
 
         StringBuilder sbError = new StringBuilder();
-
+        if (enableSdm) {
+            sbError.append("SDM enabled, get fileOption").append(",");
+        } else {
+            sbError.append("SDM not enabled").append(",");
+        }
 
 
         StringBuilder sb = new StringBuilder();
@@ -367,6 +374,10 @@ public class NdefForSdm {
 
     public String getUrlBase() {
         return urlBase;
+    }
+
+    public byte getFileOption() {
+        return fileOption;
     }
 
     public String getErrorCodeReason() {
