@@ -10,6 +10,7 @@ import static de.androidcrypto.talktoyourdesfirecard.Utils.removeAllNonAlphaNume
 
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
+import android.nfc.TagLostException;
 import android.nfc.tech.IsoDep;
 import android.util.Log;
 import android.widget.TextView;
@@ -4687,7 +4688,649 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         return true;
     }
 
+    /**
+     * changes the fileSettings of the file
+     * @param fileNumber            : in range 1..3
+     * @param communicationSettings : Plain, MACed or Full
+     * @param keyRW                 : keyNumber in range 0..4 or 14 ('E', free) or 15 ('F', never)
+     * @param keyCar                : see keyRW
+     * @param keyR                  : see keyRW
+     * @param keyW                  : see keyRW
+     * @param sdmEnable             : true = enables SDM and mirroring
+     * @return                      : true on success
+     *
+     * Note on SDM enabling: this will set some predefined, fixed values, that work with the sample NDEF string
+     * https://choose.url.com/ntag424?e=00000000000000000000000000000000&c=0000000000000000
+     * taken from NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf page 31
+     * - communicationSettings: Plain
+     * - enabling SDM and mirroring
+     * - sdmOptions are '0xC1' (UID mirror: 1, SDMReadCtr: 1, SDMReadCtrLimit: 0, SDMENCFileData: 0, ASCII Encoding mode: 1
+     * - SDMAccessRights are '0xF121':
+     *   0xF: RFU
+     *   0x1: FileAR.SDMCtrRet
+     *   0x2: FileAR.SDMMetaRead
+     *   0x1: FileAR.SDMFileRead
+     * - Offsets:
+     *   ENCPICCDataOffset: 0x200000
+     *   SDMMACOffset:      0x430000
+     *   SDMMACInputOffset: 0x430000
+     */
 
+    String errorCodeReason = "";
+    private static final byte[] RESPONSE_PARAMETER_ERROR = new byte[]{(byte) 0x91, (byte) 0xFE}; // failure because of wrong parameter
+
+    public boolean changeFileSettingsNtag424Dna(byte fileNumber, CommunicationSettings communicationSettings, int keyRW, int keyCar, int keyR, int keyW, boolean sdmEnable) {
+
+        // this method can only enable Secure Dynamic Message but cannot set specific data like offsets
+        // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 34 - 35 for SDM example
+        // see NTAG 424 DNA NT4H2421Gx.pdf pages 65 - 69 for fields and errors
+        // see NTAG 424 DNA NT4H2421Gx.pdf pages 69 - 70 for getFileSettings with responses incl. SDM
+        // see NTAG 424 DNA NT4H2421Gx.pdf pages 71 - 72 for getFileCounters
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 23 - 25 for general workflow with FULL communication
+
+        // status: WORKING on enabling and disabling SDM feature
+
+        String logData = "";
+        final String methodName = "changeFileSettings";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        // sanity checks
+        errorCode = new byte[2];
+        // sanity checks
+        if (keyRW < 0) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyRW is < 0, aborted";
+            return false;
+        }
+        if ((keyRW > 4) & (keyRW != 14) & (keyRW != 15)) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyRW is > 4 but not 14 or 15, aborted";
+            return false;
+        }
+        if (keyCar < 0) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyCar is < 0, aborted";
+            return false;
+        }
+        if ((keyCar > 4) & (keyCar != 14) & (keyCar != 15)) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyCar is > 4 but not 14 or 15, aborted";
+            return false;
+        }
+        if (keyR < 0) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyR is < 0, aborted";
+            return false;
+        }
+        if ((keyR > 4) & (keyR != 14) & (keyR != 15)) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyR is > 4 but not 14 or 15, aborted";
+            return false;
+        }
+        if (keyW < 0) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyW is < 0, aborted";
+            return false;
+        }
+        if ((keyW > 4) & (keyW != 14) & (keyW != 15)) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyW is > 4 but not 14 or 15, aborted";
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "isoDep is NULL (maybe it is not a NTAG424DNA tag ?), aborted";
+            return false;
+        }
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            errorCode = RESPONSE_FAILURE_MISSING_AUTHENTICATION.clone();
+            errorCodeReason = "missing authentication, did you forget to authenticate with the application Master key (0x00) ?), aborted";
+            return false;
+        }
+
+        if (sdmEnable) {
+            Log.d(TAG, "enabling Secure Dynamic Messaging feature on NTAG 424 DNA");
+            if (fileNumber != 2) {
+                errorCode = RESPONSE_PARAMETER_ERROR.clone();
+                errorCodeReason = "sdmEnable works on fileNumber 2 only, aborted";
+                return false;
+            }
+        }
+
+/*
+fileNumber: 01
+fileType: 0 (Standard)
+communicationSettings: 00 (Plain)
+accessRights RW | CAR: 00
+accessRights R  | W:   E0
+accessRights RW:       0
+accessRights CAR:      0
+accessRights R:        14
+accessRights W:        0
+fileSize: 32
+--------------
+fileNumber: 02
+fileType: 0 (Standard)
+communicationSettings: 00 (Plain)
+accessRights RW | CAR: E0
+accessRights R  | W:   EE
+accessRights RW:       14
+accessRights CAR:      0
+accessRights R:        14
+accessRights W:        14
+fileSize: 256
+--------------
+fileNumber: 03
+fileType: 0 (Standard)
+communicationSettings: 03 (Encrypted)
+accessRights RW | CAR: 30
+accessRights R  | W:   23
+accessRights RW:       3
+accessRights CAR:      0
+accessRights R:        2
+accessRights W:        3
+fileSize: 128
+         */
+
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        // Generating the MAC for the Command APDU
+        byte[] commandCounterLsb = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb", commandCounterLsb));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(HEADER_MAC, 0, HEADER_MAC.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb, 0, commandCounterLsb.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        // build the command data
+        byte communicationSettingsByte = (byte) 0x00;
+        if (communicationSettings.name().equals(CommunicationSettings.Plain.name())) communicationSettingsByte = (byte) 0x00;
+        if (communicationSettings.name().equals(CommunicationSettings.MACed.name())) communicationSettingsByte = (byte) 0x01;
+        if (communicationSettings.name().equals(CommunicationSettings.Encrypted.name())) communicationSettingsByte = (byte) 0x03;
+        byte fileOption;
+        if (sdmEnable) {
+            fileOption = (byte) 0x40; // enable SDM and mirroring, Plain communication
+        } else {
+            fileOption = communicationSettingsByte;
+        }
+        byte accessRightsRwCar = (byte) ((keyRW << 4) | (keyCar & 0x0F)); // Read&Write Access & ChangeAccessRights
+        byte accessRightsRW = (byte) ((keyR << 4) | (keyW & 0x0F)) ; // Read Access & Write Access
+        byte sdmOptions = (byte) 0xC1; // UID mirror = 1, SDMReadCtr = 1, SDMReadCtrLimit = 0, SDMENCFileData = 0, ASCII Encoding mode = 1
+        byte[] sdmAccessRights = hexStringToByteArray("F121");
+        byte[] ENCPICCDataOffset = Utils.intTo3ByteArrayInversed(32); // 0x200000
+        byte[] SDMMACOffset = Utils.intTo3ByteArrayInversed(67);      // 0x430000
+        byte[] SDMMACInputOffset = Utils.intTo3ByteArrayInversed(67); // 0x430000
+        ByteArrayOutputStream baosCommandData = new ByteArrayOutputStream();
+        baosCommandData.write(fileOption);
+        baosCommandData.write(accessRightsRwCar);
+        baosCommandData.write(accessRightsRW);
+        // following data are written on sdmEnable only
+        if (sdmEnable) {
+            baosCommandData.write(sdmOptions);
+            baosCommandData.write(sdmAccessRights, 0, sdmAccessRights.length);
+            baosCommandData.write(ENCPICCDataOffset, 0, ENCPICCDataOffset.length);
+            baosCommandData.write(SDMMACOffset, 0, SDMMACOffset.length);
+            baosCommandData.write(SDMMACInputOffset, 0, SDMMACInputOffset.length);
+        }
+        byte[] commandData = baosCommandData.toByteArray();
+        log(methodName, printData("commandData", commandData));
+
+        /*
+from: NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf page 34
+CmdData example: 4000E0C1F121200000430000430000
+40 00E0 C1 F121 200000 430000 430000
+40h = FileOption (SDM and
+Mirroring enabled), CommMode: plain
+00E0h = AccessRights (FileAR.ReadWrite: 0x0, FileAR.Change: 0x0, FileAR.Read: 0xE, FileAR.Write; 0x0)
+C1h =
+• UID mirror: 1
+• SDMReadCtr: 1
+• SDMReadCtrLimit: 0
+• SDMENCFileData: 0
+• ASCII Encoding mode: 1
+F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0x2, FileAR.SDMFileRead: 0x1)
+200000h = ENCPICCDataOffset
+430000h = SDMMACOffset
+430000h = SDMMACInputOffset
+ */
+
+        // eventually some padding is necessary with 0x80..00
+        byte[] commandDataPadded = paddingWriteData(commandData);
+        log(methodName, printData("commandDataPadded", commandDataPadded));
+
+        // E(KSesAuthENC, IVc, CmdData || Padding (if necessary))
+        byte[] encryptedData = AES.encrypt(ivForCmdData, SesAuthENCKey, commandDataPadded);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // Generating the MAC for the Command APDU
+        // Cmd || CmdCounter || TI || CmdHeader = fileNumber || E(KSesAuthENC, CmdData)
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(CHANGE_FILE_SETTINGS_COMMAND); // 0x5F
+        baosMacInput.write(commandCounterLsb, 0, commandCounterLsb.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(fileNumber);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // error in DESFire Light Features and Hints, page 57, point 28:
+        // Data (FileNo || Offset || DataLength || Data) is NOT correct, as well not the Data Message
+        // correct is the following concatenation:
+
+        // Data (CmdHeader = fileNumber || Encrypted Data || MAC)
+        ByteArrayOutputStream baosWriteDataCommand = new ByteArrayOutputStream();
+        baosWriteDataCommand.write(fileNumber);
+        baosWriteDataCommand.write(encryptedData, 0, encryptedData.length);
+        baosWriteDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] writeDataCommand = baosWriteDataCommand.toByteArray();
+        log(methodName, printData("writeDataCommand", writeDataCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(CHANGE_FILE_SETTINGS_COMMAND, writeDataCommand);
+/*
+from NTAG424DNA sheet page 69:
+PERMISSION_DENIED
+- 9Dh PICC level (MF) is selected.
+- access right Change of targeted file has access conditions set to Fh.
+- Enabling Secure Dynamic Messaging (FileOption Bit 6 set to 1b) is only allowed for FileNo 02h.
+ */
+            // expected APDU 905F0000190261B6D97903566E84C3AE5274467E89EAD799B7C1A0EF7A0400 (31 bytes)
+            response = sendData(apdu);
+        } catch (IOException e) {
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: " + e.getMessage();
+            return false;
+        }
+        if (!checkResponse(response)) {
+            log(methodName, methodName + " FAILURE");
+            byte[] responseBytes = returnStatusBytes(response);
+            System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+            errorCodeReason = methodName + " FAILURE";
+            return false;
+        }
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+
+        if (verifyResponseMac(responseMACTruncatedReceived, null)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return true;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return false;
+        }
+    }
+
+    public boolean changeFileSettingsNtag424Dna(byte fileNumber, CommunicationSettings communicationSettings, int keyRW, int keyCar, int keyR, int keyW, boolean sdmEnable, int encPiccDataOffset, int sdmMacOffset, int sdmMacInputOffset) {
+
+        // this method can only enable Secure Dynamic Message but cannot set specific data like offsets
+        // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 34 - 35 for SDM example
+        // see NTAG 424 DNA NT4H2421Gx.pdf pages 65 - 69 for fields and errors
+        // see NTAG 424 DNA NT4H2421Gx.pdf pages 69 - 70 for getFileSettings with responses incl. SDM
+        // see NTAG 424 DNA NT4H2421Gx.pdf pages 71 - 72 for getFileCounters
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 23 - 25 for general workflow with FULL communication
+
+        // status: WORKING on enabling and disabling SDM feature
+
+        String logData = "";
+        final String methodName = "changeFileSettings";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        // sanity checks
+        errorCode = new byte[2];
+        // sanity checks
+        if (keyRW < 0) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyRW is < 0, aborted";
+            return false;
+        }
+        if ((keyRW > 4) & (keyRW != 14) & (keyRW != 15)) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyRW is > 4 but not 14 or 15, aborted";
+            return false;
+        }
+        if (keyCar < 0) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyCar is < 0, aborted";
+            return false;
+        }
+        if ((keyCar > 4) & (keyCar != 14) & (keyCar != 15)) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyCar is > 4 but not 14 or 15, aborted";
+            return false;
+        }
+        if (keyR < 0) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyR is < 0, aborted";
+            return false;
+        }
+        if ((keyR > 4) & (keyR != 14) & (keyR != 15)) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyR is > 4 but not 14 or 15, aborted";
+            return false;
+        }
+        if (keyW < 0) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyW is < 0, aborted";
+            return false;
+        }
+        if ((keyW > 4) & (keyW != 14) & (keyW != 15)) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyW is > 4 but not 14 or 15, aborted";
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "isoDep is NULL (maybe it is not a NTAG424DNA tag ?), aborted";
+            return false;
+        }
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            errorCode = RESPONSE_FAILURE_MISSING_AUTHENTICATION.clone();
+            errorCodeReason = "missing authentication, did you forget to authenticate with the application Master key (0x00) ?), aborted";
+            return false;
+        }
+
+        if (sdmEnable) {
+            Log.d(TAG, "enabling Secure Dynamic Messaging feature on NTAG 424 DNA");
+            if (fileNumber != 2) {
+                errorCode = RESPONSE_PARAMETER_ERROR.clone();
+                errorCodeReason = "sdmEnable works on fileNumber 2 only, aborted";
+                return false;
+            }
+        }
+
+        // todo validate offsets
+
+/*
+fileNumber: 01
+fileType: 0 (Standard)
+communicationSettings: 00 (Plain)
+accessRights RW | CAR: 00
+accessRights R  | W:   E0
+accessRights RW:       0
+accessRights CAR:      0
+accessRights R:        14
+accessRights W:        0
+fileSize: 32
+--------------
+fileNumber: 02
+fileType: 0 (Standard)
+communicationSettings: 00 (Plain)
+accessRights RW | CAR: E0
+accessRights R  | W:   EE
+accessRights RW:       14
+accessRights CAR:      0
+accessRights R:        14
+accessRights W:        14
+fileSize: 256
+--------------
+fileNumber: 03
+fileType: 0 (Standard)
+communicationSettings: 03 (Encrypted)
+accessRights RW | CAR: 30
+accessRights R  | W:   23
+accessRights RW:       3
+accessRights CAR:      0
+accessRights R:        2
+accessRights W:        3
+fileSize: 128
+         */
+
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        // Generating the MAC for the Command APDU
+        byte[] commandCounterLsb = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb", commandCounterLsb));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(HEADER_MAC, 0, HEADER_MAC.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb, 0, commandCounterLsb.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        // build the command data
+        byte communicationSettingsByte = (byte) 0x00;
+        if (communicationSettings.name().equals(CommunicationSettings.Plain.name())) communicationSettingsByte = (byte) 0x00;
+        if (communicationSettings.name().equals(CommunicationSettings.MACed.name())) communicationSettingsByte = (byte) 0x01;
+        if (communicationSettings.name().equals(CommunicationSettings.Encrypted.name())) communicationSettingsByte = (byte) 0x03;
+        byte fileOption;
+        if (sdmEnable) {
+            fileOption = (byte) 0x40; // enable SDM and mirroring, Plain communication
+        } else {
+            fileOption = communicationSettingsByte;
+        }
+        byte accessRightsRwCar = (byte) ((keyRW << 4) | (keyCar & 0x0F)); // Read&Write Access & ChangeAccessRights
+        byte accessRightsRW = (byte) ((keyR << 4) | (keyW & 0x0F)) ; // Read Access & Write Access
+        byte sdmOptions = (byte) 0xC1; // UID mirror = 1, SDMReadCtr = 1, SDMReadCtrLimit = 0, SDMENCFileData = 0, ASCII Encoding mode = 1
+        byte[] sdmAccessRights = hexStringToByteArray("F121");
+        byte[] ENCPICCDataOffset = Utils.intTo3ByteArrayInversed(encPiccDataOffset); // e.g. 0x200000 for NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf example on pages 31 + 34
+        byte[] SDMMACOffset = Utils.intTo3ByteArrayInversed(sdmMacOffset);      // e.g. 0x430000
+        byte[] SDMMACInputOffset = Utils.intTo3ByteArrayInversed(sdmMacInputOffset); // e.g. 0x430000
+        log(methodName, printData("ENCPICCDataOffset", ENCPICCDataOffset));
+        log(methodName, printData("SDMMACOffset     ", SDMMACOffset));
+        log(methodName, printData("SDMMACInputOffset", SDMMACInputOffset));
+        /*
+        values using server data: https://sdm.nfcdeveloper.com/tag
+        ENCPICCDataOffset length: 3 data: 2a0000 (42d)
+        SDMMACOffset      length: 3 data: 500000 (80d)
+        SDMMACInputOffset length: 3 data: 500000 (80d)
+
+         */
+        ByteArrayOutputStream baosCommandData = new ByteArrayOutputStream();
+        baosCommandData.write(fileOption);
+        baosCommandData.write(accessRightsRwCar);
+        baosCommandData.write(accessRightsRW);
+        // following data are written on sdmEnable only
+        if (sdmEnable) {
+            baosCommandData.write(sdmOptions);
+            baosCommandData.write(sdmAccessRights, 0, sdmAccessRights.length);
+            baosCommandData.write(ENCPICCDataOffset, 0, ENCPICCDataOffset.length);
+            baosCommandData.write(SDMMACOffset, 0, SDMMACOffset.length);
+            baosCommandData.write(SDMMACInputOffset, 0, SDMMACInputOffset.length);
+        }
+        byte[] commandData = baosCommandData.toByteArray();
+        log(methodName, printData("commandData", commandData));
+
+        /*
+from: NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf page 34
+CmdData example: 4000E0C1F121200000430000430000
+40 00E0 C1 F121 200000 430000 430000
+40h = FileOption (SDM and
+Mirroring enabled), CommMode: plain
+00E0h = AccessRights (FileAR.ReadWrite: 0x0, FileAR.Change: 0x0, FileAR.Read: 0xE, FileAR.Write; 0x0)
+C1h =
+• UID mirror: 1
+• SDMReadCtr: 1
+• SDMReadCtrLimit: 0
+• SDMENCFileData: 0
+• ASCII Encoding mode: 1
+F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0x2, FileAR.SDMFileRead: 0x1)
+200000h = ENCPICCDataOffset
+430000h = SDMMACOffset
+430000h = SDMMACInputOffset
+ */
+
+        // eventually some padding is necessary with 0x80..00
+        byte[] commandDataPadded = paddingWriteData(commandData);
+        log(methodName, printData("commandDataPadded", commandDataPadded));
+
+        // E(KSesAuthENC, IVc, CmdData || Padding (if necessary))
+        byte[] encryptedData = AES.encrypt(ivForCmdData, SesAuthENCKey, commandDataPadded);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // Generating the MAC for the Command APDU
+        // Cmd || CmdCounter || TI || CmdHeader = fileNumber || E(KSesAuthENC, CmdData)
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(CHANGE_FILE_SETTINGS_COMMAND); // 0x5F
+        baosMacInput.write(commandCounterLsb, 0, commandCounterLsb.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(fileNumber);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // error in DESFire Light Features and Hints, page 57, point 28:
+        // Data (FileNo || Offset || DataLength || Data) is NOT correct, as well not the Data Message
+        // correct is the following concatenation:
+
+        // Data (CmdHeader = fileNumber || Encrypted Data || MAC)
+        ByteArrayOutputStream baosWriteDataCommand = new ByteArrayOutputStream();
+        baosWriteDataCommand.write(fileNumber);
+        baosWriteDataCommand.write(encryptedData, 0, encryptedData.length);
+        baosWriteDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] writeDataCommand = baosWriteDataCommand.toByteArray();
+        log(methodName, printData("writeDataCommand", writeDataCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(CHANGE_FILE_SETTINGS_COMMAND, writeDataCommand);
+/*
+from NTAG424DNA sheet page 69:
+PERMISSION_DENIED
+- 9Dh PICC level (MF) is selected.
+- access right Change of targeted file has access conditions set to Fh.
+- Enabling Secure Dynamic Messaging (FileOption Bit 6 set to 1b) is only allowed for FileNo 02h.
+ */
+            // expected APDU 905F0000190261B6D97903566E84C3AE5274467E89EAD799B7C1A0EF7A0400 (31 bytes)
+            response = sendData(apdu);
+        } catch (IOException e) {
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: " + e.getMessage();
+            return false;
+        }
+        if (!checkResponse(response)) {
+            log(methodName, methodName + " FAILURE");
+            byte[] responseBytes = returnStatusBytes(response);
+            System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+            errorCodeReason = methodName + " FAILURE";
+            return false;
+        }
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+
+        if (verifyResponseMac(responseMACTruncatedReceived, null)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return true;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return false;
+        }
+    }
+
+    /**
+     * verifies the responseMAC against the responseData using the SesAuthMACKey
+     * @param responseMAC
+     * @param responseData (if data is encrypted use the encrypted data, not the decrypted data)
+     *                     Note: in case of enciphered writings the data is null
+     * @return true if MAC equals the calculated MAC
+     */
+
+    private boolean verifyResponseMac(byte[] responseMAC, byte[] responseData) {
+        final String methodName = "verifyResponseMac";
+        byte[] commandCounterLsb = intTo2ByteArrayInversed(CmdCounter);
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb, 0, commandCounterLsb.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        if (responseData != null) {
+            responseMacBaos.write(responseData, 0, responseData.length);
+        }
+        byte[] macInput = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput", macInput));
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMAC));
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMAC)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return true;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return false;
+        }
+    }
+
+    private byte[] sendData(byte[] apdu) {
+        String methodName = "sendData";
+        if (isoDep == null) {
+            Log.e(TAG, methodName + " isoDep is NULL");
+            log(methodName, "isoDep is NULL, aborted");
+            return null;
+        }
+        log(methodName, printData("send apdu -->", apdu));
+        byte[] recvBuffer;
+        try {
+            recvBuffer = isoDep.transceive(apdu);
+        } catch (TagLostException e) {
+            errorCodeReason = "TagLostException: " + e.getMessage();
+            Log.e(TAG, e.getMessage());
+            e.printStackTrace();
+            return null;
+        } catch (IOException e) {
+            errorCodeReason = "IOException: " + e.getMessage();
+            Log.e(TAG, e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+        log(methodName, printData("received  <--", recvBuffer));
+        return recvBuffer;
+    }
 
     private boolean getSelectedFileSettings(byte fileNumber) {
         Log.d(TAG, "getSelectedFileSettings for fileNumber " + fileNumber);
@@ -5021,7 +5664,7 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         int fileSize = 256;
         byte[] fileSizeByte = intTo3ByteArrayInversed(fileSize);
         byte fileOption = (byte) 0x40; // enable SDM and mirroring, Plain communication
-        byte accessRightsRwCar = (byte) 0xEE;
+        byte accessRightsRwCar = (byte) 0xE0;
         byte accessRightsRW = (byte) 0xEE;
         byte sdmOptions = (byte) 0xC1; // UID mirror = 1, SDMReadCtr = 1, SDMReadCtrLimit = 0, SDMENCFileData = 0, ASCII Encoding mode = 1
         int encPiccDataOffset = 32;

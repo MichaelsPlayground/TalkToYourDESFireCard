@@ -278,6 +278,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private String exportString = "Desfire Authenticate Legacy"; // takes the log data for export
     private String exportStringFileName = "auth.html"; // takes the log data for export
 
+    public static String NDEF_BACKEND_URL = "https://sdm.nfcdeveloper.com/tag"; // filled by writeStandardFile2
 
     // DesfireAuthentication is used for all authentication tasks. The constructor needs the isoDep object so it is initialized in 'onTagDiscovered'
     DesfireAuthenticate desfireAuthenticate;
@@ -4006,7 +4007,16 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                  */
 
                 writeToUiAppend(output, logString + " step 4: change the fileSettings SDM");
-                success = desfireAuthenticateEv2.changeFileSettingsSdmEv2(ndefFileId);
+                //success = desfireAuthenticateEv2.changeFileSettingsSdmEv2(ndefFileId);
+                // testing NTAG424DNA method
+                // this is using a more flexible way - use the  NdefForSdm class
+                // you should use writeStandardFile2 to update the data if you are not using the sample data url
+                NdefForSdm ndefForSdm = new NdefForSdm(NDEF_BACKEND_URL);
+                String url = ndefForSdm.urlBuilder();
+                int encPiccOffset = ndefForSdm.getOffsetEncryptedPiccData();
+                int sdmMacOffset = ndefForSdm.getOffsetSDMMACData(); // I'm using the equals value for sdmMacInputOffset
+                success = desfireAuthenticateEv2.changeFileSettingsNtag424Dna(ndefFileId, DesfireAuthenticateEv2.CommunicationSettings.Plain, 0,0, 14, 0, true, encPiccOffset, sdmMacOffset, sdmMacOffset);
+
                 responseData = desfireAuthenticateEv2.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
