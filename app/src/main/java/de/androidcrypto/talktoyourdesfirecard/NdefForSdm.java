@@ -43,9 +43,43 @@ public class NdefForSdm {
     private String urlParameterNext = "&"; // character between parameterName and data
     private String urlEncryptedPiccName = "picc_data";
     private String urlEncryptedPiccPlaceholder = "00000000000000000000000000000000";
+    private final int encryptedPiccLength = 32;
+    private String urlPlainUidName = "uid";
+    private String urlPlainUidPlaceholder = "00000000000000";
+    private final int plainUidLength = 14;
+    private String urlPlainSDMReadCtrName = "ctr";
+    private String urlPlainSDMReadCtrPlaceholder = "000000";
+    private final int plainSDMReadCtrLength = 6;
+    private String urlEncryptedDataName = "sdmenc";
+    private String urlEncryptedDataPlaceholder = "00000000000000000000000000000000";
+    private final int encryptedDataLength = 32; // note: only the first 16 bytes are encrypted, the next 16 bytes are not used and delivering
     private String urlCmacName = "cmac";
     private String urlCmacPlaceholder = "0000000000000000";
+    private final int cmacLength = 16;
     private String urlTemplate = "";
+
+    // parameter for complex url builder
+    private byte fileOption;
+    private byte[] accessRights;
+    private byte sdmOptions;
+    private byte[] sdmAccessRights;
+    private byte[] uidOffset;
+    private byte[] sdmReadCounterOffset;
+    private byte[] piccDataOffset;
+    private byte[] sdmMacInputOffset;
+    private byte[] sdmEncOffset;
+    private byte[] sdmEncLength;
+    private byte[] sdmMacOffset;
+    private byte[] sdmReadCounterLimit;
+
+
+
+
+    private String errorCodeReason = "";
+
+    public enum CommunicationSettings {
+        Plain, MACed, Full
+    }
 
     /**
      * this will setup the class with default parameter for usage with https://sdm.nfcdeveloper.com/tag
@@ -120,13 +154,7 @@ public class NdefForSdm {
         return (pos + parameterString.length() - positionCorrection);
     }
 
-    public String getUrlTemplate() {
-        return urlTemplate;
-    }
 
-    public String getUrlBase() {
-        return urlBase;
-    }
 
     private boolean isValidUrl(String url) {
         if (url.length() == 0) return false;
@@ -141,5 +169,207 @@ public class NdefForSdm {
 
     private String removeTrailingSlashs(String s) {
         return s.replaceAll("/+$", "");
+    }
+
+    /**
+     * section for complex url builder
+     */
+
+    /**
+     * This complex builder tries to build the template url, the fileOption byte, the sdmOptions byte
+     * and various placeholder, depending on given parameter.
+     * It uses the pre-defined parameter names for string concatenation.
+     * As there are "no go" combinations it is strong recommended to check the errorCodeReason why a
+     * specific combination was not successful.
+     * Use the getters named in errorCodeReason to retrieve the fileOption byte, the sdmOptions byte
+     * and offset byte arrays.
+     * Note: I did not test if the SDM enablement is allowed only for file number 2 as with NTAG 424 DNA tags
+     */
+
+    public String complexUrlBuilder(int fileNumber, CommunicationSettings communicationSetting, int keyRW, int keyCar, int keyR, int keyW,
+                                    boolean enableSdm, boolean enableUid, boolean enableSdmReadCounter, boolean enableSdmReadCounterLimit,
+                                    boolean enableSdmEncFileData, int sdmEncFileDataLength, boolean enableAsciiData, int keySdmCtrRet, int keySdmMetaRead,
+                                    int keySdmFileRead) {
+        boolean success = validateComplexParameter(fileNumber, keyRW, keyCar, keyR,  keyW, keySdmCtrRet, keySdmMetaRead, keySdmFileRead, sdmEncFileDataLength);
+        if (!success) return null; // the errorCodeReason has the  failure reason
+
+        // fileOptions
+        fileOption = (byte) 0x00;
+        if (communicationSetting == CommunicationSettings.Plain) fileOption = (byte) 0x00;
+        if (communicationSetting == CommunicationSettings.MACed) fileOption = (byte) 0x01;
+        if (communicationSetting == CommunicationSettings.Full) fileOption = (byte) 0x03;
+        if (enableSdm) {
+            fileOption = Utils.setBitInByte(fileOption, 6);
+        }
+
+        // access rights
+        byte accessRightsRwCar = (byte) ((keyRW << 4) | (keyCar & 0x0F)); // Read&Write Access & ChangeAccessRights
+        byte accessRightsRW = (byte) ((keyR << 4) | (keyW & 0x0F)) ;// Read Access & Write Access
+        accessRights[0] = accessRightsRwCar;
+        accessRights[1] = accessRightsRW;
+
+        // sdm options
+        // [Optional, present if FileOption[Bit 6] set]
+        if (enableSdm) {
+            sdmOptions = (byte) 0x00;
+            if (enableUid) {
+                sdmOptions = Utils.setBitInByte(sdmOptions, 7);
+            }
+            if (enableSdmReadCounter) {
+                sdmOptions = Utils.setBitInByte(sdmOptions, 6);
+            }
+            if (enableSdmReadCounterLimit) {
+                sdmOptions = Utils.setBitInByte(sdmOptions, 5);
+            }
+            if (enableSdmEncFileData) {
+                sdmOptions = Utils.setBitInByte(sdmOptions, 4);
+            }
+            if (enableAsciiData) {
+                sdmOptions = Utils.setBitInByte(sdmOptions, 0);
+            }
+        }
+
+        // sdm access rights
+        // [Optional, present if FileOption[Bit 6] set]
+        if (enableSdm) {
+            int keyRfu = 15;
+            byte accessRightsRfuCtrRet = (byte) ((keyRfu << 4) | (keySdmCtrRet & 0x0F)); // RFU & SDM Counter Retrieve
+            byte accessRightsMetaReadFileRead = (byte) ((keyR << 4) | (keyW & 0x0F));// Meta Data Read & File Read
+            accessRights[0] = accessRightsRfuCtrRet;
+            accessRights[1] = accessRightsMetaReadFileRead;
+        }
+
+        // uid offset
+        // [Optional, present if ((SDMOptions[Bit 7] = 1b) AND (SDMMetaRead access right = Eh)]
+        // 0h .. (FileSize - UIDLength)
+
+
+        // SDMReadCtrOffset
+        // [Optional, present if ((SDMOptions[Bit 6] = 1b) AND (SDMMetaRead access right = Eh)]
+        // 0h .. (FileSize - SDMReadCtrLength) Offset within the file
+        // FFFFFFh No SDMReadCtr mirroring
+
+
+        // PICCDataOffset
+        // [Optional, present if SDMMetaRead access right =0h..4h]
+        // 0h .. (FileSize - PICCDataLength)
+
+
+
+        // SDMMACInputOffset
+        // [Optional, present if SDMFileRead access right != Fh]
+        // 0h .. (SDMMACOffset)
+
+
+
+        // SDMENCOffset
+        // [Optional, present if ((SDMFileRead access right != Fh) AND (SDMOptions[Bit 4] = 1b))]
+        // SDMMACInputOffset .. (SDMMACOffset - 32)
+
+
+        // SDMENCLength
+        // [Optional, present if ((SDMFileRead access right != Fh) AND (SDMOptions[Bit 4] = 1b))]
+        // 32 .. (SDMMACOffset - SDMENCOffset), Offset within the file, must be multiple of 32
+
+        //  [if (SDMFileRead access right != Fh) AND (SDMOptions[Bit 4] = 1b)] Offset within the file
+
+
+
+        // SDMMACOffset
+        // [Optional, present if SDMFileRead access right != Fh]
+        // SDMMACInputOffset .. (FileSize - 16) : [if (SDMFileRead access right != Fh) AND (SDMOptions[Bit 4] = 0b)] Offset within the file
+        // (SDMENCOffset + SDMENCLength) .. (FileSize- 16) : [if (SDMFileRead access right != Fh) AND (SDMOptions[Bit 4] = 1b)] Offset within the file
+
+
+        // SDMReadCtrLimit
+        // [Optional, present if SDMOptions[Bit 5] = 1b]
+        // Full range
+
+
+        StringBuilder sbError = new StringBuilder();
+
+
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(urlBase);
+
+
+
+        errorCodeReason = sbError.toString();
+        urlTemplate = sb.toString();
+        return urlTemplate;
+    }
+
+    /**
+     * This is NOT a LOGICAL validation but a PHYSICAL validation, means it only does validate the ranges in theory.
+     * E.g. when an application has a maximum number of 5 keys then a key number of 10 will fail on the PICC but this
+     * validation will success as 10 is in the range of maximum allowed keys per application (15).
+     * @param fileNumber
+     * @param keyRW
+     * @param keyCar
+     * @param keyR
+     * @param keyW
+     * @param keySdmCtrRet
+     * @param keySdmMetaRead
+     * @param keySdmFileRead
+     * @param sdmEncFileDataLength : should be a multiple of 16, this validation checks for values 16/32/48 only
+     * @return
+     */
+
+    private boolean validateComplexParameter(int fileNumber, int keyRW, int keyCar, int keyR, int keyW,
+                                             int keySdmCtrRet, int keySdmMetaRead, int keySdmFileRead, int sdmEncFileDataLength) {
+        if ((fileNumber < 0) || (fileNumber > 31)) {
+            errorCodeReason = "fileNumber is not in range 00..31, aborted";
+            return false;
+        }
+        if ((keyRW < 0) || (keyRW > 15)) {
+            errorCodeReason = "keyRW is not in range 00..15, aborted";
+            return false;
+        }
+        if ((keyCar < 0) || (keyCar > 15)) {
+            errorCodeReason = "keyCar is not in range 00..15, aborted";
+            return false;
+        }
+        if ((keyR < 0) || (keyR > 15)) {
+            errorCodeReason = "keyR is not in range 00..15, aborted";
+            return false;
+        }
+        if ((keyW < 0) || (keyW > 15)) {
+            errorCodeReason = "keyW is not in range 00..15, aborted";
+            return false;
+        }
+        if ((keySdmCtrRet < 0) || (keySdmCtrRet > 15)) {
+            errorCodeReason = "keySdmCtrRet is not in range 00..15, aborted";
+            return false;
+        }
+        if ((keySdmMetaRead < 0) || (keySdmMetaRead > 15)) {
+            errorCodeReason = "keySdmMetaRead is not in range 00..15, aborted";
+            return false;
+        }
+        if ((keySdmFileRead < 0) || (keySdmFileRead > 15)) {
+            errorCodeReason = "keySdmFileRead is not in range 00..15, aborted";
+            return false;
+        }
+        if ((sdmEncFileDataLength != 16) && (sdmEncFileDataLength != 32) && (sdmEncFileDataLength != 48)) {
+            errorCodeReason = "sdmEncFileDataLength is not 16 / 32 / 48, aborted";
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * section for getter
+     */
+
+    public String getUrlTemplate() {
+        return urlTemplate;
+    }
+
+    public String getUrlBase() {
+        return urlBase;
+    }
+
+    public String getErrorCodeReason() {
+        return errorCodeReason;
     }
 }
