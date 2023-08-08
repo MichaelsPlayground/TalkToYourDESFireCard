@@ -113,7 +113,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     private Button createNdefFile256Ev2, sdmChangeFileSettingsEv2, sdmTestFileSettingsEv2;
-    private Button sdmGetFileSettingsEv2, sdmDecryptNdefManualEv2;
+    private Button sdmGetFileSettingsEv2, sdmDecryptNdefManualEv2, sdmTestTemplate;
 
     /**
      * section for standard file handling
@@ -341,6 +341,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         sdmTestFileSettingsEv2 = findViewById(R.id.btnSdmTestFileSettings);
         sdmGetFileSettingsEv2 = findViewById(R.id.btnSdmGetFileSettingsEv2);
         sdmDecryptNdefManualEv2 = findViewById(R.id.btnSdmDecryptNdefManualEv2);
+        sdmTestTemplate = findViewById(R.id.btnSdmTestTemplate);
 
         //fileCreateEv2 = findViewById(R.id.btnCreateFilesEv2);
 
@@ -4260,6 +4261,106 @@ C1h =
                 writeToUiAppend(output, printData("sdmMacTruncated", sdmMacTruncated));
                 writeToUiAppend(output, "The sdmMac matches macData value: " + Arrays.equals(macData, sdmMacTruncated));
             }
+        });
+
+        sdmTestTemplate.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "SDM test template";
+                writeToUiAppend(output, logString);
+                NdefForSdm ndefForSdm = new NdefForSdm(NDEF_BACKEND_URL); // https://sdm.nfcdeveloper.com/tag
+/*
+(int fileNumber, CommunicationSettings communicationSetting, int keyRW, int keyCar, int keyR, int keyW, int readCounterLimit,
+boolean enableSdm, boolean enableUid, boolean enableSdmReadCounter, boolean enableSdmReadCounterLimit,
+boolean enableSdmEncFileData, int sdmEncFileDataLength, boolean enableAsciiData, int keySdmCtrRet,
+int keySdmMetaRead, int keySdmFileRead)
+ */
+                // test with sdm disabled
+                String result = ndefForSdm.complexUrlBuilder(2, NdefForSdm.CommunicationSettings.Plain,
+                        1,2,3,4, false, false, false,
+                        false, 0,false, 32, true,
+                        3, 3, 3);
+                writeToUiAppend(output, "test 1\n" + result);
+                writeToUiAppend(output, "test 1\n" + ndefForSdm.getErrorCodeReason());
+                // https://sdm.nfcdeveloper.com/tag
+
+                // test with sdm enabled, no uid & read counter enabled
+                result = ndefForSdm.complexUrlBuilder(2, NdefForSdm.CommunicationSettings.Plain,
+                        1,2,3,4, true, false, false,
+                        false, 0,false, 32, true,
+                        3, 3, 3);
+                writeToUiAppend(output, "test 2\n" + result);
+                writeToUiAppend(output, "test 2\n" + ndefForSdm.getErrorCodeReason());
+                // https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac=0000000000000000
+
+                // test with sdm enabled, no uid & read counter enabled
+                result = ndefForSdm.complexUrlBuilder(2, NdefForSdm.CommunicationSettings.Plain,
+                        1,2,3,4, true, false, false,
+                        false, 0,false, 32, true,
+                        3, 3, 3);
+                writeToUiAppend(output, "test 3\n" + result);
+                writeToUiAppend(output, "test 3\n" + ndefForSdm.getErrorCodeReason());
+                // https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac=0000000000000000
+
+                // test with sdm enabled, uid & read counter enabled, encrypted picc data
+                result = ndefForSdm.complexUrlBuilder(2, NdefForSdm.CommunicationSettings.Plain,
+                        1,2,3,4, true, true, true,
+                        false, 0,false, 32, true,
+                        3, 3, 3);
+                writeToUiAppend(output, "test 4\n" + result);
+                writeToUiAppend(output, "test 4\n" + ndefForSdm.getErrorCodeReason());
+                // https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac=0000000000000000
+
+                // test with sdm enabled, uid & read counter enabled but in Plain data
+                result = ndefForSdm.complexUrlBuilder(2, NdefForSdm.CommunicationSettings.Plain,
+                        1,2,3,4, true, true, true,
+                        false, 0,false, 32, true,
+                        3, 14, 3);
+                writeToUiAppend(output, "test 5\n" + result);
+                writeToUiAppend(output, "test 5\n" + ndefForSdm.getErrorCodeReason());
+                // https://sdm.nfcdeveloper.com/tag?uid=00000000000000&ctr=000000&cmac=0000000000000000
+
+                // test with sdm enabled, uid & read counter enabled but in Plain data, read counter limit enabled
+                result = ndefForSdm.complexUrlBuilder(2, NdefForSdm.CommunicationSettings.Plain,
+                        1,2,3,4, true, true, true,
+                        true, NdefForSdm.SDM_READ_COUNTER_LIMIT_MAXIMUM,false, 32, true,
+                        3, 14, 3);
+                writeToUiAppend(output, "test 6\n" + result);
+                writeToUiAppend(output, "test 6\n" + ndefForSdm.getErrorCodeReason());
+                // https://sdm.nfcdeveloper.com/tag?uid=00000000000000&ctr=000000&cmac=0000000000000000
+
+                // test with sdm enabled, uid & read counter enabled but in Plain data, read counter limit disabled,
+                // encrypted file data enabled
+                result = ndefForSdm.complexUrlBuilder(2, NdefForSdm.CommunicationSettings.Plain,
+                        1,2,3,4, true, true, true,
+                        false, 0 , true, 32, true,
+                        3, 14, 3);
+                writeToUiAppend(output, "test 7\n" + result);
+                writeToUiAppend(output, "test 7\n" + ndefForSdm.getErrorCodeReason());
+                // https://sdm.nfcdeveloper.com/tag?uid=00000000000000&ctr=000000&sdmenc=00000000000000000000000000000000&cmac=0000000000000000
+
+                // test with sdm enabled, uid & read counter enabled but in Plain data, read counter limit disabled,
+                // encrypted file data enabled but keySdmFileRead = 15 - means no encrypted file data present
+                result = ndefForSdm.complexUrlBuilder(2, NdefForSdm.CommunicationSettings.Plain,
+                        1,2,3,4, true, true, true,
+                        false, 0,true, 32, true,
+                        3, 14, 15);
+                writeToUiAppend(output, "test 8\n" + result);
+                writeToUiAppend(output, "test 8\n" + ndefForSdm.getErrorCodeReason());
+                // https://sdm.nfcdeveloper.com/tag?uid=00000000000000&ctr=000000
+
+                // test with sdm enabled, uid & read counter enabled but in Encrypted PICC data, read counter limit disabled,
+                // encrypted file data enabled, this is full encrypted data
+                result = ndefForSdm.complexUrlBuilder(2, NdefForSdm.CommunicationSettings.Plain,
+                        1,2,3,4, true, true, true,
+                        false, 0,true, 32, true,
+                        3, 3, 3);
+                writeToUiAppend(output, "test 9\n" + result);
+                writeToUiAppend(output, "test 9\n" + ndefForSdm.getErrorCodeReason());
+                // https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&sdmenc=00000000000000000000000000000000&cmac=0000000000000000
+
+          }
         });
 
 
