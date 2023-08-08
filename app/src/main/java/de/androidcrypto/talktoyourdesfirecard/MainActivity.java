@@ -4208,6 +4208,9 @@ C1h =
                 }
                 writeToUiAppend(output, "now decrypting tag data");
                 */
+
+                /*
+                // real data
                 byte[] decryptedNdefData = desfireAuthenticateEv2.decryptNdefDataEv2(iv, key, encryptedNdefData);
                 byte[] uid = new byte[0];
                 byte[] readCtr = new byte[0];
@@ -4229,7 +4232,7 @@ C1h =
 
                 writeToUiAppend(output, "now verifying the MAC");
                 byte[] sdmFileReadKey = new byte[16]; // default AES key // is set to key 1 in TapLinx
-
+*/
 /*
                 // sample data
                 byte[] uidSample = hexStringToByteArray("04DE5F1EACC040");
@@ -4248,7 +4251,8 @@ C1h =
                 writeToUiAppend(output, printData("sdmMacSampleExpected", sdmMacSampleExpected));
                 writeToUiAppend(output, "The sdmMacTruncateSample is equals to the expected value: " + Arrays.equals(sdmMacTruncatedSample, sdmMacSampleExpected));
 */
-                // read data
+                /*
+                // MAC verification - real data
                 writeToUiAppend(output, "MAC - working with real data");
                 byte[] macData = hexStringToByteArray("6AE1C36FEB5721D2");
                 writeToUiAppend(output, printData("macData from NDEF", macData));
@@ -4260,6 +4264,84 @@ C1h =
                 byte[] sdmMacTruncated = desfireAuthenticateEv2.truncateMAC(sdmMac);
                 writeToUiAppend(output, printData("sdmMacTruncated", sdmMacTruncated));
                 writeToUiAppend(output, "The sdmMac matches macData value: " + Arrays.equals(macData, sdmMacTruncated));
+                */
+
+                if (desfireAuthenticateEv2 == null) {
+                    writeToUiAppend(output, "tap a DESFire tag to the reader before running this method, aborted");
+                    return;
+                }
+
+                // test 12 encrypted PICC data, encrypted File data, sdm keys for all is 1, working
+                // command: 4000e0d1f1112a00004f00004f0000200000750000
+                // command: 40 00e0 d1 f111 2a0000 4f0000 4f0000 200000 750000
+                // https://sdm.nfcdeveloper.com/tag?picc_data=1D963945833B280C8E0CE5D3F86127E0&enc=AFAE6C123CC478734FED103FD6851AA8&cmac=FCAC93426335D213
+                byte[] encryptedPiccData = hexStringToByteArray("1D963945833B280C8E0CE5D3F86127E0");
+                byte[] encryptedFileData = hexStringToByteArray("AFAE6C123CC478734FED103FD6851AA8");
+                // this is CMACInputOffset != CMACOffset
+                // the mac input includes the complete encrypted file data and the 'header' for following cmac ('&cmac=')
+                byte[] macInputData = "AFAE6C123CC478734FED103FD6851AA8&cmac=".getBytes(StandardCharsets.UTF_8);
+                byte[] macData = hexStringToByteArray("FCAC93426335D213");
+                // SDM File Read Key = 1 = 16 * 0x00
+                // SDM Meta Read Key = 1 = 16 * 0x00
+                byte[] sdmFileReadKey = new byte[16]; // default AES key // is set to key 1
+                byte[] sdmMetaReadKey = new byte[16]; // default AES key // is set to key 1
+
+                // step 1: decryption of encryptedPiccData
+                // status: working
+                writeToUiAppend(output, "step 1: decryption of encryptedPiccData");
+                writeToUiAppend(output, "key for decryption is defined in SDMMetaReadKey");
+                writeToUiAppend(output, printData("encryptedPiccData", encryptedPiccData));
+                byte[] decryptedPiccData = desfireAuthenticateEv2.decryptNdefDataEv2(iv, sdmMetaReadKey, encryptedPiccData);
+                byte[] uid = new byte[0];
+                byte[] readCtr = new byte[0];
+                if (decryptedPiccData != null) {
+                    writeToUiAppend(output, logString +  printData(" decryptedPiccData", decryptedPiccData));
+                    // split encrypted PICC data from NDEF / SDM
+                    byte piccDataTag = decryptedPiccData[0];
+                    uid = Arrays.copyOfRange(decryptedPiccData, 1, 8);
+                    readCtr = Arrays.copyOfRange(decryptedPiccData, 8, 11);
+                    byte[] randomPadding = Arrays.copyOfRange(decryptedPiccData, 11, 16);
+                    writeToUiAppend(output, "piccDataTag: " + byteToHex(piccDataTag));
+                    writeToUiAppend(output, printData("uid", uid));
+                    writeToUiAppend(output, printData("readCtr", readCtr));
+                    writeToUiAppend(output,"readCounter: " + Utils.intFrom3ByteArrayInversed(readCtr));
+                    writeToUiAppend(output, printData("randomPadding", randomPadding));
+
+                } else {
+                    writeToUiAppend(output, logString + " decryptedPiccData is NULL");
+                }
+
+                // step 2: decryption of encryptedFileData
+                // status working
+                writeToUiAppend(output, "step 2: decryption of encryptedFileData");
+                writeToUiAppend(output, "key for decryption is defined in SDMFileReadKey");
+                writeToUiAppend(output, printData("encryptedFileData", encryptedFileData));
+                byte[] sesSDMFileReadENCKey = desfireAuthenticateEv2.getSesSDMFileReadENCKey(sdmFileReadKey, uid, readCtr);
+                writeToUiAppend(output, printData("sesSDMFileReadENCKey", sesSDMFileReadENCKey));
+                byte[] decryptedFileData = desfireAuthenticateEv2.decryptSdmEncFileData(sesSDMFileReadENCKey, readCtr, encryptedFileData);
+                if (decryptedFileData != null) {
+                    writeToUiAppend(output, logString +  printData(" decryptedFileData", decryptedFileData));
+                } else {
+                    writeToUiAppend(output, logString + " decryptedFileData is NULL");
+                }
+
+                // step 3: verifying the received mac
+                // status: working (this is working when SDMEncFile is enabled
+                writeToUiAppend(output, "step 3: verifying the received mac");
+                writeToUiAppend(output, "key for verification is defined in SDMFileReadKey");
+                writeToUiAppend(output, printData("macData from NDEF", macData));
+                byte[] sesSDMFileReadMACKey = desfireAuthenticateEv2.getSesSDMFileReadMACKey(sdmFileReadKey, uid, readCtr);
+                writeToUiAppend(output, printData("sesSDMFileReadMACKey", sesSDMFileReadMACKey));
+                // this is used when CMAC calculation when CMACInputOffset = CMACOffset
+                // byte[] sdmMac = desfireAuthenticateEv2.getSdmMac(sesSDMFileReadMACKey);
+                // this is used when CMAC calculation when CMACInputOffset != CMACOffset
+                byte[] sdmMac = desfireAuthenticateEv2.getSdmMac(sesSDMFileReadMACKey, macInputData);
+                writeToUiAppend(output, printData("sdmMac", sdmMac));
+                // now truncate the MAC
+                byte[] sdmMacTruncated = desfireAuthenticateEv2.truncateMAC(sdmMac);
+                writeToUiAppend(output, printData("sdmMacTruncated", sdmMacTruncated));
+                writeToUiAppend(output, "The sdmMac matches macData value: " + Arrays.equals(macData, sdmMacTruncated));
+
             }
         });
 
@@ -4415,6 +4497,16 @@ posMacOffset:     75
 posMacInpOffset:  75
  */
 
+                // test 12 with sdm enabled, uid & read counter enabled, Encrypted PICC data, read counter limit disabled,
+                // encrypted file data enabled.
+                // using better key data
+                result = ndefForSdm.complexUrlBuilder(2, NdefForSdm.CommunicationSettings.Plain,
+                        0,0,14,0, true, true, true,
+                        false, 0,true, 32, true,
+                        1, 1, 1);
+                writeToUiAppend(output, "test 12\n" + result);
+                writeToUiAppend(output, "test 12\n" + ndefForSdm.getErrorCodeReason());
+                // // https://sdm.nfcdeveloper.com/tag?picc_data=1D963945833B280C8E0CE5D3F86127E0&enc=AFAE6C123CC478734FED103FD6851AA8&cmac=FCAC93426335D213
 
           }
         });

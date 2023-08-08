@@ -5170,11 +5170,17 @@ fileSize: 128
         //                                    4000e011 f1f1 2500002500002000004b0000
         // todo this is manually added by NdefForSdm value test 10 = encrypted PICC data and encrypted file data
         // status: working !
-        commandData = hexStringToByteArray("4000e0d1f1212a00004f00004f0000200000750000");
+        //commandData = hexStringToByteArray("4000e0d1f1212a00004f00004f0000200000750000");
         //log(methodName, printData("commandData", commandData));
 
         // todo this is manually added by NdefForSdm value test 11 = NO encrypted PICC data but encrypted file data
         //commandData = hexStringToByteArray("4000e011f1f12500002500002000004b0000");
+
+        // test 12 - encrypted PICC data, encrypted File data, sdm keys for all is 1, working
+        commandData = hexStringToByteArray("4000e0d1f1112a00004f00004f0000200000750000");
+        // https://sdm.nfcdeveloper.com/tag?picc_data=1D963945833B280C8E0CE5D3F86127E0&enc=AFAE6C123CC478734FED103FD6851AA8&cmac=FCAC93426335D213
+
+
         log(methodName, printData("commandData", commandData));
 
         /*
@@ -7006,6 +7012,60 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
     }
 
 
+    public byte[] getSesSDMFileReadENCKey(byte[] sdmFileReadKey, byte[] uid, byte[] sdmReadCounter) {
+        // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 13 - 14
+        // see NTAG 424 DNA NT4H2421Gx.pdf page 41
+        final String methodName = "getSesSDMFileReadENCKey";
+        log(methodName, printData("sdmFileReadKey", sdmFileReadKey) + printData(" uid", uid) + printData(" sdmReadCounter", sdmReadCounter), true);
+        // sanity checks
+        if ((sdmFileReadKey == null) || (sdmFileReadKey.length != 16)) {
+            log(methodName, "sdmFileReadKey is NULL or wrong length, aborted");
+            return null;
+        }
+        if ((uid == null) || (uid.length != 7)) {
+            log(methodName, "uid is NULL or wrong length, aborted");
+            return null;
+        }
+        if ((sdmReadCounter == null) || (sdmReadCounter.length != 3)) {
+            log(methodName, "sdmReadCounter is NULL or wrong length, aborted");
+            return null;
+        }
+        // CMAC calculation when CMACInputOffset = CMACOffset
+        byte[] cmacInput = new byte[16];
+        byte[] labelSdmEnc = new byte[]{(byte) (0xC3), (byte) (0x3C)}; // fixed to 0xC33C
+        byte[] counter = new byte[]{(byte) (0x00), (byte) (0x01)}; // fixed to 0x0001
+        byte[] length = new byte[]{(byte) (0x00), (byte) (0x80)}; // fixed to 0x0080
+        System.arraycopy(labelSdmEnc, 0, cmacInput, 0, 2);
+        System.arraycopy(counter, 0, cmacInput, 2, 2);
+        System.arraycopy(length, 0, cmacInput, 4, 2);
+        System.arraycopy(uid, 0, cmacInput, 6, 7);
+        System.arraycopy(sdmReadCounter, 0, cmacInput, 13, 3);
+        // todo this method is working only when UID and readCtr are present, if not the byte array is filled up with 00 to 16 bytes
+        log(methodName, printData("cmacInput", cmacInput));
+        byte[] cmac = calculateDiverseKey(sdmFileReadKey, cmacInput);
+        log(methodName, printData("cmacOutput", cmac));
+        return cmac;
+    }
+
+    public byte[] decryptSdmEncFileData(byte[] sesSDMFileReadENCKey, byte[] readCounter, byte[] encryptedData) {
+        // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 15 - 18
+        final String methodName = "getSdmEnc";
+        log(methodName, printData("sesSDMFileReadENCKey", sesSDMFileReadENCKey), true);
+        // sanity checks
+        if ((sesSDMFileReadENCKey == null) || (sesSDMFileReadENCKey.length != 16)) {
+            log(methodName, "sesSDMFileReadENCKey is NULL or wrong length, aborted");
+            return null;
+        }
+        byte[] readCounterPadded = new byte[16];
+        System.arraycopy(readCounter, 0, readCounterPadded, 0, readCounter.length);
+        byte[] startingIv = new byte[16];
+        byte[] ivResponse = AES.encrypt(startingIv, sesSDMFileReadENCKey, readCounterPadded);
+        log(methodName, printData("ivResponse", ivResponse));
+        byte[] decryptedData = AES.decrypt(ivResponse, sesSDMFileReadENCKey, encryptedData);
+        log(methodName, printData("decryptedData", decryptedData));
+        return decryptedData;
+    }
+
     public byte[] getSesSDMFileReadMACKey(byte[] sdmFileReadKey, byte[] uid, byte[] sdmReadCounter) {
         // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 15 - 18
         final String methodName = "getSesSDMFileReadMACKey";
@@ -7040,6 +7100,8 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         return cmac;
     }
 
+    // this is used when CMAC calculation when CMACInputOffset = CMACOffset
+    // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 14 - 17
     public byte[] getSdmMac(byte[] sesSDMFileReadMACKey) {
         // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 15 - 18
         final String methodName = "getSdmMac";
@@ -7050,6 +7112,20 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
             return null;
         }
         return calculateDiverseKey(sesSDMFileReadMACKey, new byte[0]);
+    }
+
+    // this is used when CMAC calculation when CMACInputOffset != CMACOffset
+    // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 17 + 18
+    public byte[] getSdmMac(byte[] sesSDMFileReadMACKey, byte[] dynamicData) {
+        // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 15 - 18
+        final String methodName = "getSdmMac";
+        log(methodName, printData("sesSDMFileReadMACKey", sesSDMFileReadMACKey), true);
+        // sanity checks
+        if ((sesSDMFileReadMACKey == null) || (sesSDMFileReadMACKey.length != 16)) {
+            log(methodName, "sesSDMFileReadMACKey is NULL or wrong length, aborted");
+            return null;
+        }
+        return calculateDiverseKey(sesSDMFileReadMACKey, dynamicData);
     }
 
     public byte[] calculateDiverseKey(byte[] masterKey, byte[] input) {
