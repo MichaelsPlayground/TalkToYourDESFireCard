@@ -80,11 +80,11 @@ Mifare® Application Programming Guide for DESFire (2011): https://www.cardlogix
 
 
 in DesfireAuthenticateEv2:
-public boolean changeFileSettingsSdmEv2(byte fileNumber) {
-NOT working although test is success
+public boolean changeFileSettingsNtag424Dna(byte fileNumber) {
+status: working
 eventually the file needs to get the sdm options on setup even if disabled
 todo check with real tag if fileSettings are "prepared" for SDM usage
 see page 4 of video/slideshow https://www.slideshare.net/NXPMIFARETeam/secure-dynamic-messaging-feature
 "The SDM feature is enablement is done during the creation of the NDEF file, a Standard Data File inside the Mifare DESFire application"
 
-
+decryption of encrypted PICC data, decryption of encrypted File data and MAC verification works on SDM message
