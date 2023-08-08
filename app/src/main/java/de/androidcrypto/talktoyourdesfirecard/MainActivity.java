@@ -4360,6 +4360,62 @@ int keySdmMetaRead, int keySdmFileRead)
                 writeToUiAppend(output, "test 9\n" + ndefForSdm.getErrorCodeReason());
                 // https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&sdmenc=00000000000000000000000000000000&cmac=0000000000000000
 
+                // test with sdm enabled, uid & read counter enabled but in Encrypted PICC data, read counter limit disabled,
+                // encrypted file data enabled, this is full encrypted data
+                // using better key data
+                result = ndefForSdm.complexUrlBuilder(2, NdefForSdm.CommunicationSettings.Plain,
+                        0,0,14,0, true, true, true,
+                        false, 0,true, 32, true,
+                        1, 2, 1);
+                writeToUiAppend(output, "test 10\n" + result);
+                writeToUiAppend(output, "test 10\n" + ndefForSdm.getErrorCodeReason());
+                // https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&sdmenc=00000000000000000000000000000000&cmac=0000000000000000
+                //
+
+                // test 3: test with sdm enabled, uid & read counter enabled, encrypted picc data
+                //         https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac=0000000000000000
+                //         command: 0240123401f3342a0000500000500000
+
+                // test 9: test with sdm enabled, uid & read counter enabled but in Encrypted PICC data,
+                //         read counter limit disabled, encrypted file data enabled, this is full encrypted data
+                //         https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&sdmenc=0102030405060708A1A2A3A4A5A6A7A8&cmac=0000000000000000
+                //         command: 02401234d1f3342a0000780000520000200000780000
+
+                // test 10 as test 9 but with better key data
+                //         https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&sdmenc=0102030405060708A1A2A3A4A5A6A7A8&cmac=0000000000000000
+                //         command: 4000e0d1f1212a00007500004f0000200000750000
+/*
+posUidOffset:     -1
+posReadCtrOffset: -1
+posEncPiccOffset: 42
+posEncDataOffset: 82
+posMacOffset:     120
+posMacInpOffset:  120
+
+ */
+
+                // test 11 with sdm enabled, uid & read counter disabled, no Encrypted PICC data, read counter limit disabled,
+                // encrypted file data enabled. Important: keySdmMetaRead = 15
+                // using better key data
+                result = ndefForSdm.complexUrlBuilder(2, NdefForSdm.CommunicationSettings.Plain,
+                        0,0,14,0, true, false, false,
+                        false, 0,true, 32, true,
+                        1, 15, 1);
+                writeToUiAppend(output, "test 11\n" + result);
+                writeToUiAppend(output, "test 11\n" + ndefForSdm.getErrorCodeReason());
+                // 024000e011f1e04b00002500002000004b0000
+                //   4000e011f1f14b00002500002000004b0000
+                // https://sdm.nfcdeveloper.com/tag?&enc=0102030405060708A1A2A3A4A5A6A7A8&cmac=0000000000000000
+/*
+posUidOffset:     -1
+posReadCtrOffset: -1
+posEncPiccOffset: -1
+posEncDataOffset: 37
+posMacOffset:     75
+posMacInpOffset:  75
+ */
+
+
           }
         });
 

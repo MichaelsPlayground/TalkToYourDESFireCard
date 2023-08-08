@@ -51,8 +51,8 @@ public class NdefForSdm {
     private String urlPlainSDMReadCtrName = "ctr";
     private String urlPlainSDMReadCtrPlaceholder = "000000";
     private final int plainSDMReadCtrLength = 6;
-    private String urlEncryptedDataName = "sdmenc";
-    private String urlEncryptedDataPlaceholder = "00000000000000000000000000000000";
+    private String urlEncryptedDataName = "enc";
+    private String urlEncryptedDataPlaceholder = "0102030405060708A1A2A3A4A5A6A7A8";
     private final int encryptedDataLength = 32; // note: only the first 16 bytes are encrypted, the next 16 bytes are not used on delivering but for hex encoding
     private String urlCmacName = "cmac";
     private String urlCmacPlaceholder = "0000000000000000";
@@ -261,9 +261,9 @@ public class NdefForSdm {
                                     boolean enableSdm, boolean enableUid, boolean enableSdmReadCounter, boolean enableSdmReadCounterLimit,
                                     int readCounterLimit, boolean enableSdmEncFileData, int sdmEncFileDataLength, boolean enableAsciiData,
                                     int keySdmCtrRet, int keySdmMetaRead, int keySdmFileRead) {
+        errorCodeReason = "";
         boolean success = validateComplexParameter(fileNumber, keyRW, keyCar, keyR, keyW, readCounterLimit,
                 keySdmCtrRet, keySdmMetaRead, keySdmFileRead, sdmEncFileDataLength);
-        Log.e(TAG, "**** enableSDM1: " + enableSdm);
         if (!success) return null; // the errorCodeReason has the failure reason
         // this is the only allowed status for NTAG 424 DNA, don't know if this is valid for DESFire EV3 as well
         if (!enableAsciiData) {
@@ -274,11 +274,9 @@ public class NdefForSdm {
         // sbError is used to provide the generated data fields
         StringBuilder sbError = new StringBuilder();
         sbError.append("** start the complex building **");
-        Log.e(TAG, "**** enableSDM2: " + enableSdm);
-        if (enableSdm == true) {
+        if (enableSdm) {
             sbError.append("SDM enabled, get fileOption").append(", ");
         } else {
-            Log.e(TAG, "**** enableSDM3: " + enableSdm);
             sbError.append("SDM not enabled").append(", ");
         }
 
@@ -288,7 +286,7 @@ public class NdefForSdm {
 
         // baos contains the command generated depending on input parameters
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        baos.write(fileNumber);
+        // baos.write(fileNumber); // the fileNumber is not part of the commandParameter
 
         // fileOptions
         fileOption = (byte) 0x00;
@@ -316,22 +314,32 @@ public class NdefForSdm {
             if (enableUid) {
                 sdmOptions = Utils.setBitInByte(sdmOptions, 7);
                 sbError.append("SDM UID enabled").append(", ");
+            } else {
+                sbError.append("SDM UID disabled").append(", ");
             }
             if (enableSdmReadCounter) {
                 sdmOptions = Utils.setBitInByte(sdmOptions, 6);
                 sbError.append("SDM ReadCounter enabled").append(", ");
+            } else {
+                sbError.append("SDM ReadCounter disabled").append(", ");
             }
             if (enableSdmReadCounterLimit) {
                 sdmOptions = Utils.setBitInByte(sdmOptions, 5);
                 sbError.append("SDM ReadCounterLimit enabled").append(", ");
+            } else {
+                sbError.append("SDM ReadCounterLimit disabled").append(", ");
             }
             if (enableSdmEncFileData) {
                 sdmOptions = Utils.setBitInByte(sdmOptions, 4);
                 sbError.append("SDM EncFileData enabled").append(", ");
+            } else {
+                sbError.append("SDM EncFileData disabled").append(", ");
             }
             if (enableAsciiData) {
                 sdmOptions = Utils.setBitInByte(sdmOptions, 0);
                 sbError.append("SDM AsciiData enabled").append(", ");
+            } else {
+                sbError.append("SDM AsciiData disabled").append(", ");
             }
             baos.write(sdmOptions);
         }
@@ -342,7 +350,7 @@ public class NdefForSdm {
         if (enableSdm) {
             int keyRfu = 15;
             byte accessRightsRfuCtrRet = (byte) ((keyRfu << 4) | (keySdmCtrRet & 0x0F)); // RFU & SDM Counter Retrieve
-            byte accessRightsMetaReadFileRead = (byte) ((keyR << 4) | (keyW & 0x0F));// Meta Data Read & File Read
+            byte accessRightsMetaReadFileRead = (byte) ((keySdmMetaRead << 4) | (keySdmFileRead & 0x0F));// Meta Data Read & File Read
             sdmAccessRights[0] = accessRightsRfuCtrRet;
             sdmAccessRights[1] = accessRightsMetaReadFileRead;
             baos.write(accessRightsRfuCtrRet);
@@ -435,7 +443,7 @@ public class NdefForSdm {
         boolean isPresentSDMMACOffset = false;
         if (enableSdm) {
             if (keySdmFileRead != 15) {
-                sbError.append("SDMMAC active, GET this Offset").append(", ");
+                sbError.append("SDMMAC active - GET this Offset").append(", ");
                 isPresentSDMMACOffset = true;
             }
         }
@@ -489,25 +497,30 @@ public class NdefForSdm {
         int posEncPiccOffset = 0;
         int posEncFileDataOffset = 0;
         int posMacOffset = 0;
-        int posMacInputOffset = posMacOffset; // todo calculate this based on ???, this is hardcoded and will work until EncFileData is enabled
+        int posMacInputOffset = 0;
 
         posUidOffset = getOffsetUidData();
         posReadCtrOffset = getOffsetReadCtrData();
         posEncPiccOffset = getOffsetEncryptedPiccData();
         posEncFileDataOffset = getOffsetEncryptedFileData();
         posMacOffset = getOffsetSDMMACData();
+        posMacInputOffset = posMacOffset; // if no EncFileData is present/enabled
+        if (isPresentSDMENCOffset) { // calculate the MAC over FileData as well
+            posMacInputOffset = posEncFileDataOffset;
+        }
         Log.d(TAG, "posUidOffset:     " + posUidOffset);
         Log.d(TAG, "posReadCtrOffset: " + posReadCtrOffset);
         Log.d(TAG, "posEncPiccOffset: " + posEncPiccOffset);
         Log.d(TAG, "posEncDataOffset: " + posEncFileDataOffset);
-        Log.d(TAG, "posMacInptOffset: " + posMacInputOffset);
         Log.d(TAG, "posMacOffset:     " + posMacOffset);
+        Log.d(TAG, "posMacInpOffset:  " + posMacInputOffset);
 
         // get the needed offsets and build the command string
         if (isPresentUidOffset) {
             if (posUidOffset < 1) {
                 sbError.append("\n").append("ERROR: posUID not valid, aborted");
                 sbError.append("\n").append("returning a template but no offset data or command");
+                errorCodeReason = sbError.toString();
                 return urlTemplate;
             }
             sdmUidOffset = Utils.intTo3ByteArrayInversed(posUidOffset);
@@ -518,6 +531,7 @@ public class NdefForSdm {
             if (posReadCtrOffset < 1) {
                 sbError.append("\n").append("ERROR: posReadCounter not valid, aborted");
                 sbError.append("\n").append("returning a template but no offset data or command");
+                errorCodeReason = sbError.toString();
                 return urlTemplate;
             }
             sdmReadCounterOffset = Utils.intTo3ByteArrayInversed(posReadCtrOffset);
@@ -528,6 +542,7 @@ public class NdefForSdm {
             if (posEncPiccOffset < 1) {
                 sbError.append("\n").append("ERROR: posEncPICCData not valid, aborted");
                 sbError.append("\n").append("returning a template but no offset data or command");
+                errorCodeReason = sbError.toString();
                 return urlTemplate;
             }
             sdmEncPiccDataOffset = Utils.intTo3ByteArrayInversed(posEncPiccOffset);
@@ -538,6 +553,7 @@ public class NdefForSdm {
             if (posMacInputOffset < 1) {
                 sbError.append("\n").append("ERROR: posMacInput not valid, aborted");
                 sbError.append("\n").append("returning a template but no offset data or command");
+                errorCodeReason = sbError.toString();
                 return urlTemplate;
             }
             sdmMacInputOffset = Utils.intTo3ByteArrayInversed(posMacInputOffset);
@@ -548,6 +564,7 @@ public class NdefForSdm {
             if (posEncFileDataOffset < 1) {
                 sbError.append("\n").append("ERROR: posEncFileData not valid, aborted");
                 sbError.append("\n").append("returning a template but no offset data or command");
+                errorCodeReason = sbError.toString();
                 return urlTemplate;
             }
             sdmEncOffset = Utils.intTo3ByteArrayInversed(posEncFileDataOffset);
@@ -563,6 +580,7 @@ public class NdefForSdm {
             if (posMacOffset < 1) {
                 sbError.append("\n").append("ERROR: posMAC not valid, aborted");
                 sbError.append("\n").append("returning a template but no offset data or command");
+                errorCodeReason = sbError.toString();
                 return urlTemplate;
             }
             sdmMacOffset = Utils.intTo3ByteArrayInversed(posMacOffset);
