@@ -263,7 +263,7 @@ public class NdefForSdm {
                                     int keySdmCtrRet, int keySdmMetaRead, int keySdmFileRead) {
         boolean success = validateComplexParameter(fileNumber, keyRW, keyCar, keyR, keyW, readCounterLimit,
                 keySdmCtrRet, keySdmMetaRead, keySdmFileRead, sdmEncFileDataLength);
-        Log.e(TAG, "**** enableSDM: " + enableSdm);
+        Log.e(TAG, "**** enableSDM1: " + enableSdm);
         if (!success) return null; // the errorCodeReason has the failure reason
         // this is the only allowed status for NTAG 424 DNA, don't know if this is valid for DESFire EV3 as well
         if (!enableAsciiData) {
@@ -273,10 +273,12 @@ public class NdefForSdm {
 
         // sbError is used to provide the generated data fields
         StringBuilder sbError = new StringBuilder();
-        Log.e(TAG, "**** enableSDM: " + enableSdm);
-        if (enableSdm) {
+        sbError.append("** start the complex building **");
+        Log.e(TAG, "**** enableSDM2: " + enableSdm);
+        if (enableSdm == true) {
             sbError.append("SDM enabled, get fileOption").append(", ");
         } else {
+            Log.e(TAG, "**** enableSDM3: " + enableSdm);
             sbError.append("SDM not enabled").append(", ");
         }
 
