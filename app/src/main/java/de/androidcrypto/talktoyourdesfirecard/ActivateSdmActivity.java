@@ -30,7 +30,9 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.LinearLayout;
 import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -46,9 +48,11 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
     /**
      * UI elements
      */
+    private LinearLayout llUrl;
     private com.google.android.material.textfield.TextInputEditText output, etCommunicationSettings, etAccessRights;
-    private com.google.android.material.textfield.TextInputEditText etSdmAccessRights;
+    private com.google.android.material.textfield.TextInputEditText etSdmAccessRights, etBaseUrl, etTemplateUrl;
     private com.google.android.material.textfield.TextInputLayout outputLayout;
+    private RadioGroup rgStatus;
     private RadioButton rbActivateSdmGetStatus, rbActivateSdmOn, rbActivateSdmOff;
     private CheckBox cbSdmEnabled, cbAsciiEncoding, cbUidMirror, cbReadCounterMirror, cbUidReadCounterEncrypted , cbReadCounterLimit, cbEncryptedFileDataMirror;
     /**
@@ -87,6 +91,8 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
         output = findViewById(R.id.etActivateSdmOutput);
         outputLayout = findViewById(R.id.etActivateSdmOutputLayout);
 
+        llUrl = findViewById(R.id.llUrlSettings);
+        rgStatus = findViewById(R.id.rgActivateSdmStatus);
         rbActivateSdmGetStatus = findViewById(R.id.rbActivateSdmShowStatus);
         rbActivateSdmOn = findViewById(R.id.rbActivateSdmOn);
         rbActivateSdmOff = findViewById(R.id.rbActivateSdmOff);
@@ -101,11 +107,35 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
         cbReadCounterLimit = findViewById(R.id.cbActivateSdmReadCounterLimit);
         cbEncryptedFileDataMirror = findViewById(R.id.cbActivateSdmEncryptedFileDataMirror);
         etSdmAccessRights = findViewById(R.id.etActivateSdmSdmAccessRights);
+        etBaseUrl = findViewById(R.id.etActivateSdmBaseUrl);
+        etTemplateUrl = findViewById(R.id.etActivateSdmTemplateUrl);
 
         // hide soft keyboard from showing up on startup
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
 
         mNfcAdapter = NfcAdapter.getDefaultAdapter(this);
+
+        // some settingsradio button onclick
+
+        etBaseUrl.setText(NdefForSdm.SAMPLE_BASE_URL);
+
+        // get status on what to do
+        int checkedRadioButtonId = rgStatus.getCheckedRadioButtonId();
+        rgStatus.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(RadioGroup radioGroup, int id) {
+                if (id == R.id.rbActivateSdmOn) {
+                        Log.d(TAG, "rb Activate On");
+                        llUrl.setVisibility(View.VISIBLE);
+                } else if (id == R.id.rbActivateSdmOff) {
+                    Log.d(TAG, "rb Activate Off");
+                    llUrl.setVisibility(View.GONE);
+                } else if (id == R.id.rbActivateSdmShowStatus) {
+                    Log.d(TAG, "rb Show Status");
+                    llUrl.setVisibility(View.GONE);
+                }
+            }
+        });
     }
 
     /**
@@ -240,6 +270,12 @@ sample data with disabled SDM
                 sbSdmAccessRights.append(" | File Read: ").append(fileSettings.getSDM_FileReadAccessRight());
                 sbSdmAccessRights.append(" | Counter Read: ").append(fileSettings.getSDM_CtrRetAccessRight());
                 writeToUi(etSdmAccessRights, sbSdmAccessRights.toString());
+
+                if (isSdmEnabled) {
+                    writeToUiAppend("Secure Dynamic Messages (SDM) / SUN is ENABLED");
+                } else {
+                    writeToUiAppend("Secure Dynamic Messages (SDM) / SUN is DISABLED");
+                };
             }
 
         }
