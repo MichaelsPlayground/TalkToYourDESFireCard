@@ -19,6 +19,7 @@ import androidx.annotation.NonNull;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.security.AccessControlException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -97,6 +98,7 @@ public class DesfireAuthenticateEv2 {
     private final byte AUTHENTICATE_AES_EV2_FIRST_COMMAND = (byte) 0x71;
     private final byte AUTHENTICATE_AES_EV2_NON_FIRST_COMMAND = (byte) 0x77;
     private final byte GET_CARD_UID_COMMAND = (byte) 0x51;
+    private final byte GET_VERSION_INFO_COMMAND = (byte) 0x60;
 
     private final byte GET_FILE_IDS_COMMAND = (byte) 0x6F;
     private final byte GET_FILE_SETTINGS_COMMAND = (byte) 0xF5;
@@ -6093,6 +6095,28 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         return plaintext;
     }
 
+    public VersionInfo getVersionInformation() {
+        byte[] bytes = new byte[0];
+        try {
+            bytes = sendRequest(GET_VERSION_INFO_COMMAND);
+            return new VersionInfo(bytes);
+        } catch (Exception e) {
+            log("getVersionInformation", "IOException: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+        }
+        return null;
+    }
+
+    public boolean checkForDESFireEv3() {
+        VersionInfo versionInfo = getVersionInformation();
+        if (versionInfo == null) return false;
+        //versionInfo.getHardwareType()
+        Log.d(TAG, versionInfo.dump());
+        int hardwareType = versionInfo.getHardwareType(); // 1 = DESFire, 4 = NTAG family 4xx
+        int hardwareVersion = versionInfo.getHardwareVersionMajor(); // 51 = DESFire EV3, 48 = NTAG 424 DNA
+        return ((hardwareType == 1) && (hardwareVersion == 51));
+    }
+
     /**
      * section for key handling and byte operations
      */
@@ -7263,6 +7287,40 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
         System.arraycopy(responseAPDU, 0, data, 0, data.length);
         log("getData", printData("responseData", data), false);
         return data;
+    }
+
+    public byte[] sendRequest(byte command) throws Exception {
+        return sendRequest(command, null);
+    }
+
+    // todo take this as MASTER for sending commands to the card and receiving data
+    private byte[] sendRequest(byte command, byte[] parameters) throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        byte[] recvBuffer = sendData(wrapMessage(command, parameters));
+        //writeToUiAppend(readResult, printData("sendRequest recvBuffer", recvBuffer));
+        if (recvBuffer == null) {
+            return null;
+        }
+        while (true) {
+            if (recvBuffer[recvBuffer.length - 2] != (byte) 0x91) {
+                throw new Exception("Invalid response");
+            }
+            output.write(recvBuffer, 0, recvBuffer.length - 2);
+            byte status = recvBuffer[recvBuffer.length - 1];
+            if (status == (byte) 0x00) {
+                break;
+            } else if (status == (byte) 0xAF) {
+                recvBuffer = sendData(wrapMessage((byte) 0xAF, null));
+            } else if (status == (byte) 0x9D) {
+                throw new AccessControlException("Permission denied");
+            } else if (status == (byte) 0xAE) {
+                throw new AccessControlException("Authentication error");
+            } else {
+                throw new Exception("Unknown status code: " + Integer.toHexString(status & 0xFF));
+            }
+        }
+        return output.toByteArray();
     }
 
     /**

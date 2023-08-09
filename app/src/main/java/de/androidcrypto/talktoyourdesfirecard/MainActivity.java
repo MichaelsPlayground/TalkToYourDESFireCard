@@ -5594,6 +5594,16 @@ posMacInpOffset:  75
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.menu_activity_main, menu);
 
+        MenuItem mActivateSun = menu.findItem(R.id.action_activate_sdm);
+        mActivateSun.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                Intent intent = new Intent(MainActivity.this, ActivateSdmActivity.class);
+                startActivity(intent);
+                return false;
+            }
+        });
+
         MenuItem mApplications = menu.findItem(R.id.action_applications);
         mApplications.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override
