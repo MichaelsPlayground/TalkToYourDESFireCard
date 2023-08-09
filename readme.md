@@ -104,11 +104,15 @@ where an URL is stored that points to a backend server. When the tag is tapped t
 open that is capable of working with URL data, usually your browser will will open and tries to connect to the URL provided by 
 the tag.
 
+The backend server can verify the data provided by the link and act on the data, e.g. open a door or buy a transport ticket.
+
+## How does SDM work ?
+
 Below you find a sample **URL** that points to a (backend) server: 
 
 https://sdm.nfcdeveloper.com/
 
-When using this link ou get some information about a "Secure Dynamic Messaging Backend Server Example" that can be used for 
+When using this link you get some information about a "Secure Dynamic Messaging Backend Server Example" that can be used for 
 NTAG 424 DNA tags but for DESFire EV3 as well but, beware, when you carefully read the examples you may find that the full 
 URL looks like 
 
@@ -126,7 +130,46 @@ https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac
 
 If you use the template URL on the backend server you will receive a "400 Bad Request: Invalid message (most probably wrong signature)" error. 
 That is due to the fact that this template URL does not contain any real data - they would be in the "00"er fields that act as a 
-placeholder.
+placeholder for real data.
+
+If you write the URL using a NDEF message to the NDEF file a tapped device will open the browser, connects to the backend server and - 
+nothing will happen as the SDM feature is not enabled so far.
+
+## How to enable SDM on a Mifare DESFire EV3 tag ?
+
+To make it very short, you tell the tag that from now on the SDM feature is enabled and the tag should provide data like the UID and the 
+reader counter as part of the link. When tapping the tag to a reader device the tag will copy the requested "real data" into the 
+placeholder positions so that the URL will look like this:
+
+https://sdm.nfcdeveloper.com/tagpt?uid=041E3C8A2D6B80&ctr=000006&cmac=4B00064004B0B3D3
+
+Using this URL the backend server will respond like this:
+
+```plaintext
+Cryptographic signature validated.
+Encryption mode: AES
+NFC TAG UID: 041e3c8a2d6b80
+Read counter: 6
+```
+
+If the door opener acts on a "white list with approved UID's" the door could get open now.
+
+This is an bad example because we are sending confidential data like the card's UID over an insecure infrastructure and we 
+should change the "Plain" data transmission to an "Encrypted" one.
+
+## How to change the transmission from "Plain" to "Encrypted" mode
+
+The advantage of a Plain transmission is that we do not need anything special like "encryption keys" or "algorithms" 
+to run the  transmission but the disadvantage is: everyone can read out the (confidential) data. For that reason 
+the DESFire EV3 tag supports the "Encrypted" mode that needs an additional parameter. As "Encrypted" data needs to get decrypted 
+both parties need to agree on an **encryption key** that is used for encryption and decryption ("symmetric encryption").
+
+On **creation of an application** on a DESFire tag you setup up to 14 keys that can act for several purposes. When **creating 
+a file** you define which key is used for a dedicated purpose (in most times it is an access right like "read" or "write"). For 
+Encrypted SDM features you define a well one of those keys as encryption keys and the backend server needs to know this specific 
+key for decryption.
+
+
 
 
 
