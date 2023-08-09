@@ -4130,7 +4130,7 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
 
     /**
      * get the file settings of a file within an application
-     * Note: depending on the application master key settings this requires an preceding authentication
+     * Note: depending on the application master key settings this requires a preceding authentication
      *       with the application master key
      * @fileNumber: the file number we need to read the settings from
      * @return an array of bytes with all available fileSettings

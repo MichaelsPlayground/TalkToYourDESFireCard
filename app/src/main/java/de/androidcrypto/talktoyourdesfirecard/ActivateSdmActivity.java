@@ -29,6 +29,7 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.RadioButton;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -45,15 +46,16 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
     /**
      * UI elements
      */
-    private com.google.android.material.textfield.TextInputEditText output;
+    private com.google.android.material.textfield.TextInputEditText output, etCommunicationSettings, etAccessRights;
+    private com.google.android.material.textfield.TextInputEditText etSdmAccessRights;
     private com.google.android.material.textfield.TextInputLayout outputLayout;
     private RadioButton rbActivateSdmGetStatus, rbActivateSdmOn, rbActivateSdmOff;
-
+    private CheckBox cbSdmEnabled, cbAsciiEncoding, cbUidMirror, cbReadCounterMirror, cbUidReadCounterEncrypted , cbReadCounterLimit, cbEncryptedFileDataMirror;
     /**
      * general constants
      */
 
-    private byte[] NDEF_APPLICATION_ID = new byte[] {(byte) 0x00, (byte) 0x00, (byte) 0x01};
+    private byte[] NDEF_APPLICATION_ID = new byte[] {(byte) 0x01, (byte) 0x00, (byte) 0x00};
     private byte NDEF_FILE_ID = (byte) 0x02;
     private final int COLOR_GREEN = Color.rgb(0, 255, 0);
     private final int COLOR_RED = Color.rgb(255, 0, 0);
@@ -64,6 +66,8 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
     private IsoDep isoDep;
     private byte[] tagIdByte;
     private DesfireAuthenticateEv2 desfireAuthenticateEv2;
+    private FileSettings fileSettings;
+    private boolean isEncryptedPiccData = false;
     private boolean isDesfireEv3 = false;
 
     // general variables
@@ -87,6 +91,17 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
         rbActivateSdmOn = findViewById(R.id.rbActivateSdmOn);
         rbActivateSdmOff = findViewById(R.id.rbActivateSdmOff);
 
+        etCommunicationSettings = findViewById(R.id.etActivateSdmCommunicationSettings);
+        etAccessRights = findViewById(R.id.etActivateSdmAccessRights);
+        cbSdmEnabled = findViewById(R.id.cbActivateSdmAccessSdmEnabled);
+        cbAsciiEncoding = findViewById(R.id.cbActivateSdmAsciiEncoding);
+        cbUidMirror = findViewById(R.id.cbActivateSdmUidMirror);
+        cbReadCounterMirror = findViewById(R.id.cbActivateSdmReadCounterMirror);
+        cbUidReadCounterEncrypted = findViewById(R.id.cbActivateSdmUidReadCounterEncrypted);
+        cbReadCounterLimit = findViewById(R.id.cbActivateSdmReadCounterLimit);
+        cbEncryptedFileDataMirror = findViewById(R.id.cbActivateSdmEncryptedFileDataMirror);
+        etSdmAccessRights = findViewById(R.id.etActivateSdmSdmAccessRights);
+
         // hide soft keyboard from showing up on startup
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
 
@@ -103,7 +118,131 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
      */
 
     private void getFileSettings() {
+        // clearOutputFields();
+        //
+        writeToUiAppend("get FileSettings for fileId 0x02");
+        writeToUiAppend("step 1: select application with ID 0x010000");
+        boolean success = desfireAuthenticateEv2.selectApplicationByAidEv2(NDEF_APPLICATION_ID);
+        byte[] responseData;
+        responseData = desfireAuthenticateEv2.getErrorCode();
+        if (success) {
+            writeToUiAppendBorderColor("selection of the application SUCCESS", COLOR_GREEN);
+            //vibrateShort();
+        } else {
+            writeToUiAppendBorderColor("selection of the application FAILURE with error code: " +  EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
+            return;
+        }
+        //writeToUiAppend("step 2: authenticate with default Application Master Key");
 
+        //writeToUiAppend("step 3: get the file settings for file ID 0x02");
+        writeToUiAppend("step 2: get the file settings for file ID 0x02");
+        byte[] response = desfireAuthenticateEv2.getFileSettingsEv2(NDEF_FILE_ID);
+        responseData = desfireAuthenticateEv2.getErrorCode();
+        if (response == null) {
+            writeToUiAppendBorderColor("get the file settings for file ID 0x02 FAILURE with error code: " +  EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
+            return;
+        }
+        fileSettings = new FileSettings(NDEF_FILE_ID, response);
+        writeToUiAppendBorderColor(fileSettings.dump(), COLOR_GREEN);
+        vibrateShort();
+
+/*
+sample data with enabled SDM
+fileNumber: 02
+fileType: 0 (Standard)
+communicationSettings: 00 (Plain)
+accessRights RW | CAR: 00
+accessRights R | W: E0
+accessRights RW:  0
+accessRights CAR: 0
+accessRights R:   14
+accessRights W:   0
+fileSize: 256
+non standard fileOption found
+sdmFileOption: 40
+isSdmEnabled: true
+isSdmOptionsBit0_Encode: true
+isSdmOptionsBit4_SDMENCFileData: true
+isSdmOptionsBit5_SDMReadCtrLimit: false
+isSdmOptionsBit6_SDMReadCtr: true
+isSdmOptionsBit7_UID: true
+SDM_AccessRights: F111
+SDM_MetaReadAccessRight: 01
+SDM_FileReadAccessRight: 01
+SDM_CtrRetAccessRight: 01
+optional values depending on bit settings (LSB)
+SDM_UIDOffset
+SDM_ReadCtrOffset
+SDM_PICCDataOffset 2A0000
+SDM_MACInputOffset 4F0000
+SDM_ENCOffset      4F0000
+SDM_ENCLength      200000
+SDM_MACOffset      750000
+SDM_ReadCtrLimit
+
+sample data with disabled SDM
+
+ */
+
+        // now we analyze the data
+        if (fileSettings != null) {
+            // communication settings (Plain / MACed / Full)
+            String communicationSettings = fileSettings.getCommunicationSettingsName();
+            writeToUi(etCommunicationSettings, communicationSettings + " communication");
+
+            // access rights RW || CAR || R || W
+            StringBuilder sbAccessRights = new StringBuilder();
+            sbAccessRights.append("RW: ").append(fileSettings.getAccessRightsRw());
+            sbAccessRights.append(" | CAR: ").append(fileSettings.getAccessRightsCar());
+            sbAccessRights.append(" | R: ").append(fileSettings.getAccessRightsR());
+            sbAccessRights.append(" | W: ").append(fileSettings.getAccessRightsW());
+            writeToUi(etAccessRights, sbAccessRights.toString());
+
+            // SDM enabled
+            boolean isSdmEnabled = fileSettings.isSdmEnabled();
+            if (isSdmEnabled) {
+                cbSdmEnabled.setChecked(true);
+            } else {
+                cbSdmEnabled.setChecked(false);
+            }
+
+            if (isSdmEnabled) {
+                // ASCII encode
+                cbAsciiEncoding.setChecked(fileSettings.isSdmOptionsBit0_Encode());
+
+                // UID mirror active
+                cbUidMirror.setChecked(fileSettings.isSdmOptionsBit7_UID());
+
+                // ReadCounter mirror active
+                cbReadCounterMirror.setChecked(fileSettings.isSdmOptionsBit6_SDMReadCtr());
+
+                // ReadCounterLimit active
+                cbReadCounterLimit.setChecked(fileSettings.isSdmOptionsBit5_SDMReadCtrLimit());
+
+                // UID and/or Read Counter data Encrypted
+                // this option depends on SDMMetaRead access right = 0h..4h -> encrypted [value for NTAG 424 DNA]
+                byte sdmMetaReadAccessKey = fileSettings.getSDM_MetaReadAccessRight();
+                isEncryptedPiccData = false;
+                if (sdmMetaReadAccessKey < (byte) 0x0E) {
+                    cbUidReadCounterEncrypted.setChecked(true);
+                    isEncryptedPiccData = true;
+                } else {
+                    cbUidReadCounterEncrypted.setChecked(false);
+                    isEncryptedPiccData = false;
+                }
+
+                // SDMENC mirror active
+                cbEncryptedFileDataMirror.setChecked(fileSettings.isSdmOptionsBit4_SDMENCFileData());
+
+                // SDM access rights Meta Data Read || File Read || Counter Reading
+                StringBuilder sbSdmAccessRights = new StringBuilder();
+                sbSdmAccessRights.append("Meta Read: ").append(fileSettings.getSDM_MetaReadAccessRight());
+                sbSdmAccessRights.append(" | File Read: ").append(fileSettings.getSDM_FileReadAccessRight());
+                sbSdmAccessRights.append(" | Counter Read: ").append(fileSettings.getSDM_CtrRetAccessRight());
+                writeToUi(etSdmAccessRights, sbSdmAccessRights.toString());
+            }
+
+        }
     }
 
     /**
@@ -214,6 +353,12 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
                 textView.setText(newString);
                 System.out.println(message);
             }
+        });
+    }
+
+    private void writeToUi(TextView textView, String message) {
+        runOnUiThread(() -> {
+            textView.setText(message);
         });
     }
 

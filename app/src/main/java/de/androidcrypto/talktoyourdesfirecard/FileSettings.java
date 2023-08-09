@@ -543,6 +543,14 @@ public class FileSettings {
         return fileTypeName;
     }
 
+    public byte getCommunicationSettings() {
+        return communicationSettings;
+    }
+
+    public String getCommunicationSettingsName() {
+        return communicationSettingsName;
+    }
+
     public int getAccessRightsRw() {
         return accessRightsRw;
     }
