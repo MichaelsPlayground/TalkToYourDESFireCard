@@ -88,3 +88,48 @@ see page 4 of video/slideshow https://www.slideshare.net/NXPMIFARETeam/secure-dy
 "The SDM feature is enablement is done during the creation of the NDEF file, a Standard Data File inside the Mifare DESFire application"
 
 decryption of encrypted PICC data, decryption of encrypted File data and MAC verification works on SDM message
+
+
+# Activation of Secure Dynamic Messaging (SDM) for Secure Unique NFC (SUN) feature
+
+The SDM/SUN feature is available on Mifare DESFire EV3 card types only. It is very useful if your business case is to work 
+with a "standard" reader infrastructure that are smartphones (Android or Apple) without usage of a dedicated app installed 
+on the phone.
+
+## What is a SDM/SUN message ?
+
+As you can format (parts of) a Mifare DESFire tag in NDEF mode the tag will respond to an attached reader with the data that is 
+stored in the NDEF data file. There are several NDEF message types available but the SDM/SUN feature uses the **URL record** 
+where an URL is stored that points to a backend server. When the tag is tapped to a smartphone an (installed) application will 
+open that is capable of working with URL data, usually your browser will will open and tries to connect to the URL provided by 
+the tag.
+
+Below you find a sample **URL** that points to a (backend) server: 
+
+https://sdm.nfcdeveloper.com/
+
+When using this link ou get some information about a "Secure Dynamic Messaging Backend Server Example" that can be used for 
+NTAG 424 DNA tags but for DESFire EV3 as well but, beware, when you carefully read the examples you may find that the full 
+URL looks like 
+
+https://sdm.nfcdeveloper.com/tag?picc_data=EF963FF7828658A599F3041510671E88&cmac=94EED9EE65337086
+
+so the "real" endpoint ("**Base URL**") is something like 
+
+https://sdm.nfcdeveloper.com/tag
+
+followed by data fields like "uid", "ctr", "picc_data" or "cmac".
+
+That brings us to the **Template URL** that could look like this URL:
+
+https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac=0000000000000000
+
+If you use the template URL on the backend server you will receive a "400 Bad Request: Invalid message (most probably wrong signature)" error. 
+That is due to the fact that this template URL does not contain any real data - they would be in the "00"er fields that act as a 
+placeholder.
+
+
+
+
+
+

@@ -7,7 +7,7 @@
 
     <item
         android:id="@+id/action_activate_sdm"
-        android:title="activate SUN"
+        android:title="activate SDM/SUN"
         app:showAsAction="never"/>
 
     <item
