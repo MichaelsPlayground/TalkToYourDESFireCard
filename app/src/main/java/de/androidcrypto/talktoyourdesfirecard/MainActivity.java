@@ -5086,7 +5086,7 @@ posMacInpOffset:  75
                 }
                  */
 
-                /* does not help
+                /*
                 // step x authenticateEV2First with VC Proximity Key
                 stepString = "step x authenticateEV2First with VC Configuration Key";
                 success = desfireAuthenticateEv2.authenticateAesEv2FirstVc(VC_CONFIGURATION_KEY_NUMBER, VC_CONFIGURATION_KEY_AES);
@@ -5099,8 +5099,26 @@ posMacInpOffset:  75
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                     return;
                 }
-                 */
+*/
 
+                // get version
+                VersionInfo versionInfo = desfireAuthenticateEv2.getVersionInformation();
+                if (versionInfo == null) return;
+                //versionInfo.getHardwareType()
+                Log.d(TAG, versionInfo.dump());
+
+                stepString = "complete proximity check";
+                success = desfireAuthenticateEv2.proximityCheckEv2();
+                if (success) {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+
+                /*
                 stepString = "phase 1: prepare the check";
                 final byte PREPARE_PROXIMITY_CHECK_COMMAND = (byte) 0xF0;
                 final byte RUN_PROXIMITY_CHECK_COMMAND = (byte) 0xF2;
@@ -5149,6 +5167,8 @@ posMacInpOffset:  75
                 int NUMBER_OF_ROUNDS = 1; // 1, 2, 4 or 8 rounds
                 int PART_LEN = 8 / NUMBER_OF_ROUNDS;
                 byte[] RANDOM_CHALLENGE = new byte[] {(byte) 0x00, (byte) 0x01, (byte) 0x02, (byte) 0x03, (byte) 0x04, (byte) 0x05, (byte) 0x06, (byte) 0x07};
+
+                 */
                 /*
                 String MAC_PARTS = "";
                 int j = 0;
@@ -5162,7 +5182,7 @@ posMacInpOffset:  75
                     }
                 }
                 */
-
+/*
                 byte[] challenge1 = Utils.hexStringToByteArray("08F6DE23025C46DAE7");
                 try {
                     apdu = wrapMessage(RUN_PROXIMITY_CHECK_COMMAND, challenge1);
@@ -5176,7 +5196,7 @@ posMacInpOffset:  75
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "IOException", COLOR_RED);
                     return;
                 }
-
+*/
 
             }
         });

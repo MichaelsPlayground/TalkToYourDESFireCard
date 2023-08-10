@@ -3412,6 +3412,84 @@ public class DesfireAuthenticateEv2 {
         }
     }
 
+    /**
+     * This method is running the DESFire EV2/EV3 Proximity Check
+     * Note: you need to change the 'VC Configuration Key' (0x20) and
+     * 'VC Proximity Key' (0x21) to enable the feature before running the check
+     *
+     * The work is based on code by xx
+     *
+     * Status: NOT WORKING
+     *
+     * @return
+     */
+    public boolean proximityCheckEv2() {
+        // Run the proximity check/distance-bounding protocol
+        String logData = "";
+        final String methodName = "proximityCheckEv2";
+        log(methodName, "started", true);
+
+        String stepString = "phase 1: prepare the check";
+        final byte PREPARE_PROXIMITY_CHECK_COMMAND = (byte) 0xF0;
+        final byte RUN_PROXIMITY_CHECK_COMMAND = (byte) 0xF2;
+        final byte VERIFY_PROXIMITY_CHECK_COMMAND = (byte) 0xFD;
+
+        byte[] apdu;
+        byte[] response;
+        byte[] responseData;
+        try {
+            apdu = wrapMessage(PREPARE_PROXIMITY_CHECK_COMMAND, null);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, stepString + " transceive failed, IOException:\n" + e.getMessage());
+            log(stepString, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        // unauthenticated response: 010320009190
+        if (!checkResponse(response)) {
+            log(stepString, "we received not 9100, NOT aborted");
+            //return;
+        }
+        responseData = Arrays.copyOfRange(response, 0, response.length - 2);
+        log(stepString, printData("responseData", responseData));
+        byte OTP = responseData[0];
+        byte[] pubRespTime = Arrays.copyOfRange(responseData, 1, 3);
+        byte PPS1;
+        if (OTP == (byte) 0x01) {
+            PPS1 = responseData[3];
+        } else {
+            PPS1 = -1;
+        }
+
+        // printing some data
+        // print("SC = %02X, OPT = %02X, pubRespTime = %02X %02X, PPS1 = %02X" %(SC, OPT, pubRespTime[0], pubRespTime[1], PPS1))
+        log(stepString, "OTP: " + Utils.byteToHex(OTP));
+        log(stepString, printData("pubRespTime", pubRespTime));
+        log(stepString, "PPS1: " + Utils.byteToHex(PPS1));
+
+        stepString = "phase 2: run the PC";
+        byte[] rndC = Utils.hexStringToByteArray("0001020304050607"); // 8 bytes, should be random
+        // we are running 1 round only
+        // see the 'proximity check code' how to run more than 1 round
+        try {
+            apdu = wrapMessage(RUN_PROXIMITY_CHECK_COMMAND, rndC);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, stepString + " transceive failed, IOException:\n" + e.getMessage());
+            log(stepString, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+
+
+
+return false;
+    }
+
+
+
     public boolean setConfigurationValueFileLimit(byte fileNumber) {
         // see example in Mifare DESFire Light Features and Hints AN12343.pdf pages 12 ff
         // and MIFARE DESFire Light contactless application IC MF2DLHX0.pdf pages 61 ff
