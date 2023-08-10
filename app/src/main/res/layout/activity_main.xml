@@ -498,6 +498,55 @@
                 </LinearLayout>
 
                 <TextView
+                    android:id="@+id/tv12Ev2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="10dp"
+                    android:text="Create &amp; Select AES Application"
+                    android:textAlignment="center"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnCreateAesApplicationEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:text="create AES Apl" />
+
+                    <Button
+                        android:id="@+id/btnSelectAesApplicationEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="select AES Apl" />
+
+                    <Button
+                        android:id="@+id/btnxxEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="xx" />
+
+                    <Button
+                        android:id="@+id/btnxx2Ev2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="xx" />
+
+                </LinearLayout>
+
+                <TextView
                     android:id="@+id/tv8Ev2"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -543,6 +592,104 @@
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
                         android:text="A3C auth" />
+
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv14Ev2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="10dp"
+                    android:text="AES authentication (changed keys)"
+                    android:textAlignment="center"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnAuthD0ACEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:text="A0 C auth" />
+
+                    <Button
+                        android:id="@+id/btnAuthD1ACEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="xx" />
+
+                    <Button
+                        android:id="@+id/btnAuthD2ACEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="A2 C auth" />
+
+                    <Button
+                        android:id="@+id/btnAuthD3ACCEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="xx" />
+
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv13Ev2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="10dp"
+                    android:text="Create &amp; Select AES Application"
+                    android:textAlignment="center"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnChangeAesKeyA0Ev2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:text="A0->C" />
+
+                    <Button
+                        android:id="@+id/btnChangeAesKeyA0CEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="A0->D" />
+
+                    <Button
+                        android:id="@+id/btnChangeAesKeyA2Ev2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="A2->C" />
+
+                    <Button
+                        android:id="@+id/btnChangeAesKeyA2CEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="A2->D" />
 
                 </LinearLayout>
 

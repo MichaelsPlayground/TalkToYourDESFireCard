@@ -3027,8 +3027,6 @@ public class DesfireAuthenticateEv2 {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 76 - 80
         // this is based on the key change of an application key on a DESFire Light card
         // Cmd.ChangeKey Case 1: Key number to be changed ≠ Key number for currently authenticated session.
-
-        // todo implement case 2
         // Case 2: Key number to be changed == Key number for currently authenticated session.
 
         String logData = "";
@@ -3097,20 +3095,33 @@ public class DesfireAuthenticateEv2 {
         // 'if key 1 to 4 are to be changed (NewKey XOR OldKey) || KeyVer || CRC32NK'
         // if the keyNumber of the key to change is not the keyNumber that authenticated
         // we need to xor the new key with the old key, the CRC32 is run over the real new key (not the  XORed one)
-        byte[] keyNewXor = keyNew.clone();
-        for (int i = 0; i < keyOld.length; i++) {
-            keyNewXor[i] ^= keyOld[i % keyOld.length];
+
+        byte[] data;
+        if (keyNumberUsedForAuthentication != keyNumber) {
+            // this is for case 1, auth key number != key number to change
+            byte[] keyNewXor = keyNew.clone();
+            for (int i = 0; i < keyOld.length; i++) {
+                keyNewXor[i] ^= keyOld[i % keyOld.length];
+            }
+            log(methodName, printData("keyNewXor", keyNewXor));
+            byte[] crc32 = CRC32.get(keyNew);
+            log(methodName, printData("crc32 of keyNew", crc32));
+            byte[] padding = hexStringToByteArray("8000000000000000000000");
+            ByteArrayOutputStream baosData = new ByteArrayOutputStream();
+            baosData.write(keyNewXor, 0, keyNewXor.length);
+            baosData.write(KEY_VERSION);
+            baosData.write(crc32, 0, crc32.length);
+            baosData.write(padding, 0, padding.length);
+            data = baosData.toByteArray();
+        } else {
+            // this is for case 2, auth key number == key number to change
+            byte[] padding = hexStringToByteArray("800000000000000000000000000000");
+            ByteArrayOutputStream baosData = new ByteArrayOutputStream();
+            baosData.write(keyNew, 0, keyNew.length);
+            baosData.write(KEY_VERSION);
+            baosData.write(padding, 0, padding.length);
+            data = baosData.toByteArray();
         }
-        log(methodName, printData("keyNewXor", keyNewXor));
-        byte[] crc32 = CRC32.get(keyNew);
-        log(methodName, printData("crc32 of keyNew", crc32));
-        byte[] padding = hexStringToByteArray("8000000000000000000000");
-        ByteArrayOutputStream baosData = new ByteArrayOutputStream();
-        baosData.write(keyNewXor, 0, keyNewXor.length);
-        baosData.write(KEY_VERSION);
-        baosData.write(crc32, 0, crc32.length);
-        baosData.write(padding, 0, padding.length);
-        byte[] data = baosData.toByteArray();
         log(methodName, printData("data", data));
 
         // Encrypt the Command Data = E(KSesAuthENC, Data)
@@ -3163,7 +3174,7 @@ public class DesfireAuthenticateEv2 {
         byte[] responseBytes = returnStatusBytes(response);
         System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
-            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+            Log.d(TAG, methodName + " SUCCESS, now verifying the received data");
         } else {
             Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
             Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
@@ -3175,6 +3186,10 @@ public class DesfireAuthenticateEv2 {
         log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
         byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
 
+        // in case 2 (auth key number == key number to change) there is NO received MAC so 0x9100 tells us - everything was OK
+        if (keyNumberUsedForAuthentication == keyNumber) return true;
+
+        // the MAC verification is done in case 1 (auth key number != key number to change)
         // verifying the received Response MAC
         ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
         responseMacBaos.write((byte) 0x00); // response code 00 means success
@@ -3207,8 +3222,6 @@ public class DesfireAuthenticateEv2 {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 76 - 80
         // this is based on the key change of an application key on a DESFire Light card
         // Cmd.ChangeKey Case 1: Key number to be changed ≠ Key number for currently authenticated session.
-
-        // todo implement case 2
         // Case 2: Key number to be changed == Key number for currently authenticated session.
 
         String logData = "";
@@ -3279,20 +3292,33 @@ public class DesfireAuthenticateEv2 {
         // 'if key 1 to 4 are to be changed (NewKey XOR OldKey) || KeyVer || CRC32NK'
         // if the keyNumber of the key to change is not the keyNumber that authenticated
         // we need to xor the new key with the old key, the CRC32 is run over the real new key (not the  XORed one)
-        byte[] keyNewXor = keyNew.clone();
-        for (int i = 0; i < keyOld.length; i++) {
-            keyNewXor[i] ^= keyOld[i % keyOld.length];
+
+        byte[] data;
+        if (keyNumberUsedForAuthentication != keyNumber) {
+            // this is for case 1, auth key number != key number to change
+            byte[] keyNewXor = keyNew.clone();
+            for (int i = 0; i < keyOld.length; i++) {
+                keyNewXor[i] ^= keyOld[i % keyOld.length];
+            }
+            log(methodName, printData("keyNewXor", keyNewXor));
+            byte[] crc32 = CRC32.get(keyNew);
+            log(methodName, printData("crc32 of keyNew", crc32));
+            byte[] padding = hexStringToByteArray("8000000000000000000000");
+            ByteArrayOutputStream baosData = new ByteArrayOutputStream();
+            baosData.write(keyNewXor, 0, keyNewXor.length);
+            baosData.write(KEY_VERSION);
+            baosData.write(crc32, 0, crc32.length);
+            baosData.write(padding, 0, padding.length);
+            data = baosData.toByteArray();
+        } else {
+            // this is for case 2, auth key number == key number to change
+            byte[] padding = hexStringToByteArray("800000000000000000000000000000");
+            ByteArrayOutputStream baosData = new ByteArrayOutputStream();
+            baosData.write(keyNew, 0, keyNew.length);
+            baosData.write(KEY_VERSION);
+            baosData.write(padding, 0, padding.length);
+            data = baosData.toByteArray();
         }
-        log(methodName, printData("keyNewXor", keyNewXor));
-        byte[] crc32 = CRC32.get(keyNew);
-        log(methodName, printData("crc32 of keyNew", crc32));
-        byte[] padding = hexStringToByteArray("8000000000000000000000");
-        ByteArrayOutputStream baosData = new ByteArrayOutputStream();
-        baosData.write(keyNewXor, 0, keyNewXor.length);
-        baosData.write(KEY_VERSION);
-        baosData.write(crc32, 0, crc32.length);
-        baosData.write(padding, 0, padding.length);
-        byte[] data = baosData.toByteArray();
         log(methodName, printData("data", data));
 
         // Encrypt the Command Data = E(KSesAuthENC, Data)
@@ -3357,6 +3383,10 @@ public class DesfireAuthenticateEv2 {
         log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
         byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
 
+        // in case 2 (auth key number == key number to change) there is NO received MAC so 0x9100 tells us - everything was OK
+        if (keyNumberUsedForAuthentication == keyNumber) return true;
+
+        // the MAC verification is done in case 1 (auth key number != key number to change)
         // verifying the received Response MAC
         ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
         responseMacBaos.write((byte) 0x00); // response code 00 means success
