@@ -4838,8 +4838,9 @@ posMacInpOffset:  75
                 }
                 */
 
+                byte[] challenge1 = Utils.hexStringToByteArray("08F6DE23025C46DAE7");
                 try {
-                    apdu = wrapMessage(RUN_PROXIMITY_CHECK_COMMAND, RANDOM_CHALLENGE);
+                    apdu = wrapMessage(RUN_PROXIMITY_CHECK_COMMAND, challenge1);
                     Log.d(TAG, printData(" apdu", apdu));
                     response = isoDep.transceive(apdu);
                     writeToUiAppend(output, printData("response", response));
