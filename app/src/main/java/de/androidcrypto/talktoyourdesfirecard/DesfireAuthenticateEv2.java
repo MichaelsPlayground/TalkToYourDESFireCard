@@ -3200,6 +3200,188 @@ public class DesfireAuthenticateEv2 {
         }
     }
 
+    public boolean changeVcKeyEv2(byte keyNumber, byte[] keyNew, byte[] keyOld) {
+
+        // basically it is the same method as changeApplicationKeyEv2 but without any keyNumber checks
+
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 76 - 80
+        // this is based on the key change of an application key on a DESFire Light card
+        // Cmd.ChangeKey Case 1: Key number to be changed ≠ Key number for currently authenticated session.
+
+        // todo implement case 2
+        // Case 2: Key number to be changed == Key number for currently authenticated session.
+
+        String logData = "";
+        final String methodName = "changeApplicationKeyEv2";
+        log(methodName, "started", true);
+        log(methodName, "keyNumber: " + keyNumber);
+        log(methodName, printData("keyNew", keyNew));
+        log(methodName, printData("keyOld", keyOld));
+        // sanity checks
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+            return false;
+        }
+        /*
+        if ((keyNumber < 0) || (keyNumber > MAXIMUM_NUMBER_OF_KEYS)) {
+            Log.e(TAG, methodName + " keyNumber is not in range 0.." + MAXIMUM_NUMBER_OF_KEYS + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+         */
+        if ((keyNew == null) || (keyNew.length != 16)) {
+            Log.e(TAG, methodName + " keyNew is NULL or not of length 16, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((keyOld == null) || (keyOld.length != 16)) {
+            Log.e(TAG, methodName + " keyOld is NULL or not of length 16, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        final byte KEY_VERSION = (byte) 0x00; // fixed
+
+        // Encrypting the Command Data
+
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(IV_LABEL_ENC, 0, IV_LABEL_ENC.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        // Data (New KeyValue || New KeyVersion || CRC32 of New KeyValue || Padding)
+        // 0123456789012345678901234567890100A0A608688000000000000000000000
+        // 01234567890123456789012345678901 00 A0A60868 8000000000000000000000
+        // keyNew 16 byte              keyVers crc32 4  padding 11 bytes
+
+        // error: this is missing in Feature & Hints
+        // see MIFARE DESFire Light contactless application IC MF2DLHX0.pdf page 71
+        // 'if key 1 to 4 are to be changed (NewKey XOR OldKey) || KeyVer || CRC32NK'
+        // if the keyNumber of the key to change is not the keyNumber that authenticated
+        // we need to xor the new key with the old key, the CRC32 is run over the real new key (not the  XORed one)
+        byte[] keyNewXor = keyNew.clone();
+        for (int i = 0; i < keyOld.length; i++) {
+            keyNewXor[i] ^= keyOld[i % keyOld.length];
+        }
+        log(methodName, printData("keyNewXor", keyNewXor));
+        byte[] crc32 = CRC32.get(keyNew);
+        log(methodName, printData("crc32 of keyNew", crc32));
+        byte[] padding = hexStringToByteArray("8000000000000000000000");
+        ByteArrayOutputStream baosData = new ByteArrayOutputStream();
+        baosData.write(keyNewXor, 0, keyNewXor.length);
+        baosData.write(KEY_VERSION);
+        baosData.write(crc32, 0, crc32.length);
+        baosData.write(padding, 0, padding.length);
+        byte[] data = baosData.toByteArray();
+        log(methodName, printData("data", data));
+
+        // Encrypt the Command Data = E(KSesAuthENC, Data)
+        byte[] encryptedData = AES.encrypt(ivForCmdData, SesAuthENCKey, data);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader = keyNumber || Encrypted CmdData )
+        // C40000BC354CD50180D40DB52D5D8CA136249A0A14154DBA1BE0D67C408AB24CF0F3D3B4FE333C6A
+        // C4 0000 BC354CD5 01 80D40DB52D5D8CA136249A0A14154DBA1BE0D67C408AB24CF0F3D3B4FE333C6A
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(CHANGE_KEY_SECURE_COMMAND); // 0xC4
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(keyNumber);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Data (CmdHeader = keyNumber || Encrypted Data || MAC)
+        ByteArrayOutputStream baosChangeKeyCommand = new ByteArrayOutputStream();
+        baosChangeKeyCommand.write(keyNumber);
+        baosChangeKeyCommand.write(encryptedData, 0, encryptedData.length);
+        baosChangeKeyCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] changeKeyCommand = baosChangeKeyCommand.toByteArray();
+        log(methodName, printData("changeKeyCommand", changeKeyCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(CHANGE_KEY_SECURE_COMMAND, changeKeyCommand);
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+
+        // verifying the received Response MAC
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        byte[] macInput2 = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput2", macInput2));
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return true;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return false;
+        }
+    }
+
     public boolean setConfigurationValueFileLimit(byte fileNumber) {
         // see example in Mifare DESFire Light Features and Hints AN12343.pdf pages 12 ff
         // and MIFARE DESFire Light contactless application IC MF2DLHX0.pdf pages 61 ff
@@ -3401,6 +3583,213 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return false;
         }
+        if ((key == null) || (key.length != 16)) {
+            Log.e(TAG, methodName + " data length is not 16, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        log(methodName, "step 01 get encrypted rndB from card", false);
+        log(methodName, "This method is using the AUTHENTICATE_AES_EV2_FIRST_COMMAND so it will work with AES-based application only", false);
+        // authenticate 1st part
+        byte[] apdu;
+        byte[] response = new byte[0];
+        try {
+            /**
+             * note: the parameter needs to be a 2 byte long value, the first one is the key number and the second
+             * one could any LEN capability ??
+             * I'm setting the byte[] to keyNo | 0x00
+             */
+            byte[] parameter = new byte[2];
+            parameter[0] = keyNo;
+            parameter[1] = (byte) 0x00; // is already 0x00
+            log(methodName, printData("parameter", parameter), false);
+            apdu = wrapMessage(AUTHENTICATE_AES_EV2_FIRST_COMMAND, parameter);
+            log(methodName, "get enc rndB " + printData("apdu", apdu), false);
+            response = isoDep.transceive(apdu);
+            log(methodName, "get enc rndB " + printData("response", response), false);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "IOException: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        // we are expecting that the status code is 0xAF means more data need to get exchanged
+        if (!checkResponseMoreData(responseBytes)) {
+            log(methodName, "expected to get get 0xAF as error code but  found: " + printData("errorCode", responseBytes) + ", aborted", false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        // now we know that we can work with the response, 16 bytes long
+        // R-APDU (Part 1) (E(Kx, RndB)) || SW1 || SW2
+        byte[] rndB_enc = getData(response);
+        log(methodName, printData("encryptedRndB", rndB_enc), false);
+
+        // start the decryption
+        //byte[] iv0 = new byte[8];
+        byte[] iv0 = new byte[16];
+        log(methodName, "step 02 iv0 is 16 zero bytes " + printData("iv0", iv0), false);
+        log(methodName, "step 03 decrypt the encryptedRndB using AES.decrypt with key " + printData("key", key) + printData(" iv0", iv0), false);
+        byte[] rndB = AES.decrypt(iv0, key, rndB_enc);
+        log(methodName, printData("rndB", rndB), false);
+
+        log(methodName, "step 04 rotate rndB to LEFT", false);
+        byte[] rndB_leftRotated = rotateLeft(rndB);
+        log(methodName, printData("rndB_leftRotated", rndB_leftRotated), false);
+
+        // authenticate 2nd part
+        log(methodName, "step 05 generate a random rndA", false);
+        byte[] rndA = new byte[16]; // this is an AES key
+        rndA = getRandomData(rndA);
+        log(methodName, printData("rndA", rndA), false);
+
+        log(methodName, "step 06 concatenate rndA | rndB_leftRotated", false);
+        byte[] rndArndB_leftRotated = concatenate(rndA, rndB_leftRotated);
+        log(methodName, printData("rndArndB_leftRotated", rndArndB_leftRotated), false);
+
+        // IV is now encrypted RndB received from the tag
+        log(methodName, "step 07 iv1 is 16 zero bytes", false);
+        byte[] iv1 = new byte[16];
+        log(methodName, printData("iv1", iv1), false);
+
+        // Encrypt RndAB_rot
+        log(methodName, "step 08 encrypt rndArndB_leftRotated using AES.encrypt and iv1", false);
+        byte[] rndArndB_leftRotated_enc = AES.encrypt(iv1, key, rndArndB_leftRotated);
+        log(methodName, printData("rndArndB_leftRotated_enc", rndArndB_leftRotated_enc), false);
+
+        // send encrypted data to PICC
+        log(methodName, "step 09 send the encrypted data to the PICC", false);
+        try {
+            apdu = wrapMessage(MORE_DATA_COMMAND, rndArndB_leftRotated_enc);
+            log(methodName, "send rndArndB_leftRotated_enc " + printData("apdu", apdu), false);
+            response = isoDep.transceive(apdu);
+            log(methodName, "send rndArndB_leftRotated_enc " + printData("response", response), false);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "IOException: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        // we are expecting that the status code is 0x00 means the exchange was OK
+        if (!checkResponse(responseBytes)) {
+            log(methodName, "expected to get get 0x00 as error code but  found: " + printData("errorCode", responseBytes) + ", aborted", false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        // now we know that we can work with the response, response is 32 bytes long
+        // R-APDU (Part 2) E(Kx, TI || RndA' || PDcap2 || PCDcap2) || Response Code
+        log(methodName, "step 10 received encrypted data from PICC", false);
+        byte[] data_enc = getData(response);
+        log(methodName, printData("data_enc", data_enc), false);
+
+        //IV is now reset to zero bytes
+        log(methodName, "step 11 iv2 is 16 zero bytes", false);
+        byte[] iv2 = new byte[16];
+        log(methodName, printData("iv2", iv2), false);
+
+        // Decrypt encrypted data
+        log(methodName, "step 12 decrypt data_enc with iv2 and key", false);
+        byte[] data = AES.decrypt(iv2, key, data_enc);
+        log(methodName, printData("data", data), false);
+        // data is 32 bytes long, e.g. a1487b61f69cef65a09742b481152325a7cb8fc6000000000000000000000000
+        /**
+         * structure of data
+         * full example a1487b61f69cef65a09742b481152325a7cb8fc6000000000000000000000000
+         *
+         * TI transaction information 04 bytes a1487b61
+         * rndA LEFT rotated          16 bytes f69cef65a09742b481152325a7cb8fc6
+         * PDcap2                     06 bytes 000000000000
+         * PCDcap2                    06 bytes 000000000000
+         */
+
+        // split data
+        byte[] ti = new byte[4]; // LSB notation
+        byte[] rndA_leftRotated = new byte[16];
+        byte[] pDcap2 = new byte[6];
+        byte[] pCDcap2 = new byte[6];
+        System.arraycopy(data, 0, ti, 0, 4);
+        System.arraycopy(data, 4, rndA_leftRotated, 0, 16);
+        System.arraycopy(data, 20, pDcap2, 0, 6);
+        System.arraycopy(data, 26, pCDcap2, 0, 6);
+        log(methodName, "step 13 full data needs to get split up in 4 values", false);
+        log(methodName, printData("data", data), false);
+        log(methodName, printData("ti", ti), false);
+        log(methodName, printData("rndA_leftRotated", rndA_leftRotated), false);
+        log(methodName, printData("pDcap2", pDcap2), false);
+        log(methodName, printData("pCDcap2", pCDcap2), false);
+
+        // PCD compares send and received RndA
+        log(methodName, "step 14 rotate rndA_leftRotated to RIGHT", false);
+        byte[] rndA_received = rotateRight(rndA_leftRotated);
+        log(methodName, printData("rndA_received ", rndA_received), false);
+        boolean rndAEqual = Arrays.equals(rndA, rndA_received);
+        //log(methodName, printData("rndA received ", rndA_received), false);
+        log(methodName, printData("rndA          ", rndA), false);
+        log(methodName, "rndA and rndA received are equal: " + rndAEqual, false);
+        log(methodName, printData("rndB          ", rndB), false);
+
+        log(methodName, "**** auth result ****", false);
+        if (rndAEqual) {
+            log(methodName, "*** AUTHENTICATED ***", false);
+            SesAuthENCKey = getSesAuthEncKey(rndA, rndB, key);
+            SesAuthMACKey = getSesAuthMacKey(rndA, rndB, key);
+            log(methodName, printData("SesAuthENCKey ", SesAuthENCKey), false);
+            log(methodName, printData("SesAuthMACKey ", SesAuthMACKey), false);
+            CmdCounter = 0;
+            TransactionIdentifier = ti.clone();
+            authenticateEv2FirstSuccess = true;
+            keyNumberUsedForAuthentication = keyNo;
+        } else {
+            log(methodName, "****   FAILURE   ****", false);
+            invalidateAllData();
+        }
+        log(methodName, "*********************", false);
+        return rndAEqual;
+    }
+
+    /**
+     * This method is basically the same as authenticateAesEv2First but without a keyNumber check
+     */
+    public boolean authenticateAesEv2FirstVc(byte keyNo, byte[] key) {
+
+        /**
+         * see MIFARE DESFire Light contactless application IC.pdf, pages 27 ff and 55ff
+         *
+         * Purpose: To start a new transaction
+         * Capability Bytes: PCD and PICC capability bytes are exchanged (PDcap2, PCDcap2)
+         * Transaction Identifier: A new transaction identifier is generated which remains valid for the full transaction
+         * Command Counter: CmdCtr is reset to 0x0000
+         * Session Keys: New session keys are generated
+         */
+
+        // see example in Mifare DESFire Light Features and Hints AN12343.pdf pages 33 ff
+        // and MIFARE DESFire Light contactless application IC MF2DLHX0.pdf pages 52 ff
+        logData = "";
+        invalidateAllData();
+        final String methodName = "authenticateAesEv2FirstVc";
+        log(methodName, printData("key", key) + " keyNo: " + keyNo, true);
+        errorCode = new byte[2];
+        // sanity checks
+        if (keyNo < 0) {
+            Log.e(TAG, methodName + " keyNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        /*
+        if (keyNo > 14) {
+            Log.e(TAG, methodName + " keyNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+         */
         if ((key == null) || (key.length != 16)) {
             Log.e(TAG, methodName + " data length is not 16, aborted");
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);

@@ -50,6 +50,7 @@ import com.google.android.material.textfield.TextInputLayout;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.StringBufferInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
@@ -114,6 +115,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private Button createNdefFile256Ev2, sdmChangeFileSettingsEv2, sdmTestFileSettingsEv2;
     private Button sdmGetFileSettingsEv2, sdmDecryptNdefManualEv2, sdmTestTemplate;
+
+    /**
+     * section for Proximity Check tasks
+     */
+
+    private Button setProximityKeys, runProximityCheck, getProximityKeyVersions;
 
     /**
      * section for standard file handling
@@ -234,6 +241,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     // see Mifare DESFire Light Features and Hints AN12343.pdf, page 83-84
     private final byte[] TRANSACTION_MAC_KEY_AES = Utils.hexStringToByteArray("F7D23E0C44AFADE542BFDF2DC5C6AE02"); // taken from Mifare DESFire Light Features and Hints AN12343.pdf, pages 83-84
 
+    // proximity check keys
+    private final byte VC_CONFIGURATION_KEY_NUMBER = (byte) 0x20;
+    private final byte[] VC_CONFIGURATION_KEY_AES = new byte[16];
+    private final byte VC_PROXIMITY_CHECK_KEY_NUMBER = (byte) 0x21;
+    private final byte[] VC_PROXIMITY_CHECK_KEY_AES = new byte[16];
+
+
     /**
      * section for commands and responses
      */
@@ -255,6 +269,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private final byte GET_CARD_UID_COMMAND = (byte) 0x51;
     private final byte GET_VERSION_COMMAND = (byte) 0x60;
+    private final byte GET_KEY_VERSION_COMMAND = (byte) 0x64;
 
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
     private final byte[] RESPONSE_AUTHENTICATION_ERROR = new byte[]{(byte) 0x91, (byte) 0xAE};
@@ -342,6 +357,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         sdmGetFileSettingsEv2 = findViewById(R.id.btnSdmGetFileSettingsEv2);
         sdmDecryptNdefManualEv2 = findViewById(R.id.btnSdmDecryptNdefManualEv2);
         sdmTestTemplate = findViewById(R.id.btnSdmTestTemplate);
+
+        // methods for proximity check
+        setProximityKeys = findViewById(R.id.btnProxSetKeys);
+        getProximityKeyVersions = findViewById(R.id.btnProxGetKeyVersions);
+        runProximityCheck = findViewById(R.id.btnProxRunCheck);
 
         //fileCreateEv2 = findViewById(R.id.btnCreateFilesEv2);
 
@@ -4511,7 +4531,329 @@ posMacInpOffset:  75
           }
         });
 
+        /**
+         * section for Proximity Checks
+         */
 
+        setProximityKeys.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "setProximityKeys";
+                writeToUiAppend(output, logString);
+
+                // important: you need to change the Master Application Key from DES to AES first !
+
+                // the setting of the proximity key has 5 steps
+                // step 1 select the Master Application File
+                // step 2 authenticateEv2First with Master Application Key
+                // step 3 changeApplicationKey for key number 0x20 (VC Configuration Key)
+                // step 4 authenticateEV2First with VC Configuration Key
+                // step 5 changeApplicationKey for key number 0x21 (Proximity Check Key)
+
+                // step 1 select the Master Application File
+                String stepString = "step 1 select the Master Application File";
+                writeToUiAppend(output, stepString);
+                byte[] MASTER_APPLICATION_ID = new byte[3];
+                byte[] responseData;
+                boolean success = desfireAuthenticateEv2.selectApplicationByAidEv2(MASTER_APPLICATION_ID);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, stepString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+
+                // step 2 authenticateEv2First with Master Application Key
+                stepString = "step 2 authenticateEv2First with Master Application Key";
+                writeToUiAppend(output, stepString);
+                byte MASTER_APPLICATION_KEY_NUMBER = (byte) 0x00;
+                byte[] MASTER_APPLICATION_KEY_AES = new byte[16];
+                success = desfireAuthenticateEv2.authenticateAesEv2First(MASTER_APPLICATION_KEY_NUMBER, MASTER_APPLICATION_KEY_AES);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    /*
+                    SES_AUTH_ENC_KEY = desfireAuthenticateEv2.getSesAuthENCKey();
+                    SES_AUTH_MAC_KEY = desfireAuthenticateEv2.getSesAuthMACKey();
+                    TRANSACTION_IDENTIFIER = desfireAuthenticateEv2.getTransactionIdentifier();
+                    CMD_COUNTER = desfireAuthenticateEv2.getCmdCounter();
+                    writeToUiAppend(output, printData("SES_AUTH_ENC_KEY", SES_AUTH_ENC_KEY));
+                    writeToUiAppend(output, printData("SES_AUTH_MAC_KEY", SES_AUTH_MAC_KEY));
+                    writeToUiAppend(output, printData("TRANSACTION_IDENTIFIER", TRANSACTION_IDENTIFIER));
+                    writeToUiAppend(output, "CMD_COUNTER: " + CMD_COUNTER);
+                     */
+                    vibrateShort();
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+
+                // step 3 changeApplicationKey for key number 0x20 (VC Configuration Key)
+                stepString = "step 3 changeApplicationKey for key number 0x20 (VC Configuration Key)";
+
+                success = desfireAuthenticateEv2.changeVcKeyEv2(VC_CONFIGURATION_KEY_NUMBER, VC_CONFIGURATION_KEY_AES, VC_CONFIGURATION_KEY_AES);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, stepString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+
+                // step 4 authenticateEV2First with VC Configuration Key
+                stepString = "step 4 authenticateEV2First with VC Configuration Key";
+                success = desfireAuthenticateEv2.authenticateAesEv2FirstVc(VC_CONFIGURATION_KEY_NUMBER, VC_CONFIGURATION_KEY_AES);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+
+                // step 5 changeApplicationKey for key number 0x21 (Proximity Check Key)
+                stepString = "step 5 changeApplicationKey for key number 0x21 (Proximity Check Key)";
+                success = desfireAuthenticateEv2.changeVcKeyEv2(VC_PROXIMITY_CHECK_KEY_NUMBER, VC_PROXIMITY_CHECK_KEY_AES, VC_PROXIMITY_CHECK_KEY_AES);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, stepString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+            }
+        });
+
+        getProximityKeyVersions.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "getProximityKeyVersions";
+                writeToUiAppend(output, logString);
+
+                // get the key version of the VC Configuration Key
+                String stepString = "get the key version of the VC Configuration Key";
+                writeToUiAppend(output, stepString);
+                byte[] apdu;
+                byte[] response;
+                try {
+                    apdu = wrapMessage(GET_KEY_VERSION_COMMAND, new byte[]{VC_CONFIGURATION_KEY_NUMBER});
+                    Log.d(TAG, printData(" apdu", apdu));
+                    response = isoDep.transceive(apdu);
+                    Log.d(TAG, printData(" response", response));
+                    // 00 9100
+                } catch (IOException e) {
+                    writeToUiAppend(output, "IOException: " + e.getMessage());
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "IOException", COLOR_RED);
+                    return;
+                }
+                if (!checkResponse(response)) {
+                    writeToUiAppend(output, "we received not 9100, aborted");
+                    return;
+                }
+                byte keyVersion20 = response[0];
+                writeToUiAppend(output, "version of VC Configuration Key: " + Utils.byteToHex(keyVersion20));
+
+                // get the key version of the VC Proximity Key
+                stepString = "get the key version of the VC Proximity Key";
+                writeToUiAppend(output, stepString);
+                try {
+                    apdu = wrapMessage(GET_KEY_VERSION_COMMAND, new byte[]{VC_PROXIMITY_CHECK_KEY_NUMBER});
+                    Log.d(TAG, printData(" apdu", apdu));
+                    response = isoDep.transceive(apdu);
+                    Log.d(TAG, printData(" response", response));
+                    // 00 9100
+                } catch (IOException e) {
+                    writeToUiAppend(output, "IOException: " + e.getMessage());
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "IOException", COLOR_RED);
+                    return;
+                }
+                if (!checkResponse(response)) {
+                    writeToUiAppend(output, "we received not 9100, aborted");
+                    return;
+                }
+                byte keyVersion21 = response[0];
+                writeToUiAppend(output, "version of VC Proximity Key: " + Utils.byteToHex(keyVersion21));
+
+                vibrateShort();
+                writeToUiAppendBorderColor(errorCode, errorCodeLayout, "SUCCESS on getting keyVersions", COLOR_GREEN);
+
+            }
+        });
+
+        runProximityCheck.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "runProximityCheck";
+                writeToUiAppend(output, logString);
+
+                // important: you need to set the VC Proximity Check Key first
+
+                // the setting of the check runs in 3 phases
+                // phase 1: prepare the check
+                // phase 2: run the check
+                // phase 3: verify the check
+
+                // do we need an authentication first ?
+
+                // step 1 select the Master Application File
+                String stepString = "step 1 select the Master Application File";
+                writeToUiAppend(output, stepString);
+                byte[] MASTER_APPLICATION_ID = new byte[3];
+                byte[] responseData;
+                boolean success = desfireAuthenticateEv2.selectApplicationByAidEv2(MASTER_APPLICATION_ID);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, stepString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+
+                /* does not help
+                // step 2 authenticateEv2First with Master Application Key
+                stepString = "step 2 authenticateEv2First with Master Application Key";
+                writeToUiAppend(output, stepString);
+                byte MASTER_APPLICATION_KEY_NUMBER = (byte) 0x00;
+                byte[] MASTER_APPLICATION_KEY_AES = new byte[16];
+                success = desfireAuthenticateEv2.authenticateAesEv2First(MASTER_APPLICATION_KEY_NUMBER, MASTER_APPLICATION_KEY_AES);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+                */
+
+                /* does not help
+                // step 4 authenticateEV2First with VC Configuration Key
+                stepString = "step 4 authenticateEV2First with VC Configuration Key";
+                success = desfireAuthenticateEv2.authenticateAesEv2FirstVc(VC_CONFIGURATION_KEY_NUMBER, VC_CONFIGURATION_KEY_AES);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+                 */
+
+                /* does not help
+                // step x authenticateEV2First with VC Proximity Key
+                stepString = "step x authenticateEV2First with VC Configuration Key";
+                success = desfireAuthenticateEv2.authenticateAesEv2FirstVc(VC_CONFIGURATION_KEY_NUMBER, VC_CONFIGURATION_KEY_AES);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+                 */
+
+                stepString = "phase 1: prepare the check";
+                final byte PREPARE_PROXIMITY_CHECK_COMMAND = (byte) 0xF0;
+                final byte RUN_PROXIMITY_CHECK_COMMAND = (byte) 0xF2;
+                final byte VERIFY_PROXIMITY_CHECK_COMMAND = (byte) 0xFD;
+
+                byte[] apdu;
+                byte[] response;
+                try {
+                    apdu = wrapMessage(PREPARE_PROXIMITY_CHECK_COMMAND, null);
+                    Log.d(TAG, printData(" apdu", apdu));
+                    response = isoDep.transceive(apdu);
+                    writeToUiAppend(output, printData("response", response));
+                    Log.d(TAG, printData(" response", response));
+                } catch (IOException e) {
+                    writeToUiAppend(output, "IOException: " + e.getMessage());
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "IOException", COLOR_RED);
+                    return;
+                }
+
+                // unauthenticated response: 010320009190
+                // 01 032000 9190 || 9190 = Permission denied
+
+                if (!checkResponse(response)) {
+                    writeToUiAppend(output, "we received not 9100, aborted");
+                    //return;
+                }
+                responseData = Arrays.copyOfRange(response, 0, response.length - 2);
+                writeToUiAppend(output, printData("responseData", responseData));
+                byte OTP = responseData[0];
+                byte[] pubRespTime = Arrays.copyOfRange(responseData, 1, 4);
+                byte PPS1;
+                if (OTP == (byte) 0x01) {
+                    PPS1 = responseData[3];
+                } else {
+                    PPS1 = -1;
+                }
+
+                // printing some data
+                // print("SC = %02X, OPT = %02X, pubRespTime = %02X %02X, PPS1 = %02X" %(SC, OPT, pubRespTime[0], pubRespTime[1], PPS1))
+                writeToUiAppend(output, "OTP: " + Utils.byteToHex(OTP));
+                writeToUiAppend(output, printData("pubRespTime", pubRespTime));
+                writeToUiAppend(output, "PPS1: " + Utils.byteToHex(PPS1));
+
+                // phase 2: run the check
+                stepString = "phase 2: run the check";
+                int NUMBER_OF_ROUNDS = 1; // 1, 2, 4 or 8 rounds
+                int PART_LEN = 8 / NUMBER_OF_ROUNDS;
+                byte[] RANDOM_CHALLENGE = new byte[] {(byte) 0x00, (byte) 0x01, (byte) 0x02, (byte) 0x03, (byte) 0x04, (byte) 0x05, (byte) 0x06, (byte) 0x07};
+                /*
+                String MAC_PARTS = "";
+                int j = 0;
+                for (int i = 0; i < NUMBER_OF_ROUNDS; i++) {
+                    byte[] cmdArrayByte = new byte[8]; // ?? length
+                    String cmdArray = "";
+                    byte[] pRndC = new byte[8];
+                    cmdArray += (byte) PART_LEN;
+                    for (int k = 0; k < PART_LEN; k++) {
+                        cmdArray
+                    }
+                }
+                */
+
+                try {
+                    apdu = wrapMessage(RUN_PROXIMITY_CHECK_COMMAND, RANDOM_CHALLENGE);
+                    Log.d(TAG, printData(" apdu", apdu));
+                    response = isoDep.transceive(apdu);
+                    writeToUiAppend(output, printData("response", response));
+                    Log.d(TAG, printData(" response", response));
+                    // 910c
+                } catch (IOException e) {
+                    writeToUiAppend(output, "IOException: " + e.getMessage());
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "IOException", COLOR_RED);
+                    return;
+                }
+
+
+            }
+        });
     }
 
     /**
