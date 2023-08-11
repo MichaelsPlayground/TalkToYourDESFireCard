@@ -98,8 +98,8 @@ on the phone.
 
 ## What is a SDM/SUN message ?
 
-As you can format (parts of) a Mifare DESFire tag in NDEF mode the tag will respond to an attached reader with the data that is 
-stored in the NDEF data file. There are several NDEF message types available but the SDM/SUN feature uses the **URL record** 
+As you can format (parts of) a Mifare DESFire tag in **NDEF mode** the tag will respond to an attached reader with the data that is 
+stored in the NDEF data file. There are several NDEF message types available, but the SDM/SUN feature uses the **URL record** type 
 where an URL is stored that points to a backend server. When the tag is tapped to a smartphone an (installed) application will 
 open that is capable of working with URL data, usually your browser will will open and tries to connect to the URL provided by 
 the tag.
@@ -169,10 +169,33 @@ a file** you define which key is used for a dedicated purpose (in most times it 
 Encrypted SDM features you define a well one of those keys as encryption keys and the backend server needs to know this specific 
 key for decryption.
 
+## What data is provided in the SUN message ?
 
+There are 4 data fields available within a SUN message:
 
+1) UID: This is the card's UID (a unique number). This element is 7 bytes long but during mirroring it is encoded as hex encoded string,  
+so it is 14 characters long
+2) Read Counter: every read access on the file increases the read counter (starting with 0 after file creation). The read counter is a 
+3 bytes long array (the value is LSB encoded) but on mirroring it is encoded as hex encoded string, so it is 6 characters long
+3) Encrypted File Data (EncFileData): During SDM setup a template URL is written to the NDEF file that has placeholders for each data element. The 
+placeholder for the EncFileData element can contain confidential data that needs to provided to the background server (for an example see below) 
+that is static to this card. On mirroring the plain data within this placeholder gets encrypted and the encrypted file data will overwrite the 
+plain data. The EncFileData needs to be a multiple of 32 but only the first 16 bytes are getting encrypted and provided as a hex encoded  
+string, so the EncFileData is 32 characters long (when the placeholder is 32 characters long).
+4) CMAC: the data provided by the tag is secured by a digital signature, so the background server is been able to validate the message against 
+tampering.
 
+Instead of UID and Read Counter in plain transmission you can choose to use Encrypted PICC data instead. Using this feature the UID AND Read Counter 
+are part of the sun message but as an encrypted data field.
 
+## What is a use case for using Encrypted File Data ?
 
+Think of an application where the SUN message acts as a door opener to an Entertainment business. All allowed cards are on a "whitelist" that 
+holds the UID of the tag - if the card's is found on the whitelist the door will open. But how do permit the access for age reasons ? Of course, 
+you can use different whitelists but your members are getting older every day and you would be forced to maintain your whitelist every day.
+
+A more easy way is to store the birthday on member's card within the EncFileData placeholder space (e.g. "2001-01-17"). This value gets encrypted 
+on mirroring while reading the NDEF message at the door's reader device. The card presents the birthday in encrypted form that changes on every read 
+so there is no chance for a replay attack or other tampering.
 
 

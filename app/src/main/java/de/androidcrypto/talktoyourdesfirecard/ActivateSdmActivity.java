@@ -142,13 +142,18 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
                     etSdmAccessRightsLayout.setVisibility(View.VISIBLE);
                     etSdmReadCounterLimitLayout.setVisibility(View.GONE);
                     cbSdmEnabled.setChecked(true);
+                    etCommunicationSettings.setText("Plain communication"); // fixed
+                    etAccessRights.setText("RW: 0 | CAR: 0 | R: 14 | W:0"); // fixed
                 } else if (id == R.id.rbActivateSdmOff) {
                     Log.d(TAG, "rb Activate Off");
                     llUrl.setVisibility(View.GONE);
                     showSdmParameter(false);
                     clickableSdmParameter(false);
                     etSdmAccessRightsLayout.setVisibility(View.GONE);
+                    etSdmReadCounterLimitLayout.setVisibility(View.GONE);
                     cbSdmEnabled.setChecked(false);
+                    etCommunicationSettings.setText("Plain communication"); // fixed
+                    etAccessRights.setText("RW: 0 | CAR: 0 | R: 14 | W:0"); // fixed
                 } else if (id == R.id.rbActivateSdmShowStatus) {
                     Log.d(TAG, "rb Show Status");
                     llUrl.setVisibility(View.GONE);
@@ -168,10 +173,12 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
                     etSdmReadCounterLimitLayout.setVisibility(View.VISIBLE);
                     etSdmReadCounterLimit.setVisibility(View.VISIBLE);
                     etSdmReadCounterLimit.setText("16777214");
+                    //etSdmReadCounterLimit.setFocusable(true);
                 } else {
                     etSdmReadCounterLimitLayout.setVisibility(View.GONE);
                     etSdmReadCounterLimit.setVisibility(View.GONE);
                     etSdmReadCounterLimit.setText("0");
+                    //etSdmReadCounterLimit.setFocusable(false);
                 }
             }
         });
@@ -191,8 +198,20 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
                 sbSdmAccessRights.append(" | File Read: ").append("3");
                 sbSdmAccessRights.append(" | Counter Read: ").append("3");
                 writeToUi(etSdmAccessRights, sbSdmAccessRights.toString());
+                if (cbUidReadCounterEncrypted.isChecked()) {
+                    cbUidMirror.setChecked(true);
+                    cbReadCounterMirror.setChecked(true);
+                    cbUidMirror.setClickable(false);
+                    cbReadCounterMirror.setClickable(false);
+                } else {
+                    cbUidMirror.setChecked(false);
+                    cbReadCounterMirror.setChecked(false);
+                    cbUidMirror.setClickable(true);
+                    cbReadCounterMirror.setClickable(true);
+                }
             }
         });
+
     }
 
     /**
@@ -309,9 +328,11 @@ sample data with disabled SDM
                 cbReadCounterLimit.setChecked(fileSettings.isSdmOptionsBit5_SDMReadCtrLimit());
                 if (cbReadCounterLimit.isChecked()) {
                     int readCounterLimit = Utils.intFrom3ByteArrayInversed(fileSettings.getSDM_ReadCtrLimit());
-                    etSdmReadCounterLimit.setText(String.valueOf(readCounterLimit));
                     etSdmReadCounterLimitLayout.setVisibility(View.VISIBLE);
                     etSdmReadCounterLimit.setVisibility(View.VISIBLE);
+                    runOnUiThread(() -> {
+                        etSdmReadCounterLimit.setText(String.valueOf(readCounterLimit));
+                    });
                 } else {
                     etSdmReadCounterLimitLayout.setVisibility(View.GONE);
                     etSdmReadCounterLimit.setVisibility(View.GONE);
@@ -362,21 +383,21 @@ sample data with disabled SDM
      * Enabling  the SDM/SUN feature
      * This is using a fixed applicationId of '0x010000' and a fixed fileId of '0x02'
      * The method will run an authenticateEv2First command with default Application Master Key (zeroed AES-128 key)
-     <p>
+     * <p>
      * steps:
      * 1) select applicationId '0x010000'
      * 2) authenticateFirstEv2 with default Application Master Key (zeroed AES-128 key)
      * 3) change file settings on fileId '0x02' with these parameters
-     *    - file option byte is set to '0x40' = CommunicationMode.Plain and enabled SDM feature
-     *    - file access rights are set to '0x00E0' (Read & Write access key: 0, CAR key: 0, Read access key: E (free), Write access key: 0
-     *    - sdm access rights are set to '0xF3x3' (F = RFU, 3 = SDM Read Counter right, x = Read Meta Data right, 3 = Read File Data right)
-     *      The Read Meta Data right depends on the option 'Are UID & Read Counter mirroring Encrypted
-     *      if checked the value is set to '3' else to '14' ('0xE')
-     *    - sdm options byte is set to a value that reflects the selected options
-     *    - offset parameters are set to a value that reflects the selected options
-     *   Limitations:
-     *   - the ASCII encoding is fixed to true
-     *   - the size for encrypted file data is limited to 16 bytes (the parameter for the complexUrlBuilder is 2 * 16 = 32)
+     * - file option byte is set to '0x40' = CommunicationMode.Plain and enabled SDM feature
+     * - file access rights are set to '0x00E0' (Read & Write access key: 0, CAR key: 0, Read access key: E (free), Write access key: 0
+     * - sdm access rights are set to '0xF3x3' (F = RFU, 3 = SDM Read Counter right, x = Read Meta Data right, 3 = Read File Data right)
+     * The Read Meta Data right depends on the option 'Are UID & Read Counter mirroring Encrypted
+     * if checked the value is set to '3' else to '14' ('0xE')
+     * - sdm options byte is set to a value that reflects the selected options
+     * - offset parameters are set to a value that reflects the selected options
+     * Limitations:
+     * - the ASCII encoding is fixed to true
+     * - the size for encrypted file data is limited to 16 bytes (the parameter for the complexUrlBuilder is 2 * 16 = 32)
      * 4) the new template URL is written to the fileId '0x02'
      */
 
@@ -414,8 +435,8 @@ sample data with disabled SDM
             keySdmMetaRead = 3;
         }
         String templateUrl = ndefForSdm.complexUrlBuilder(NDEF_FILE_ID, NdefForSdm.CommunicationSettings.Plain,
-                0,0,14,0, true, cbUidMirror.isChecked(), cbReadCounterMirror.isChecked(),
-                cbReadCounterLimit.isChecked(), readCounterLimit,cbEncryptedFileDataMirror.isChecked(), 32,
+                0, 0, 14, 0, true, cbUidMirror.isChecked(), cbReadCounterMirror.isChecked(),
+                cbReadCounterLimit.isChecked(), readCounterLimit, cbEncryptedFileDataMirror.isChecked(), 32,
                 true, 3, keySdmMetaRead, 3);
         Log.d(TAG, "templateUrl: " + templateUrl);
         if (TextUtils.isEmpty(templateUrl)) {
@@ -442,6 +463,9 @@ sample data with disabled SDM
         success = desfireAuthenticateEv2.writeToNdefFile2(templateUrl);
         if (success) {
             writeToUiAppendBorderColor("write the template URL to fileId 0x02 SUCCESS", COLOR_GREEN);
+            runOnUiThread(() -> {
+                etTemplateUrl.setText(templateUrl);
+            });
             vibrateShort();
         } else {
             writeToUiAppendBorderColor("write the template URL to fileId 0x02 FAILURE with error code: " + EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
@@ -505,36 +529,40 @@ sample data with disabled SDM
      * @param isShowSdmParameter
      */
     private void showSdmParameter(boolean isShowSdmParameter) {
-        int visibility = View.GONE;
-        if (isShowSdmParameter) visibility = View.VISIBLE;
-        cbAsciiEncoding.setVisibility(visibility);
-        cbUidMirror.setVisibility(visibility);
-        cbReadCounterMirror.setVisibility(visibility);
-        cbUidReadCounterEncrypted.setVisibility(visibility);
-        cbReadCounterLimit.setVisibility(visibility);
-        cbEncryptedFileDataMirror.setVisibility(visibility);
-        //etSdmReadCounterLimitLayout.setVisibility(visibility); // visibility is set depending of cbReadCounterLimit
-        //etSdmReadCounterLimit.setVisibility(visibility); // visibility is set depending of cbReadCounterLimit
-        etSdmAccessRights.setVisibility(visibility);
+        runOnUiThread(() -> {
+            int visibility = View.GONE;
+            if (isShowSdmParameter) visibility = View.VISIBLE;
+            cbAsciiEncoding.setVisibility(visibility);
+            cbUidMirror.setVisibility(visibility);
+            cbReadCounterMirror.setVisibility(visibility);
+            cbUidReadCounterEncrypted.setVisibility(visibility);
+            cbReadCounterLimit.setVisibility(visibility);
+            cbEncryptedFileDataMirror.setVisibility(visibility);
+            //etSdmReadCounterLimitLayout.setVisibility(visibility); // visibility is set depending of cbReadCounterLimit
+            //etSdmReadCounterLimit.setVisibility(visibility); // visibility is set depending of cbReadCounterLimit
+            etSdmAccessRights.setVisibility(visibility);
+        });
     }
 
     /**
      * changes the click ability of SDM parameter
-     * 
+     *
      * @param isClickableSdmParameter
      */
     private void clickableSdmParameter(boolean isClickableSdmParameter) {
-        boolean clickable = false;
-        if (isClickableSdmParameter) clickable = true;
-        //cbAsciiEncoding.setClickable(clickable); // this needs to be enabled
-        cbUidMirror.setClickable(clickable);
-        cbReadCounterMirror.setClickable(clickable);
-        cbUidReadCounterEncrypted.setClickable(clickable);
-        cbReadCounterLimit.setClickable(clickable);
-        cbEncryptedFileDataMirror.setClickable(clickable);
-        etSdmReadCounterLimitLayout.setFocusable(clickable);
-        etSdmReadCounterLimit.setFocusable(clickable);
-        etSdmAccessRights.setFocusable(clickable);
+        runOnUiThread(() -> {
+            boolean clickable = false;
+            if (isClickableSdmParameter) clickable = true;
+            //cbAsciiEncoding.setClickable(clickable); // this needs to be enabled
+            cbUidMirror.setClickable(clickable);
+            cbReadCounterMirror.setClickable(clickable);
+            cbUidReadCounterEncrypted.setClickable(clickable);
+            cbReadCounterLimit.setClickable(clickable);
+            cbEncryptedFileDataMirror.setClickable(clickable);
+            //etSdmReadCounterLimitLayout.setFocusable(clickable);
+            //etSdmReadCounterLimit.setFocusable(clickable);
+            etSdmAccessRights.setFocusable(clickable);
+        });
     }
 
 

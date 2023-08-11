@@ -313,6 +313,9 @@ public class NdefForSdm {
             sdmOptions = (byte) 0x00;
             if (enableUid) {
                 sdmOptions = Utils.setBitInByte(sdmOptions, 7);
+                // setting for SDMReadCounter as well but later disabling by offset = FFFFFF
+                // this is valid for Plain communication only, in PICC data mirroring UID and ReadCounter mirrors are always enabled
+                sdmOptions = Utils.setBitInByte(sdmOptions, 6);
                 sbError.append("SDM UID enabled").append(", ");
             } else {
                 sbError.append("SDM UID disabled").append(", ");
@@ -459,6 +462,12 @@ public class NdefForSdm {
             }
         }
 
+        // this is an option for UID mirror only (without ReadCounter mirror)
+        boolean isEnableUidWithoutReadCounter = false;
+        if ((enableUid) && (!enableSdmReadCounter)) {
+            isEnableUidWithoutReadCounter = true;
+        }
+
         // building the template url based on enabled options
         // see NTAG 424 DNA NT4H2421Gx.pdf page 43 for visual data
         if (enableSdm) sb.append(urlParameterHeader);
@@ -535,6 +544,14 @@ public class NdefForSdm {
                 return urlTemplate;
             }
             sdmReadCounterOffset = Utils.intTo3ByteArrayInversed(posReadCtrOffset);
+            baos.write(sdmReadCounterOffset, 0, sdmReadCounterOffset.length);
+        }
+
+        if (isEnableUidWithoutReadCounter) {
+            // when UID mirror is enabled but ReadCounter mirror is NOT enabled then we need a special offset
+            // see NTAG 424 DNA NT4H2421Gx.pdf page 66
+            sbError.append("added ReadCounterOffset FFFFFF (no SDMReadCounter mirroring)").append(", ");
+            sdmReadCounterOffset = Utils.hexStringToByteArray("FFFFFF"); // No SDMReadCtr mirroring
             baos.write(sdmReadCounterOffset, 0, sdmReadCounterOffset.length);
         }
 

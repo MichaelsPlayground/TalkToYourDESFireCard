@@ -259,7 +259,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
-                    android:focusable="false"
+                    android:focusable="true"
                     android:inputType="number|numberSigned"
                     android:text="16777214"
                     tools:ignore="KeyboardInaccessibleWidget" />
