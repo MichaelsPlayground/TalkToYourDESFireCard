@@ -3430,6 +3430,7 @@ public class DesfireAuthenticateEv2 {
         log(methodName, "started", true);
 
         String stepString = "phase 1: prepare the check";
+        Log.d(TAG, stepString);
         final byte PREPARE_PROXIMITY_CHECK_COMMAND = (byte) 0xF0;
         final byte RUN_PROXIMITY_CHECK_COMMAND = (byte) 0xF2;
         final byte VERIFY_PROXIMITY_CHECK_COMMAND = (byte) 0xFD;
@@ -3469,6 +3470,7 @@ public class DesfireAuthenticateEv2 {
         log(stepString, "PPS1: " + Utils.byteToHex(PPS1));
 
         stepString = "phase 2: run the PC";
+        Log.d(TAG, stepString);
         byte[] rndC = Utils.hexStringToByteArray("0001020304050607"); // 8 bytes, should be random
         // we are running 1 round only
         // see the 'proximity check code' how to run more than 1 round
