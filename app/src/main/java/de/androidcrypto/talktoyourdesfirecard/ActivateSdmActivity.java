@@ -140,6 +140,7 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
                     showSdmParameter(true);
                     clickableSdmParameter(true);
                     etSdmAccessRightsLayout.setVisibility(View.VISIBLE);
+                    etSdmReadCounterLimitLayout.setVisibility(View.GONE);
                     cbSdmEnabled.setChecked(true);
                 } else if (id == R.id.rbActivateSdmOff) {
                     Log.d(TAG, "rb Activate Off");
@@ -351,7 +352,7 @@ sample data with disabled SDM
                 cbReadCounterMirror.setChecked(false);
                 cbReadCounterLimit.setChecked(false);
                 cbEncryptedFileDataMirror.setChecked(false);
-                cbAsciiEncoding.setChecked(false);
+                //cbAsciiEncoding.setChecked(false);
                 writeToUi(etSdmAccessRights, "no rights are set");
             }
         }
@@ -429,15 +430,21 @@ sample data with disabled SDM
         success = desfireAuthenticateEv2.changeFileSettingsNtag424Dna(NDEF_FILE_ID, commandData);
         if (success) {
             writeToUiAppendBorderColor("enabling the SDM feature on fileId 0x02 SUCCESS", COLOR_GREEN);
-            vibrateShort();
+            //vibrateShort();
         } else {
             writeToUiAppendBorderColor("enabling the SDM feature on fileId 0x02 FAILURE with error code: " + EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
             return;
         }
 
         writeToUiAppend("step 4: write the template URL to fileId 0x02");
-
-
+        success = desfireAuthenticateEv2.writeToNdefFile2(templateUrl);
+        if (success) {
+            writeToUiAppendBorderColor("write the template URL to fileId 0x02 SUCCESS", COLOR_GREEN);
+            vibrateShort();
+        } else {
+            writeToUiAppendBorderColor("write the template URL to fileId 0x02 FAILURE with error code: " + EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
+            return;
+        }
     }
 
 

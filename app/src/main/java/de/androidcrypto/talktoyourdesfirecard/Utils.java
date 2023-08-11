@@ -25,6 +25,12 @@ public class Utils {
         return s.replaceAll("[^A-Za-z0-9]", "");
     }
 
+    public static int mod(int x, int y)
+    {
+        int result = x % y;
+        return result < 0? result + y : result;
+    }
+
     // position is 0 based starting from right to left
     public static byte setBitInByte(byte input, int pos) {
         return (byte) (input | (1 << pos));
