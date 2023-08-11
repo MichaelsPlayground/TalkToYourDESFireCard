@@ -410,7 +410,9 @@ sample data with disabled SDM
         NdefForSdm ndefForSdm = new NdefForSdm(NdefForSdm.SAMPLE_BASE_URL);
         int readCounterLimit = Integer.parseInt(etSdmReadCounterLimit.getText().toString());
         int keySdmMetaRead = 14; // free access, no encrypted data
-        if (cbUidReadCounterEncrypted.isChecked()) keySdmMetaRead = 3;
+        if (cbUidReadCounterEncrypted.isChecked()) {
+            keySdmMetaRead = 3;
+        }
         String templateUrl = ndefForSdm.complexUrlBuilder(NDEF_FILE_ID, NdefForSdm.CommunicationSettings.Plain,
                 0,0,14,0, true, cbUidMirror.isChecked(), cbReadCounterMirror.isChecked(),
                 cbReadCounterLimit.isChecked(), readCounterLimit,cbEncryptedFileDataMirror.isChecked(), 32,
