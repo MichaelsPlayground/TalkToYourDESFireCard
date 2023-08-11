@@ -3484,10 +3484,7 @@ public class DesfireAuthenticateEv2 {
             return false;
         }
 
-
-
-
-return false;
+    return false;
     }
 
 
@@ -5548,7 +5545,7 @@ PERMISSION_DENIED
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
             errorCode = RESPONSE_FAILURE.clone();
-            errorCodeReason = "isoDep is NULL (maybe it is not a NTAG424DNA tag ?), aborted";
+            errorCodeReason = "isoDep is NULL (maybe it is not a NTAG424DNA / DESFire EV3 tag ?), aborted";
             return false;
         }
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
@@ -5678,30 +5675,216 @@ fileSize: 128
         //commandData = hexStringToByteArray("4000e011f1f12500002500002000004b0000");
 
         // test 12 - encrypted PICC data, encrypted File data, sdm keys for all is 1, working
-        commandData = hexStringToByteArray("4000e0d1f1112a00004f00004f0000200000750000");
+        //commandData = hexStringToByteArray("4000e0d1f1112a00004f00004f0000200000750000");
         // https://sdm.nfcdeveloper.com/tag?picc_data=1D963945833B280C8E0CE5D3F86127E0&enc=AFAE6C123CC478734FED103FD6851AA8&cmac=FCAC93426335D213
 
 
         log(methodName, printData("commandData", commandData));
 
-        /*
-from: NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf page 34
-CmdData example: 4000E0C1F121200000430000430000
-40 00E0 C1 F121 200000 430000 430000
-40h = FileOption (SDM and
-Mirroring enabled), CommMode: plain
-00E0h = AccessRights (FileAR.ReadWrite: 0x0, FileAR.Change: 0x0, FileAR.Read: 0xE, FileAR.Write; 0x0)
-C1h =
-• UID mirror: 1
-• SDMReadCtr: 1
-• SDMReadCtrLimit: 0
-• SDMENCFileData: 0
-• ASCII Encoding mode: 1
-F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0x2, FileAR.SDMFileRead: 0x1)
-200000h = ENCPICCDataOffset
-430000h = SDMMACOffset
-430000h = SDMMACInputOffset
- */
+        // eventually some padding is necessary with 0x80..00
+        byte[] commandDataPadded = paddingWriteData(commandData);
+        log(methodName, printData("commandDataPadded", commandDataPadded));
+
+        byte[] encryptedData;
+        // if commandDataPadded is longer than 16 bytes we need to encrypt in chunks
+        if (commandDataPadded.length > 16) {
+            Log.d(TAG, "The commandDataPadded length is > 16, encrypt in chunks");
+            int numberOfDataBlocks = commandDataPadded.length / 16;
+            log(methodName, "number of dataBlocks: " + numberOfDataBlocks);
+            List<byte[]> dataBlockList = Utils.divideArrayToList(commandDataPadded, 16);
+            List<byte[]> dataBlockEncryptedList = new ArrayList<>();
+            byte[] ivDataEncryption = ivForCmdData.clone(); // the "starting iv"
+            for (int i = 0; i < numberOfDataBlocks; i++) {
+                byte[] dataBlockEncrypted = AES.encrypt(ivDataEncryption, SesAuthENCKey, dataBlockList.get(i));
+                dataBlockEncryptedList.add(dataBlockEncrypted);
+                ivDataEncryption = dataBlockEncrypted.clone(); // new, subsequent iv for next encryption
+            }
+            for (int i = 0; i < numberOfDataBlocks; i++) {
+                log(methodName, printData("dataBlock" + i + "Encrypted", dataBlockEncryptedList.get(i)));
+            }
+            // Encrypted Data (complete), concatenate all byte arrays
+            ByteArrayOutputStream baosDataEncrypted = new ByteArrayOutputStream();
+            for (int i = 0; i < numberOfDataBlocks; i++) {
+                try {
+                    baosDataEncrypted.write(dataBlockEncryptedList.get(i));
+                } catch (IOException e) {
+                    Log.e(TAG, "IOException on concatenating encrypted dataBlocks, aborted\n" +
+                            e.getMessage());
+                    return false;
+                }
+            }
+            encryptedData = baosDataEncrypted.toByteArray();
+        } else {
+            Log.d(TAG, "The commandDataPadded length is = 16, encrypt in one run");
+            // E(KSesAuthENC, IVc, CmdData || Padding (if necessary))
+            encryptedData = AES.encrypt(ivForCmdData, SesAuthENCKey, commandDataPadded);
+        }
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // Generating the MAC for the Command APDU
+        // Cmd || CmdCounter || TI || CmdHeader = fileNumber || E(KSesAuthENC, CmdData)
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(CHANGE_FILE_SETTINGS_COMMAND); // 0x5F
+        baosMacInput.write(commandCounterLsb, 0, commandCounterLsb.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(fileNumber);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // error in DESFire Light Features and Hints, page 57, point 28:
+        // Data (FileNo || Offset || DataLength || Data) is NOT correct, as well not the Data Message
+        // correct is the following concatenation:
+
+        // Data (CmdHeader = fileNumber || Encrypted Data || MAC)
+        ByteArrayOutputStream baosWriteDataCommand = new ByteArrayOutputStream();
+        baosWriteDataCommand.write(fileNumber);
+        baosWriteDataCommand.write(encryptedData, 0, encryptedData.length);
+        baosWriteDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] writeDataCommand = baosWriteDataCommand.toByteArray();
+        log(methodName, printData("writeDataCommand", writeDataCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        // when enabling encrypted PICC data and encrypted File data
+        // actual not work: 90 5f 0000 29 02 9192e1606bcf2b8a8ee09828b19a2df6a0c9919aedb5cffdb7c9783f9dd3f116 2e7d9cea75943571 00
+        // tapLinx working:    5F         02 9F332C58ABA6992E87F89F09337990E315506EAF45E4A72E81C1DB30D728D7CE     E081D3EB02A213A3 (42 bytes)
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(CHANGE_FILE_SETTINGS_COMMAND, writeDataCommand);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: " + e.getMessage();
+            return false;
+        }
+        if (!checkResponse(response)) {
+            log(methodName, methodName + " FAILURE");
+            byte[] responseBytes = returnStatusBytes(response);
+            System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+            errorCodeReason = methodName + " FAILURE";
+            return false;
+        }
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+
+        if (verifyResponseMac(responseMACTruncatedReceived, null)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return true;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return false;
+        }
+    }
+
+    // takes a full commandData from ActivateSdmActivity class
+    // WARNING: be extreme careful with this method because there are NO validations on commandData
+    public boolean changeFileSettingsNtag424Dna(byte fileNumber, byte[] commandData) {
+
+        // this method can only enable Secure Dynamic Message but cannot set specific data like offsets
+        // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 34 - 35 for SDM example
+        // see NTAG 424 DNA NT4H2421Gx.pdf pages 65 - 69 for fields and errors
+        // see NTAG 424 DNA NT4H2421Gx.pdf pages 69 - 70 for getFileSettings with responses incl. SDM
+        // see NTAG 424 DNA NT4H2421Gx.pdf pages 71 - 72 for getFileCounters
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 23 - 25 for general workflow with FULL communication
+
+        // status: WORKING on enabling and disabling SDM feature with encrypted PICC data
+
+        String logData = "";
+        final String methodName = "changeFileSettings with commandData";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        // sanity checks
+        errorCode = new byte[2];
+        // sanity checks
+        if ((commandData == null) || (commandData.length < 5)) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "commandData is NULL or of insufficient length, aborted";
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "isoDep is NULL (maybe it is not a NTAG424DNA / DESFire EV3 tag ?), aborted";
+            return false;
+        }
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            errorCode = RESPONSE_FAILURE_MISSING_AUTHENTICATION.clone();
+            errorCodeReason = "missing authentication, did you forget to authenticate with the application Master key (0x00) ?), aborted";
+            return false;
+        }
+
+/*
+fileNumber: 01
+fileType: 0 (Standard)
+communicationSettings: 00 (Plain)
+accessRights RW | CAR: 00
+accessRights R  | W:   E0
+accessRights RW:       0
+accessRights CAR:      0
+accessRights R:        14
+accessRights W:        0
+fileSize: 32
+--------------
+fileNumber: 02
+fileType: 0 (Standard)
+communicationSettings: 00 (Plain)
+accessRights RW | CAR: E0
+accessRights R  | W:   EE
+accessRights RW:       14
+accessRights CAR:      0
+accessRights R:        14
+accessRights W:        14
+fileSize: 256
+--------------
+fileNumber: 03
+fileType: 0 (Standard)
+communicationSettings: 03 (Encrypted)
+accessRights RW | CAR: 30
+accessRights R  | W:   23
+accessRights RW:       3
+accessRights CAR:      0
+accessRights R:        2
+accessRights W:        3
+fileSize: 128
+         */
+
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        // Generating the MAC for the Command APDU
+        byte[] commandCounterLsb = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb", commandCounterLsb));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(HEADER_MAC, 0, HEADER_MAC.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb, 0, commandCounterLsb.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        // take the the command data as parameter
+        log(methodName, printData("commandData", commandData));
 
         // eventually some padding is necessary with 0x80..00
         byte[] commandDataPadded = paddingWriteData(commandData);
@@ -6457,6 +6640,147 @@ F121h = SDMAccessRights (RFU: 0xF, FileAR.SDMCtrRet = 0x1, FileAR.SDMMetaRead: 0
             return false;
         }
     }
+
+    public boolean writeToNdefFile2Iso(TextView logTextView, String templateUrl) {
+
+        // status:
+
+        String logData = "";
+        final String methodName = "writeToNdefFile2Iso ";
+        log(methodName, "started", true);
+        log(methodName, "templateUrl: " + templateUrl);
+
+        if (!Utils.isValidUrl(templateUrl)) {
+            Log.d(TAG, "inValid templateURL, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        xx
+
+        String ndefSampleBackendUrl = "https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&enc=0102030405060708A1A2A3A4A5A6A7A8&cmac=0000000000000000"; // 134 chars
+        //String ndefSampleBackendUrl = "https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac=0000000000000000"; // 97 chars
+        //String ndefSampleBackendUrl = "https://sdm.nfcdeveloper.com/tag?picc_data"; // cannot we send all data ?? framing ??
+        NdefRecord ndefRecord = NdefRecord.createUri(ndefSampleBackendUrl);
+        //NdefRecord ndefRecord = NdefRecord.createUri(ndefSampleBackendUrl);
+        NdefMessage ndefMessage = new NdefMessage(ndefRecord);
+        byte[] ndefMessageBytesHeadless = ndefMessage.toByteArray();
+        // now we do have the NDEF message but it needs to get wrapped by '0x00 || (byte) (length of NdefMessage)
+        byte[] ndefMessageBytes = new byte[ndefMessageBytesHeadless.length + 2];
+        System.arraycopy(new byte[]{(byte) 0x00, (byte) (ndefMessageBytesHeadless.length)}, 0, ndefMessageBytes, 0, 2);
+        System.arraycopy(ndefMessageBytesHeadless, 0, ndefMessageBytes, 2, ndefMessageBytesHeadless.length);
+        Log.d(TAG, printData("NDEF Message bytes", ndefMessageBytes));
+
+        // splitting the data in chunks of 40 bytes
+        // truncating to 40 bytes to avoid framing
+        int ndefMessageBytesLength  = ndefMessageBytes.length;
+        Log.d(TAG, "ndefMessageBytesLength: " + ndefMessageBytesLength);
+        byte[] ndefMessageBytesA40 = Arrays.copyOf(ndefMessageBytes, 40);
+        byte[] ndefMessageBytesB40 = Arrays.copyOfRange(ndefMessageBytes, 40, 80);
+        byte[] ndefMessageBytesC40 = Arrays.copyOfRange(ndefMessageBytes, 80, 120);
+        byte[] ndefMessageBytesD = Arrays.copyOfRange(ndefMessageBytes, 120, ndefMessageBytesLength);
+
+        // write the data in 4 steps
+
+        byte FILE_ID_02 = (byte) 0x02;
+        // build the apdu
+        byte[] offset = Utils.intTo3ByteArrayInversed(0);
+        byte[] lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesA40.length);
+        //byte[] lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesTruncated.length);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(FILE_ID_02); // fileNumber
+        baos.write(offset, 0, offset.length);
+        baos.write(lengthOfData, 0, lengthOfData.length);
+        baos.write(ndefMessageBytesA40, 0, ndefMessageBytesA40.length);
+        //baos.write(ndefMessageBytesTruncated, 0, ndefMessageBytesTruncated.length);
+        byte[] commandParameterA = baos.toByteArray();
+
+        offset = Utils.intTo3ByteArrayInversed(40);
+        lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesB40.length);
+        //byte[] lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesTruncated.length);
+        baos = new ByteArrayOutputStream();
+        baos.write(FILE_ID_02); // fileNumber
+        baos.write(offset, 0, offset.length);
+        baos.write(lengthOfData, 0, lengthOfData.length);
+        baos.write(ndefMessageBytesB40, 0, ndefMessageBytesB40.length);
+        //baos.write(ndefMessageBytesTruncated, 0, ndefMessageBytesTruncated.length);
+        byte[] commandParameterB = baos.toByteArray();
+
+        offset = Utils.intTo3ByteArrayInversed(80);
+        lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesC40.length);
+        //byte[] lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesTruncated.length);
+        baos = new ByteArrayOutputStream();
+        baos.write(FILE_ID_02); // fileNumber
+        baos.write(offset, 0, offset.length);
+        baos.write(lengthOfData, 0, lengthOfData.length);
+        baos.write(ndefMessageBytesC40, 0, ndefMessageBytesC40.length);
+        //baos.write(ndefMessageBytesTruncated, 0, ndefMessageBytesTruncated.length);
+        byte[] commandParameterC = baos.toByteArray();
+
+        offset = Utils.intTo3ByteArrayInversed(120);
+        lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesD.length);
+        //byte[] lengthOfData = Utils.intTo3ByteArrayInversed(ndefMessageBytesTruncated.length);
+        baos = new ByteArrayOutputStream();
+        baos.write(FILE_ID_02); // fileNumber
+        baos.write(offset, 0, offset.length);
+        baos.write(lengthOfData, 0, lengthOfData.length);
+        baos.write(ndefMessageBytesD, 0, ndefMessageBytesD.length);
+        //baos.write(ndefMessageBytesTruncated, 0, ndefMessageBytesTruncated.length);
+        byte[] commandParameterD = baos.toByteArray();
+
+
+        byte writeStandardFileCommand = (byte) 0x3D;
+
+        // this  are sample data with a timestamp
+        //commandParameter = hexStringToByteArray("02000000200000323032332e30372e32372031323a35333a353220313233343536373839303132");
+        // commandParameter length: 39 data: 02000000200000323032332e30372e32372031323a35333a353220313233343536373839303132
+        // wrappedCommand   length: 45 data: 903d00002702000000200000323032332e30372e32372031323a35333a35322031323334353637383930313200
+
+        byte[] wrappedCommand;
+        byte[] response;
+        try {
+            // step 1
+            Log.d(TAG, printData("commandParameterA", commandParameterA));
+            wrappedCommand = wrapMessage(writeStandardFileCommand, commandParameterA);
+            Log.d(TAG, printData("wrappedCommand", wrappedCommand));
+            response = isoDep.transceive(wrappedCommand);
+            Log.d(TAG, printData("response", response));
+
+            // step 2
+            Log.d(TAG, printData("commandParameterB", commandParameterB));
+            wrappedCommand = wrapMessage(writeStandardFileCommand, commandParameterB);
+            Log.d(TAG, printData("wrappedCommand", wrappedCommand));
+            response = isoDep.transceive(wrappedCommand);
+            Log.d(TAG, printData("response", response));
+
+            // step 3
+            Log.d(TAG, printData("commandParameterC", commandParameterC));
+            wrappedCommand = wrapMessage(writeStandardFileCommand, commandParameterC);
+            Log.d(TAG, printData("wrappedCommand", wrappedCommand));
+            response = isoDep.transceive(wrappedCommand);
+            Log.d(TAG, printData("response", response));
+
+            // step 4
+            Log.d(TAG, printData("commandParameterD", commandParameterD));
+            wrappedCommand = wrapMessage(writeStandardFileCommand, commandParameterD);
+            Log.d(TAG, printData("wrappedCommand", wrappedCommand));
+            response = isoDep.transceive(wrappedCommand);
+            Log.d(TAG, printData("response", response));
+
+        } catch (Exception e) {
+            Log.e(TAG,  methodName +  " ERROR " + e.getMessage());
+            return false;
+        }
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE");
+            return false;
+        }
+    }
+
+
 
     // this method is using String ndefSampleBackendUrl = "https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac=0000000000000000"; // 97 chars
     public boolean writeToNdefFile2Iso97Bytes(TextView logTextView) {

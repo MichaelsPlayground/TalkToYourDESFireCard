@@ -201,7 +201,7 @@
                 android:id="@+id/cbActivateSdmAsciiEncoding"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:checked="false"
+                android:checked="true"
                 android:clickable="false"
                 android:text="data encoding is in ASCII" />
 
@@ -236,6 +236,34 @@
                 android:checked="false"
                 android:clickable="false"
                 android:text="Read Counter limit active" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/etActivateSdmAccessReadCounterLimitLayout"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginEnd="8dp"
+                android:hint="Read Counter Limit (1..16777214)"
+                app:boxCornerRadiusBottomEnd="5dp"
+                app:boxCornerRadiusBottomStart="5dp"
+                app:boxCornerRadiusTopEnd="5dp"
+                app:boxCornerRadiusTopStart="5dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etActivateSdmReadCounterLimit"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:focusable="false"
+                    android:inputType="number|numberSigned"
+                    android:text="16777214"
+                    tools:ignore="KeyboardInaccessibleWidget" />
+            </com.google.android.material.textfield.TextInputLayout>
 
             <CheckBox
                 android:id="@+id/cbActivateSdmEncryptedFileDataMirror"

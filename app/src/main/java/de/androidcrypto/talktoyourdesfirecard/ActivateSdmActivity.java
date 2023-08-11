@@ -1,5 +1,7 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
+import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
+
 import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
@@ -30,6 +32,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -50,16 +53,19 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
      */
     private LinearLayout llUrl;
     private com.google.android.material.textfield.TextInputEditText output, etCommunicationSettings, etAccessRights;
-    private com.google.android.material.textfield.TextInputEditText etSdmAccessRights, etBaseUrl, etTemplateUrl;
-    private com.google.android.material.textfield.TextInputLayout outputLayout;
+    private com.google.android.material.textfield.TextInputEditText etSdmReadCounterLimit, etSdmAccessRights, etBaseUrl, etTemplateUrl;
+    private com.google.android.material.textfield.TextInputLayout outputLayout, etSdmReadCounterLimitLayout, etSdmAccessRightsLayout;
     private RadioGroup rgStatus;
     private RadioButton rbActivateSdmGetStatus, rbActivateSdmOn, rbActivateSdmOff;
-    private CheckBox cbSdmEnabled, cbAsciiEncoding, cbUidMirror, cbReadCounterMirror, cbUidReadCounterEncrypted , cbReadCounterLimit, cbEncryptedFileDataMirror;
+    private CheckBox cbSdmEnabled, cbAsciiEncoding, cbUidMirror, cbReadCounterMirror, cbUidReadCounterEncrypted, cbReadCounterLimit, cbEncryptedFileDataMirror;
+
     /**
      * general constants
      */
 
-    private byte[] NDEF_APPLICATION_ID = new byte[] {(byte) 0x01, (byte) 0x00, (byte) 0x00};
+    private final byte[] APPLICATION_KEY_MASTER_AES_DEFAULT = Utils.hexStringToByteArray("00000000000000000000000000000000"); // default AES key with 16 nulls
+    private final byte APPLICATION_KEY_MASTER_NUMBER = (byte) 0x00;
+    private byte[] NDEF_APPLICATION_ID = new byte[]{(byte) 0x01, (byte) 0x00, (byte) 0x00};
     private byte NDEF_FILE_ID = (byte) 0x02;
     private final int COLOR_GREEN = Color.rgb(0, 255, 0);
     private final int COLOR_RED = Color.rgb(255, 0, 0);
@@ -106,7 +112,10 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
         cbUidReadCounterEncrypted = findViewById(R.id.cbActivateSdmUidReadCounterEncrypted);
         cbReadCounterLimit = findViewById(R.id.cbActivateSdmReadCounterLimit);
         cbEncryptedFileDataMirror = findViewById(R.id.cbActivateSdmEncryptedFileDataMirror);
+        etSdmReadCounterLimit = findViewById(R.id.etActivateSdmReadCounterLimit);
+        etSdmReadCounterLimitLayout = findViewById(R.id.etActivateSdmAccessReadCounterLimitLayout);
         etSdmAccessRights = findViewById(R.id.etActivateSdmSdmAccessRights);
+        etSdmAccessRightsLayout = findViewById(R.id.etActivateSdmAccessSdmAccessRightsLayout);
         etBaseUrl = findViewById(R.id.etActivateSdmBaseUrl);
         etTemplateUrl = findViewById(R.id.etActivateSdmTemplateUrl);
 
@@ -115,9 +124,10 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
 
         mNfcAdapter = NfcAdapter.getDefaultAdapter(this);
 
-        // some settingsradio button onclick
-
         etBaseUrl.setText(NdefForSdm.SAMPLE_BASE_URL);
+
+        showSdmParameter(false);
+        clickableSdmParameter(false);
 
         // get status on what to do
         int checkedRadioButtonId = rgStatus.getCheckedRadioButtonId();
@@ -125,22 +135,68 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
             @Override
             public void onCheckedChanged(RadioGroup radioGroup, int id) {
                 if (id == R.id.rbActivateSdmOn) {
-                        Log.d(TAG, "rb Activate On");
-                        llUrl.setVisibility(View.VISIBLE);
+                    Log.d(TAG, "rb Activate On");
+                    llUrl.setVisibility(View.VISIBLE);
+                    showSdmParameter(true);
+                    clickableSdmParameter(true);
+                    etSdmAccessRightsLayout.setVisibility(View.VISIBLE);
+                    cbSdmEnabled.setChecked(true);
                 } else if (id == R.id.rbActivateSdmOff) {
                     Log.d(TAG, "rb Activate Off");
                     llUrl.setVisibility(View.GONE);
+                    showSdmParameter(false);
+                    clickableSdmParameter(false);
+                    etSdmAccessRightsLayout.setVisibility(View.GONE);
+                    cbSdmEnabled.setChecked(false);
                 } else if (id == R.id.rbActivateSdmShowStatus) {
                     Log.d(TAG, "rb Show Status");
                     llUrl.setVisibility(View.GONE);
+                    showSdmParameter(true);
+                    clickableSdmParameter(false);
+                    etSdmAccessRightsLayout.setVisibility(View.VISIBLE);
+                    cbSdmEnabled.setChecked(false);
                 }
+            }
+        });
+
+        // checking on setReadCounterLimit
+        cbReadCounterLimit.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                if (cbReadCounterLimit.isChecked()) {
+                    etSdmReadCounterLimitLayout.setVisibility(View.VISIBLE);
+                    etSdmReadCounterLimit.setVisibility(View.VISIBLE);
+                    etSdmReadCounterLimit.setText("16777214");
+                } else {
+                    etSdmReadCounterLimitLayout.setVisibility(View.GONE);
+                    etSdmReadCounterLimit.setVisibility(View.GONE);
+                    etSdmReadCounterLimit.setText("0");
+                }
+            }
+        });
+
+        // checking on UidReadCounterEncrypted
+        cbUidReadCounterEncrypted.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                String metaRight;
+                if (cbUidReadCounterEncrypted.isChecked()) {
+                    metaRight = "3";
+                } else {
+                    metaRight = "14";
+                }
+                StringBuilder sbSdmAccessRights = new StringBuilder();
+                sbSdmAccessRights.append("Meta Read: ").append(metaRight);
+                sbSdmAccessRights.append(" | File Read: ").append("3");
+                sbSdmAccessRights.append(" | Counter Read: ").append("3");
+                writeToUi(etSdmAccessRights, sbSdmAccessRights.toString());
             }
         });
     }
 
     /**
      * get file settings from tag
-     * This is using a fixed applicationId of '0x010000' and a fixed fileId of '0x02';
+     * This is using a fixed applicationId of '0x010000' and a fixed fileId of '0x02'
      * There are 3 steps to get the file settings:
      * 1) select the NDEF application
      * 2) authenticate with Application Master Key
@@ -159,7 +215,7 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
             writeToUiAppendBorderColor("selection of the application SUCCESS", COLOR_GREEN);
             //vibrateShort();
         } else {
-            writeToUiAppendBorderColor("selection of the application FAILURE with error code: " +  EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
+            writeToUiAppendBorderColor("selection of the application FAILURE with error code: " + EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
             return;
         }
         //writeToUiAppend("step 2: authenticate with default Application Master Key");
@@ -169,7 +225,7 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
         byte[] response = desfireAuthenticateEv2.getFileSettingsEv2(NDEF_FILE_ID);
         responseData = desfireAuthenticateEv2.getErrorCode();
         if (response == null) {
-            writeToUiAppendBorderColor("get the file settings for file ID 0x02 FAILURE with error code: " +  EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
+            writeToUiAppendBorderColor("get the file settings for file ID 0x02 FAILURE with error code: " + EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
             return;
         }
         fileSettings = new FileSettings(NDEF_FILE_ID, response);
@@ -232,8 +288,10 @@ sample data with disabled SDM
             boolean isSdmEnabled = fileSettings.isSdmEnabled();
             if (isSdmEnabled) {
                 cbSdmEnabled.setChecked(true);
+                showSdmParameter(true);
             } else {
                 cbSdmEnabled.setChecked(false);
+                showSdmParameter(false);
             }
 
             if (isSdmEnabled) {
@@ -248,6 +306,15 @@ sample data with disabled SDM
 
                 // ReadCounterLimit active
                 cbReadCounterLimit.setChecked(fileSettings.isSdmOptionsBit5_SDMReadCtrLimit());
+                if (cbReadCounterLimit.isChecked()) {
+                    int readCounterLimit = Utils.intFrom3ByteArrayInversed(fileSettings.getSDM_ReadCtrLimit());
+                    etSdmReadCounterLimit.setText(String.valueOf(readCounterLimit));
+                    etSdmReadCounterLimitLayout.setVisibility(View.VISIBLE);
+                    etSdmReadCounterLimit.setVisibility(View.VISIBLE);
+                } else {
+                    etSdmReadCounterLimitLayout.setVisibility(View.GONE);
+                    etSdmReadCounterLimit.setVisibility(View.GONE);
+                }
 
                 // UID and/or Read Counter data Encrypted
                 // this option depends on SDMMetaRead access right = 0h..4h -> encrypted [value for NTAG 424 DNA]
@@ -275,11 +342,192 @@ sample data with disabled SDM
                     writeToUiAppend("Secure Dynamic Messages (SDM) / SUN is ENABLED");
                 } else {
                     writeToUiAppend("Secure Dynamic Messages (SDM) / SUN is DISABLED");
-                };
+                }
+                ;
+            } else {
+                // unset all checkboxes and edit text
+                cbAsciiEncoding.setChecked(false);
+                cbUidMirror.setChecked(false);
+                cbReadCounterMirror.setChecked(false);
+                cbReadCounterLimit.setChecked(false);
+                cbEncryptedFileDataMirror.setChecked(false);
+                cbAsciiEncoding.setChecked(false);
+                writeToUi(etSdmAccessRights, "no rights are set");
             }
-
         }
     }
+
+    /**
+     * Enabling  the SDM/SUN feature
+     * This is using a fixed applicationId of '0x010000' and a fixed fileId of '0x02'
+     * The method will run an authenticateEv2First command with default Application Master Key (zeroed AES-128 key)
+     <p>
+     * steps:
+     * 1) select applicationId '0x010000'
+     * 2) authenticateFirstEv2 with default Application Master Key (zeroed AES-128 key)
+     * 3) change file settings on fileId '0x02' with these parameters
+     *    - file option byte is set to '0x40' = CommunicationMode.Plain and enabled SDM feature
+     *    - file access rights are set to '0x00E0' (Read & Write access key: 0, CAR key: 0, Read access key: E (free), Write access key: 0
+     *    - sdm access rights are set to '0xF3x3' (F = RFU, 3 = SDM Read Counter right, x = Read Meta Data right, 3 = Read File Data right)
+     *      The Read Meta Data right depends on the option 'Are UID & Read Counter mirroring Encrypted
+     *      if checked the value is set to '3' else to '14' ('0xE')
+     *    - sdm options byte is set to a value that reflects the selected options
+     *    - offset parameters are set to a value that reflects the selected options
+     *   Limitations:
+     *   - the ASCII encoding is fixed to true
+     *   - the size for encrypted file data is limited to 16 bytes (the parameter for the complexUrlBuilder is 2 * 16 = 32)
+     * 4) the new template URL is written to the fileId '0x02'
+     */
+
+    private void enableSdm() {
+        writeToUiAppend("disable the SDM feature for fileId 0x02");
+        writeToUiAppend("step 1: select application with ID 0x010000");
+        boolean success = desfireAuthenticateEv2.selectApplicationByAidEv2(NDEF_APPLICATION_ID);
+        byte[] responseData;
+        responseData = desfireAuthenticateEv2.getErrorCode();
+        if (success) {
+            writeToUiAppendBorderColor("selection of the application SUCCESS", COLOR_GREEN);
+            //vibrateShort();
+        } else {
+            writeToUiAppendBorderColor("selection of the application FAILURE with error code: " + EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
+            return;
+        }
+
+        writeToUiAppend("step 2: authenticate with default Application Master Key");
+        success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+        responseData = desfireAuthenticateEv2.getErrorCode();
+        if (success) {
+            writeToUiAppendBorderColor("authenticate with default Application Master Key SUCCESS", COLOR_GREEN);
+            //vibrateShort();
+        } else {
+            writeToUiAppendBorderColor("authenticate with default Application Master Key FAILURE with error code: " + EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
+            return;
+        }
+
+        writeToUiAppend("step 3: enabling the SDM feature on fileId 0x02");
+        // to get the offsets we are building the template URL right now
+        NdefForSdm ndefForSdm = new NdefForSdm(NdefForSdm.SAMPLE_BASE_URL);
+        int readCounterLimit = Integer.parseInt(etSdmReadCounterLimit.getText().toString());
+        int keySdmMetaRead = 14; // free access, no encrypted data
+        if (cbUidReadCounterEncrypted.isChecked()) keySdmMetaRead = 3;
+        String templateUrl = ndefForSdm.complexUrlBuilder(NDEF_FILE_ID, NdefForSdm.CommunicationSettings.Plain,
+                0,0,14,0, true, cbUidMirror.isChecked(), cbReadCounterMirror.isChecked(),
+                cbReadCounterLimit.isChecked(), readCounterLimit,cbEncryptedFileDataMirror.isChecked(), 32,
+                true, 3, keySdmMetaRead, 3);
+        Log.d(TAG, "templateUrl: " + templateUrl);
+        if (TextUtils.isEmpty(templateUrl)) {
+            writeToUiAppendBorderColor("building of the Template URL FAILURE, aborted", COLOR_RED);
+            return;
+        }
+        byte[] commandData = ndefForSdm.getCommandData(); // this is the complete data
+        Log.d(TAG, printData("commandData", commandData));
+        if (commandData == null) {
+            writeToUiAppendBorderColor("building of the commandData FAILURE, aborted", COLOR_RED);
+            return;
+        }
+        // enabling the feature
+        success = desfireAuthenticateEv2.changeFileSettingsNtag424Dna(NDEF_FILE_ID, commandData);
+        if (success) {
+            writeToUiAppendBorderColor("enabling the SDM feature on fileId 0x02 SUCCESS", COLOR_GREEN);
+            vibrateShort();
+        } else {
+            writeToUiAppendBorderColor("enabling the SDM feature on fileId 0x02 FAILURE with error code: " + EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
+            return;
+        }
+
+        writeToUiAppend("step 4: write the template URL to fileId 0x02");
+
+
+    }
+
+
+    /**
+     * Disabling the SDM/SUN feature
+     * This is using a fixed applicationId of '0x010000' and a fixed fileId of '0x02'
+     * The method will run an authenticateEv2First command with default Application Master Key (zeroed AES-128 key)
+     * <p>
+     * steps:
+     * 1) select applicationId '0x010000'
+     * 2) authenticateFirstEv2 with default Application Master Key (zeroed AES-128 key)
+     * 3) change file settings on fileId '0x02' with these parameters
+     * - file option byte is set to '0x00' = CommunicationMode.Plain and disabled SDM feature
+     * - file access rights are set to '0x00E0' (Read & Write access key: 0, CAR key: 0, Read access key: E (free), Write access key: 0
+     */
+    private void disableSdm() {
+        writeToUiAppend("disable the SDM feature for fileId 0x02");
+        writeToUiAppend("step 1: select application with ID 0x010000");
+        boolean success = desfireAuthenticateEv2.selectApplicationByAidEv2(NDEF_APPLICATION_ID);
+        byte[] responseData;
+        responseData = desfireAuthenticateEv2.getErrorCode();
+        if (success) {
+            writeToUiAppendBorderColor("selection of the application SUCCESS", COLOR_GREEN);
+            //vibrateShort();
+        } else {
+            writeToUiAppendBorderColor("selection of the application FAILURE with error code: " + EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
+            return;
+        }
+
+        writeToUiAppend("step 2: authenticate with default Application Master Key");
+        success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+        responseData = desfireAuthenticateEv2.getErrorCode();
+        if (success) {
+            writeToUiAppendBorderColor("authenticate with default Application Master Key SUCCESS", COLOR_GREEN);
+            //vibrateShort();
+        } else {
+            writeToUiAppendBorderColor("authenticate with default Application Master Key FAILURE with error code: " + EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
+            return;
+        }
+
+        writeToUiAppend("step 3: disabling the SDM feature on fileId 0x02");
+        success = desfireAuthenticateEv2.changeFileSettingsNtag424Dna(NDEF_FILE_ID, DesfireAuthenticateEv2.CommunicationSettings.Plain, 0, 0, 14, 0, false, 0, 0, 0);
+        responseData = desfireAuthenticateEv2.getErrorCode();
+        if (success) {
+            writeToUiAppendBorderColor("disabling the SDM feature on fileId 0x02 SUCCESS", COLOR_GREEN);
+            vibrateShort();
+        } else {
+            writeToUiAppendBorderColor("disabling the SDM feature on fileId 0x02 FAILURE with error code: " + EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
+            return;
+        }
+    }
+
+    /**
+     * changes the visibility of SDM parameter
+     *
+     * @param isShowSdmParameter
+     */
+    private void showSdmParameter(boolean isShowSdmParameter) {
+        int visibility = View.GONE;
+        if (isShowSdmParameter) visibility = View.VISIBLE;
+        cbAsciiEncoding.setVisibility(visibility);
+        cbUidMirror.setVisibility(visibility);
+        cbReadCounterMirror.setVisibility(visibility);
+        cbUidReadCounterEncrypted.setVisibility(visibility);
+        cbReadCounterLimit.setVisibility(visibility);
+        cbEncryptedFileDataMirror.setVisibility(visibility);
+        //etSdmReadCounterLimitLayout.setVisibility(visibility); // visibility is set depending of cbReadCounterLimit
+        //etSdmReadCounterLimit.setVisibility(visibility); // visibility is set depending of cbReadCounterLimit
+        etSdmAccessRights.setVisibility(visibility);
+    }
+
+    /**
+     * changes the click ability of SDM parameter
+     * 
+     * @param isClickableSdmParameter
+     */
+    private void clickableSdmParameter(boolean isClickableSdmParameter) {
+        boolean clickable = false;
+        if (isClickableSdmParameter) clickable = true;
+        //cbAsciiEncoding.setClickable(clickable); // this needs to be enabled
+        cbUidMirror.setClickable(clickable);
+        cbReadCounterMirror.setClickable(clickable);
+        cbUidReadCounterEncrypted.setClickable(clickable);
+        cbReadCounterLimit.setClickable(clickable);
+        cbEncryptedFileDataMirror.setClickable(clickable);
+        etSdmReadCounterLimitLayout.setFocusable(clickable);
+        etSdmReadCounterLimit.setFocusable(clickable);
+        etSdmAccessRights.setFocusable(clickable);
+    }
+
 
     /**
      * section for NFC handling
@@ -326,6 +574,12 @@ sample data with disabled SDM
 
                 if (rbActivateSdmGetStatus.isChecked()) {
                     getFileSettings();
+                }
+                if (rbActivateSdmOn.isChecked()) {
+                    enableSdm();
+                }
+                if (rbActivateSdmOff.isChecked()) {
+                    disableSdm();
                 }
             }
         } catch (IOException e) {
@@ -401,6 +655,7 @@ sample data with disabled SDM
     private void writeToUiAppendBorderColor(String message, int color) {
         writeToUiAppendBorderColor(output, outputLayout, message, color);
     }
+
     private void writeToUiAppendBorderColor(TextView textView, TextInputLayout textInputLayout, String message, int color) {
         runOnUiThread(() -> {
 

@@ -690,6 +690,10 @@ public class NdefForSdm {
         return fileOption;
     }
 
+    public byte[] getCommandData() {
+        return commandData;
+    }
+
     public String getErrorCodeReason() {
         return errorCodeReason;
     }

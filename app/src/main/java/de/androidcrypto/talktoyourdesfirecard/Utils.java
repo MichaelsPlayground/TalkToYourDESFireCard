@@ -2,6 +2,9 @@ package de.androidcrypto.talktoyourdesfirecard;
 
 import android.os.Build;
 
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.text.SimpleDateFormat;
@@ -257,6 +260,23 @@ public class Utils {
             return new SimpleDateFormat("yyyy.MM.dd HH:mm:ss").format(new Date());
         }
     }
+
+    public static boolean isValidUrl(String url) {
+        if (url.length() == 0) return false;
+        try {
+            // it will check only for scheme and not null input
+            new URL(url).toURI();
+            return true;
+        } catch (MalformedURLException | URISyntaxException e) {
+            return false;
+        }
+    }
+
+    public static String removeTrailingSlashes(String s) {
+        return s.replaceAll("/+$", "");
+    }
+
+
     public static byte[] generateTestData(int length) {
         /**
          * this method will generate a byte array of size 'length' and will hold a byte sequence
