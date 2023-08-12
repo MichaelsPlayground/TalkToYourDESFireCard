@@ -199,3 +199,20 @@ on mirroring while reading the NDEF message at the door's reader device. The car
 so there is no chance for a replay attack or other tampering.
 
 
+
+## How to decrypt the data ?
+
+Testdata: https://sdm.nfcdeveloper.com/tag?picc_data=7611174D92F390458FF7E15ACFD2579F&enc=F9FB7442DB2E0BE631CD4E3BCF74276E&cmac=69784EF122D0CB5F
+
+```plaintext
+Cryptographic signature validated.
+Encryption mode: AES
+PICC Data Tag: c7
+NFC TAG UID: 04514032501490
+Read counter: 82
+File data (hex): 30313032303330343035303630373038
+File data (UTF-8): 0102030405060708
+```
+
+
+Test in PHP:  https://replit.com/@javacrypto/PhpDecryptSunMessage#index.php
