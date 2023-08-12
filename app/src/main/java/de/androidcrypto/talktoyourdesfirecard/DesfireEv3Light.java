@@ -1,9 +1,14 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
 
+import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
+
+import android.nfc.NdefMessage;
+import android.nfc.NdefRecord;
 import android.nfc.TagLostException;
 import android.nfc.tech.IsoDep;
 import android.util.Log;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
@@ -19,6 +24,7 @@ import java.util.Arrays;
  *
  */
 public class DesfireEv3Light {
+
 
     private static final String TAG = DesfireEv3Light.class.getName();
 
@@ -46,8 +52,10 @@ public class DesfireEv3Light {
     //public static final byte[] NDEF_FILE_01_ACCESS_RIGHTS = Utils.hexStringToByteArray("EEEE"); // free access to all rights
     public static final byte[] NDEF_FILE_01_ACCESS_RIGHTS = Utils.hexStringToByteArray("E0EE"); // free access to all rights except CAR (key 0)
     public static final int NDEF_FILE_01_SIZE = 32;
+    private byte[] NDEF_FILE_01_CONTENT_CONTAINER = Utils.hexStringToByteArray("000F20003A00340406E10401000000"); // 256 byte
     public static final byte NDEF_FILE_02_NUMBER = (byte) 0x02;
     public static final byte[] NDEF_FILE_02_ISO_NAME = Utils.hexStringToByteArray("04E1");
+    public static final byte[] NDEF_FILE_02_ACCESS_RIGHTS = Utils.hexStringToByteArray("00E0"); // free access for reading, an authentication is needed for all other accesses
     public static final int NDEF_FILE_02_SIZE = 256;
 
     public static final int MAXIMUM_FILE_SIZE = 256; // this is fixed by me, could as long as about free memory of the tag
@@ -62,6 +70,7 @@ public class DesfireEv3Light {
     private final byte CREATE_APPLICATION_COMMAND = (byte) 0xCA;
     private final byte SELECT_APPLICATION_COMMAND = (byte) 0x5A;
     private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
+    private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
 
     /**
      * class internal constants and limitations
@@ -211,9 +220,16 @@ public class DesfireEv3Light {
      * section for file handling
      */
 
-
-
-    // createNdefApplicationIsoAes selectNdefApplicationIso createNdefContainerFileIso
+    /**
+     * create a Standard file in selected application using file Number and ISO fileId
+     * @param fileNumber            | in range 0..31
+     * @param isoFileId
+     * @param communicationSettings | Plain, MACed or Full
+     * @param accessRights          | Read & Write access key, CAR ke, Read key, Write key
+     * @param fileSize              | maximum of 256 bytes
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
 
     public boolean createStandardFileIso(byte fileNumber, byte[] isoFileId, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize) {
         final String methodName = "createStandardFileIso";
@@ -278,7 +294,144 @@ public class DesfireEv3Light {
         }
     }
 
+    /**
+     * writes the NDEF container to a Standard file in the selected application. It uses the pre-defined
+     * NDEF container that points to the NDEF Data file with fileNumber 02 and isoFileId 0x04E1
+     * For writing it uses the 'writeToStandardFileRawPlain' method and as the data is less than
+     * MAXIMUM_MESSAGE_LENGTH there is no need for chunking the data
+     * @param fileNumber
+     * @return
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
 
+    public boolean writeToStandardFileNdefContainerPlain(byte fileNumber) {
+        String logData = "";
+        final String methodName = "writeToStandardFileRawPlain";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+
+        return writeToStandardFileRawPlain(fileNumber, NDEF_FILE_01_CONTENT_CONTAINER, 0);
+    }
+
+    /**
+     * writes an Url as NDEF Link record/message to a Standard File. If the complete NDEF message
+     * exceeds the MAXIMUM_MESSAGE_LENGTH the data are written in chunks to avoid framing
+     * The maximum NDEF message length is 256 bytes so the URL needs to be some characters smaller
+     * as there is an overhead for NDEF handling.
+     * THe URL should point to a webserver that can handle SUN/SDM messages
+     * @param fileNumber    | in range 0..31
+     * @param urlToWrite
+     * @return
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+
+    public boolean writeToStandardFileUrlPlain(byte fileNumber, String urlToWrite) {
+        String logData = "";
+        final String methodName = "writeToStandardFileUrlPlain";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "urlToWrite: " + urlToWrite);
+        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
+        if (!Utils.isValidUrl(urlToWrite)) {
+            Log.d(TAG, "inValid urlToWrite, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+
+        // adding NDEF wrapping
+        NdefRecord ndefRecord = NdefRecord.createUri(urlToWrite);
+        NdefMessage ndefMessage = new NdefMessage(ndefRecord);
+        byte[] ndefMessageBytesHeadless = ndefMessage.toByteArray();
+        // now we do have the NDEF message but it needs to get wrapped by '0x00 || (byte) (length of NdefMessage)
+        byte[] data = new byte[ndefMessageBytesHeadless.length + 2];
+        System.arraycopy(new byte[]{(byte) 0x00, (byte) (ndefMessageBytesHeadless.length)}, 0, data, 0, 2);
+        System.arraycopy(ndefMessageBytesHeadless, 0, data, 2, ndefMessageBytesHeadless.length);
+
+
+        return false;
+    }
+
+
+    /**
+     * writes a byte array to a Standard file, beginning at offset position
+     * This works for a Standard file with CommunicationMode.Plain only
+     * Note: as the number of bytes is limited per transmission this method limits the amount
+     * of data to a maximum of MAXIMUM_MESSAGE_LENGTH bytes
+     * The method does not take care of the offset so 'offset + data.length <= file size' needs to obeyed
+     * Do not call this method from outside this class but use one of the writeToStandardFile callers
+     *
+     * @param fileNumber | in range 0..31
+     * @param data       | maximum of 40 bytes to avoid framing
+     * @param offset     | offset in the file
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+    private boolean writeToStandardFileRawPlain(byte fileNumber, byte[] data, int offset) {
+        String logData = "";
+        final String methodName = "writeToStandardFileRawPlain";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber + Utils.printData(" data", data) + " offset: " + offset);
+
+        // sanity checks
+        if ((fileNumber < 0) || (fileNumber > 31)) {
+            Log.e(TAG, methodName + " fileNumber is not in range 00..31, aborted");
+            log(methodName, "fileNumber is not in range 00..31, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((data == null) || (data.length > 40)) {
+            Log.e(TAG, methodName + " data is NULL or length is > 40, aborted");
+            log(methodName, "data is NULL or length is > 40, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (offset < 0) {
+            Log.e(TAG, methodName + " offset is < 0, aborted");
+            log(methodName, "offset is < 0, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            log(methodName, "isoDep is NULL or not connected, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset);
+        byte[] lengthOfDataBytes = Utils.intTo3ByteArrayInversed(data.length);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(offsetBytes, 0, offsetBytes.length);
+        baos.write(lengthOfDataBytes, 0, lengthOfDataBytes.length);
+        baos.write(data, 0, data.length);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] wrappedCommand;
+        byte[] response;
+        try {
+            wrappedCommand = wrapMessage(WRITE_STANDARD_FILE_COMMAND, commandParameter);
+            response = sendData(wrappedCommand);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE");
+            return false;
+        }
+    }
 
 
     /**
@@ -394,7 +547,8 @@ public class DesfireEv3Light {
      * @param data
      * @return
      */
-    private boolean checkResponse(@NonNull byte[] data) {
+    private boolean checkResponse(byte[] data) {
+        if (data == null) return false;
         // simple sanity check
         if (data.length < 2) {
             return false;

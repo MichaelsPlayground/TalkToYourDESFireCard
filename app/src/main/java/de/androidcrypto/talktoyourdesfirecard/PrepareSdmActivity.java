@@ -157,23 +157,43 @@ public class PrepareSdmActivity extends AppCompatActivity implements NfcAdapter.
 
         writeToUiAppend(output, "");
         stepString = "4 write the NDEF Container to the file 01";
-
         writeToUiAppend(output, stepString);
-
+        success = desfireEv3.writeToStandardFileNdefContainerPlain(DesfireEv3Light.NDEF_FILE_01_NUMBER);
+        if (success) {
+            writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
+        } else {
+            writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
+            return;
+        }
 
         writeToUiAppend(output, "");
-
         stepString = "5 create a new Standard File 02";
-
         writeToUiAppend(output, stepString);
-
+        success = desfireEv3.createStandardFileIso(DesfireEv3Light.NDEF_FILE_02_NUMBER, DesfireEv3Light.NDEF_FILE_02_ISO_NAME,
+                DesfireEv3Light.CommunicationSettings.Plain, DesfireEv3Light.NDEF_FILE_02_ACCESS_RIGHTS, DesfireEv3Light.NDEF_FILE_02_SIZE);
+        errorCode = desfireEv3.getErrorCode();
+        errorCodeReason = desfireEv3.getErrorCodeReason();
+        if (success) {
+            writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
+        } else {
+            if (Arrays.equals(errorCode, DesfireEv3Light.RESPONSE_DUPLICATE_ERROR)) {
+                writeToUiAppendBorderColor(stepString + " FAILURE because file already exits", COLOR_GREEN);
+            } else {
+                writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
+                return;
+            }
+        }
 
         writeToUiAppend(output, "");
-
         stepString = "6 write an URL as Link NDEF Record/Message to file 02";
-
         writeToUiAppend(output, stepString);
-
+        success = desfireEv3.writeToStandardFileNdefContainerPlain(DesfireEv3Light.NDEF_FILE_02_NUMBER);
+        if (success) {
+            writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
+        } else {
+            writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
+            return;
+        }
 
         writeToUiAppend(output, "");
 
