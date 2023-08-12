@@ -1,6 +1,24 @@
 <resources>
     <string name="app_name">Talk to your DESFire Card</string>
+
+    <!-- strings for prepare sun/sdm -->
+    <string name="header_prepare_sdm">Prepares the tag to use the SUN/SDM feature</string>
+    <string name="description_prepare_sdm">Prepares the tag by creating a new application, creating a Standard File to take the NDEF Container File (CC) and a Standard File that stores the template URL (NDEF Data File).</string>
+
+    <!-- strings for activate sun/sdm -->
     <string name="header_activate_sdm">Activate the SUN feature by enabling Secure Dynamic Messaging (SDM)</string>
     <string name="description_activate_sdm">Activates the mirroring of data (UID, read counter, secret file data and MAC) in a NDEF message on tapping.\n\nThis is working on Mifare DESFire EV3 tags only.</string>
     <string name="description_activate_sdm_rg">choose your action on SUN/SDM feature</string>
+    <string name="more_information_prepare_sdm">More Information about the application and file creations:\n
+    1) The app will create a new application with applicationID 010000 and ISO application name D2760000850101,
+    this is necessary for NDEF workflow. The app will have 5 AES based application keys. There are no restrictions on file and directory handling.\n
+    2) In the new application a new Standard File is created with a size of 32 bytes that holds the NDEF Container File.\n
+    The file number is 01 and the ISO fileId is E103h, the Communication mode is Plain,
+    Access rights: Read &amp; Write key: E, CAR key: E, Read key: E, Write key: E (E means free access without any authentication)\n
+    3) A second Standard File is created in the application with a sie of 256 bytes that hold the template URL for the NDEF Link record.\n
+    The file number is 02 and the ISO fileId is E104h, the Communication mode is Plain,
+    Access rights: Read &amp; Write key: E, CAR key: 0, Read key: E, Write key: E (E means free access without any authentication)
+    </string>
+    <string name="warning_prepare_tag">WARNING: The app will IMMEDIATELY write to an attached tag without any further confirmation !</string>
+
 </resources>

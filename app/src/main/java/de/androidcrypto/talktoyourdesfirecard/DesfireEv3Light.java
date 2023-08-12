@@ -1,0 +1,530 @@
+package de.androidcrypto.talktoyourdesfirecard;
+
+
+import android.nfc.TagLostException;
+import android.nfc.tech.IsoDep;
+import android.util.Log;
+
+import androidx.annotation.NonNull;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.security.AccessControlException;
+import java.util.Arrays;
+
+/**
+ * This class is the light weight version of a larger library that connects to Mifare DESFire EV3 tags.
+ * It contains all commands that are necessary to enable the Secret Unique NFC (SUN) feature that is
+ * based on Secure Dynamic Messaging (SDM) that is available on DESFire EV3 tags.
+ *
+ */
+public class DesfireEv3Light {
+
+    private static final String TAG = DesfireEv3Light.class.getName();
+
+    private IsoDep isoDep;
+    private String logData;
+    private boolean authenticateEv2FirstSuccess = false;
+    private boolean authenticateEv2NonFirstSuccess = false;
+    private byte keyNumberUsedForAuthentication = -1;
+    private byte[] SesAuthENCKey; // filled by authenticateAesEv2First
+    private byte[] SesAuthMACKey; // filled by authenticateAesEv2First
+    private int CmdCounter = 0; // filled / resetted by authenticateAesEv2First
+    private byte[] TransactionIdentifier; // resetted by authenticateAesEv2First
+    // note on TransactionIdentifier: LSB encoding
+    private byte[] errorCode = new byte[2];
+    private String errorCodeReason = "";
+
+    /**
+     * external constants for NDEF application and files
+     */
+
+    public static final byte[] NDEF_APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("010000"); // this is the AID for NDEF application
+    public static final byte[] NDEF_APPLICATION_DF_NAME = Utils.hexStringToByteArray("D2760000850101"); // this is the Data File name for NDEF application
+    public static final byte NDEF_FILE_01_NUMBER = (byte) 0x01;
+    public static final byte[] NDEF_FILE_01_ISO_NAME = Utils.hexStringToByteArray("03E1");
+    //public static final byte[] NDEF_FILE_01_ACCESS_RIGHTS = Utils.hexStringToByteArray("EEEE"); // free access to all rights
+    public static final byte[] NDEF_FILE_01_ACCESS_RIGHTS = Utils.hexStringToByteArray("E0EE"); // free access to all rights except CAR (key 0)
+    public static final int NDEF_FILE_01_SIZE = 32;
+    public static final byte NDEF_FILE_02_NUMBER = (byte) 0x02;
+    public static final byte[] NDEF_FILE_02_ISO_NAME = Utils.hexStringToByteArray("04E1");
+    public static final int NDEF_FILE_02_SIZE = 256;
+
+    public static final int MAXIMUM_FILE_SIZE = 256; // this is fixed by me, could as long as about free memory of the tag
+    public enum CommunicationSettings {
+        Plain, MACed, Full
+    }
+
+    /**
+     * constants for commands
+     */
+    private final byte GET_VERSION_INFO_COMMAND = (byte) 0x60;
+    private final byte CREATE_APPLICATION_COMMAND = (byte) 0xCA;
+    private final byte SELECT_APPLICATION_COMMAND = (byte) 0x5A;
+    private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
+
+    /**
+     * class internal constants and limitations
+     */
+    boolean printToLog = true; // logging data in internal log string
+
+    private final byte APPLICATION_MASTER_KEY_SETTINGS = (byte) 0x0F; // 'amks' all default values
+    private final byte APPLICATION_CRYPTO_DES = 0x00; // add this to number of keys for DES
+    private final byte APPLICATION_CRYPTO_3KTDES = (byte) 0x40; // add this to number of keys for 3KTDES
+    private final byte APPLICATION_CRYPTO_AES = (byte) 0x80; // add this to number of keys for AES
+    private final byte FILE_COMMUNICATION_SETTINGS_PLAIN = (byte) 0x00; // plain communication
+    private final byte FILE_COMMUNICATION_SETTINGS_MACED = (byte) 0x01; // mac'ed communication
+    private final byte FILE_COMMUNICATION_SETTINGS_FULL = (byte) 0x03; // full = enciphered communication
+    private final int MAXIMUM_MESSAGE_LENGTH = 40;
+
+    private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
+    private final byte[] RESPONSE_ISO_OK = new byte[]{(byte) 0x90, (byte) 0x00};
+    public static final byte[] RESPONSE_DUPLICATE_ERROR = new byte[]{(byte) 0x91, (byte) 0xDE};
+    public static final byte[] RESPONSE_ISO_DUPLICATE_ERROR = new byte[]{(byte) 0x90, (byte) 0xDE};
+    private final byte[] RESPONSE_AUTHENTICATION_ERROR = new byte[]{(byte) 0x91, (byte) 0xAE};
+    private final byte[] RESPONSE_MORE_DATA_AVAILABLE = new byte[]{(byte) 0x91, (byte) 0xAF};
+    private static final byte[] RESPONSE_PARAMETER_ERROR = new byte[]{(byte) 0x91, (byte) 0xFE}; // failure because of wrong parameter
+    private final byte[] RESPONSE_FAILURE = new byte[]{(byte) 0x91, (byte) 0xFF}; // general, undefined failure
+
+    /**
+     * standard file
+     */
+
+
+    public DesfireEv3Light(IsoDep isoDep) {
+        this.isoDep = isoDep;
+        Log.i(TAG, "class is initialized");
+    }
+
+    /**
+     * section for application handling
+     */
+
+    /**
+     * create a new application including Data File Name using AES keys
+     * This uses a fixed Application Master Key Settings value of 0x0F which is default value
+     * @param applicationIdentifier   | length 3
+     * @param applicationDfName       | length in range 1..16
+     * @param numberOfApplicationKeys | range 1..14
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+
+    public boolean createApplicationAesIso(byte[] applicationIdentifier, byte[] applicationDfName, CommunicationSettings communicationSettings, int numberOfApplicationKeys) {
+        String logData = "";
+        final String methodName = "createApplicationAesIso";
+        log(methodName, "started", true);
+        log(methodName, printData("applicationIdentifier", applicationIdentifier));
+        log(methodName, printData("applicationDfName", applicationDfName));
+        //log(methodName, "communicationSettings: " + communicationSettings.toString());
+        log(methodName, "numberOfApplicationKeys: " + numberOfApplicationKeys);
+        // sanity checks
+        if (!checkApplicationIdentifier(applicationIdentifier)) return false; // logFile and errorCode are updated
+        if ((applicationDfName == null) || (applicationDfName.length < 1) || (applicationDfName.length > 16)) {
+            log(methodName, "applicationDfName is NULL or not of length range 1..16, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "applicationDfName is NULL or not length range 1..16";
+            return false;
+        }
+        if ((numberOfApplicationKeys < 1) || (numberOfApplicationKeys > 14)) {
+            log(methodName, "numberOfApplicationKeys is not in range 1..14, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "numberOfApplicationKeys is not in range 1..14";
+            return false;
+        }
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+
+        // build the command string
+        byte keyNumbers = (byte) numberOfApplicationKeys;
+        // now adding the constant for key type, here fixed to AES = 0x80
+        keyNumbers = (byte) (keyNumbers | APPLICATION_CRYPTO_AES);
+        // "90CA00000E 010000 0F A5 10E1 D276000085010100"
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(applicationIdentifier, 0, applicationIdentifier.length);
+        baos.write(APPLICATION_MASTER_KEY_SETTINGS); // application master key settings, fixed value
+        baos.write(keyNumbers);
+        baos.write(applicationDfName, 0, applicationDfName.length);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+
+        try {
+            apdu = wrapMessage(CREATE_APPLICATION_COMMAND, commandParameter);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            log(methodName, "SUCCESS");
+            return true;
+        } else {
+            log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            return false;
+        }
+    }
+
+    /**
+     * select an application by it's application identifier (AID)
+     * @param applicationIdentifier | length 3
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+
+    public boolean selectApplicationByAid(byte[] applicationIdentifier) {
+        final String methodName = "selectApplication by AID";
+        logData = "";
+        log(methodName, "started", true);
+        log(methodName, printData("applicationIdentifier", applicationIdentifier));
+        errorCode = new byte[2];
+        // sanity checks
+        if (!checkApplicationIdentifier(applicationIdentifier)) return false; // logFile and errorCode are updated
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+
+        byte[] apdu;
+        byte[] response;
+        try {
+            apdu = wrapMessage(SELECT_APPLICATION_COMMAND, applicationIdentifier);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            log(methodName, "SUCCESS");
+            return true;
+        } else {
+            log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            return false;
+        }
+    }
+
+    /**
+     * section for file handling
+     */
+
+
+
+    // createNdefApplicationIsoAes selectNdefApplicationIso createNdefContainerFileIso
+
+    public boolean createStandardFileIso(byte fileNumber, byte[] isoFileId, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize) {
+        final String methodName = "createStandardFileIso";
+        logData = "";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, printData("isoFileId", isoFileId));
+        log(methodName, "communicationSettings: " + communicationSettings.toString());
+        log(methodName, printData("accessRights", accessRights));
+        log(methodName, "fileSize: " + fileSize);
+        errorCode = new byte[2];
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
+        if ((isoFileId == null) || (isoFileId.length != 2)) {
+            log(methodName, "isoFileId is NULL or not of length range 2, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "applicationDfName is NULL or not length range 1..16";
+            return false;
+        }
+        if (!checkAccessRights(accessRights)) return false; // logFile and errorCode are updated
+        if ((fileSize < 1) || (fileSize > MAXIMUM_FILE_SIZE)) {
+            log(methodName, "fileSize is not in range 1..MAXIMUM_FILE_SIZE, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "fileSize is not in range 1..MAXIMUM_FILE_SIZE";
+            return false;
+        }
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+
+        byte commSettings = (byte) 0;
+        if (communicationSettings == CommunicationSettings.Plain) commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        if (communicationSettings == CommunicationSettings.MACed) commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
+        if (communicationSettings == CommunicationSettings.Full) commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
+        byte[] fileSizeByte = Utils.intTo3ByteArrayInversed(fileSize);
+        // build the command string
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(isoFileId, 0, isoFileId.length);
+        baos.write(commSettings);
+        baos.write(accessRights, 0, accessRights.length);
+        baos.write(fileSizeByte, 0, fileSizeByte.length);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+
+        try {
+            apdu = wrapMessage(CREATE_STANDARD_FILE_COMMAND, commandParameter);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            log(methodName, "SUCCESS");
+            return true;
+        } else {
+            log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            return false;
+        }
+    }
+
+
+
+
+    /**
+     * section for general tasks
+     */
+
+    public VersionInfo getVersionInformation() {
+        byte[] bytes = new byte[0];
+        try {
+            bytes = sendRequest(GET_VERSION_INFO_COMMAND);
+            return new VersionInfo(bytes);
+        } catch (Exception e) {
+            log("getVersionInformation", "IOException: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+        }
+        return null;
+    }
+
+    public boolean checkForDESFireEv3() {
+        VersionInfo versionInfo = getVersionInformation();
+        if (versionInfo == null) return false;
+        Log.d(TAG, versionInfo.dump());
+        int hardwareType = versionInfo.getHardwareType(); // 1 = DESFire, 4 = NTAG family 4xx
+        int hardwareVersion = versionInfo.getHardwareVersionMajor(); // 51 = DESFire EV3, 48 = NTAG 424 DNA
+        return ((hardwareType == 1) && (hardwareVersion == 51));
+    }
+
+    /**
+     * section for command and response handling
+     */
+
+    public byte[] sendRequest(byte command) throws Exception {
+        return sendRequest(command, null);
+    }
+
+    private byte[] sendRequest(byte command, byte[] parameters) throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        byte[] recvBuffer = sendData(wrapMessage(command, parameters));
+        if (recvBuffer == null) {
+            return null;
+        }
+        while (true) {
+            if (recvBuffer[recvBuffer.length - 2] != (byte) 0x91) {
+                throw new Exception("Invalid response");
+            }
+            output.write(recvBuffer, 0, recvBuffer.length - 2);
+            byte status = recvBuffer[recvBuffer.length - 1];
+            if (status == (byte) 0x00) {
+                break;
+            } else if (status == (byte) 0xAF) {
+                recvBuffer = sendData(wrapMessage((byte) 0xAF, null));
+            } else if (status == (byte) 0x9D) {
+                throw new AccessControlException("Permission denied");
+            } else if (status == (byte) 0xAE) {
+                throw new AccessControlException("Authentication error");
+            } else {
+                throw new Exception("Unknown status code: " + Integer.toHexString(status & 0xFF));
+            }
+        }
+        return output.toByteArray();
+    }
+
+    private byte[] sendData(byte[] apdu) {
+        String methodName = "sendData";
+        if (isoDep == null) {
+            Log.e(TAG, methodName + " isoDep is NULL");
+            log(methodName, "isoDep is NULL, aborted");
+            return null;
+        }
+        log(methodName, printData("send apdu -->", apdu));
+        byte[] recvBuffer;
+        try {
+            recvBuffer = isoDep.transceive(apdu);
+        } catch (TagLostException e) {
+            errorCodeReason = "TagLostException: " + e.getMessage();
+            Log.e(TAG, e.getMessage());
+            e.printStackTrace();
+            return null;
+        } catch (IOException e) {
+            errorCodeReason = "IOException: " + e.getMessage();
+            Log.e(TAG, e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+        log(methodName, printData("received  <--", recvBuffer));
+        return recvBuffer;
+    }
+
+    private byte[] wrapMessage(byte command, byte[] parameters) throws IOException {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        stream.write((byte) 0x90);
+        stream.write(command);
+        stream.write((byte) 0x00);
+        stream.write((byte) 0x00);
+        if (parameters != null) {
+            stream.write((byte) parameters.length);
+            stream.write(parameters);
+        }
+        stream.write((byte) 0x00);
+        return stream.toByteArray();
+    }
+
+    private byte[] returnStatusBytes(byte[] data) {
+        return Arrays.copyOfRange(data, (data.length - 2), data.length);
+    }
+
+    /**
+     * checks if the response has an 0x'9100' at the end means success
+     * and the method returns the data without 0x'9100' at the end
+     * if any other trailing bytes show up the method returns false
+     *
+     * @param data
+     * @return
+     */
+    private boolean checkResponse(@NonNull byte[] data) {
+        // simple sanity check
+        if (data.length < 2) {
+            return false;
+        } // not ok
+        if (Arrays.equals(RESPONSE_OK, returnStatusBytes(data))) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+        private boolean checkResponseIso(@NonNull byte[] data) {
+        // simple sanity check
+        if (data.length < 2) {
+            return false;
+        } // not ok
+        if (Arrays.equals(RESPONSE_ISO_OK, returnStatusBytes(data))) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * check some know method parameters
+     */
+
+    private boolean checkApplicationIdentifier(byte[] applicationIdentifier) {
+        if ((applicationIdentifier == null) || (applicationIdentifier.length != 3)) {
+            log("checkApplicationIdentifier", "applicationIdentifier is NULL or not of length 3, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "applicationIdentifier is NULL or not of length 3";
+            return false;
+        }
+        return true;
+    }
+
+    private boolean checkFileNumber(byte fileNumber) {
+        if ((fileNumber < 0) || (fileNumber > 31)) {
+            log("checkFileNumber", "fileNumber is not in range 0..31, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "applicationIdentifier is NULL or not of length 3";
+            return false;
+        }
+        return true;
+    }
+
+    // note: this does not check if in application creation all keys got created
+    private boolean checkAccessRights(byte[] accessRights) {
+        if ((accessRights == null) || (accessRights.length != 2)) {
+            log("checkAccessRights", "accessRights are NULL or not of length 2, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "accessRights are NULL or not of length 2";
+            return false;
+        }
+        return true;
+    }
+
+    private boolean checkIsoDep() {
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            log("checkIsoDep", "lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCodeReason = "lost connection to the card";
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * internal utility methods
+     */
+
+    private String printData(String dataName, byte[] data) {
+        int dataLength;
+        String dataString = "";
+        if (data == null) {
+            dataLength = 0;
+            dataString = "IS NULL";
+        } else {
+            dataLength = data.length;
+            dataString = bytesToHex(data);
+        }
+        StringBuilder sb = new StringBuilder();
+        sb
+                .append(dataName)
+                .append(" length: ")
+                .append(dataLength)
+                .append(" data: ")
+                .append(dataString);
+        return sb.toString();
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        if (bytes == null) return "";
+        StringBuffer result = new StringBuffer();
+        for (byte b : bytes)
+            result.append(Integer.toString((b & 0xff) + 0x100, 16).substring(1));
+        return result.toString();
+    }
+
+
+    /**
+     * section for logging
+     */
+
+    private void log(String methodName, String data) {
+        log(methodName, data, false);
+    }
+
+    private void log(String methodName, String data, boolean isMethodHeader) {
+        if (printToLog) {
+            logData += "method: " + methodName + "\n" + data + "\n";
+            //logData += "\n" + methodName + ":\n" + data + "\n\n";
+            Log.d(TAG, "method: " + methodName + ": " + data);
+        }
+    }
+
+    /**
+     * getter
+     */
+
+    public byte[] getErrorCode() {
+        return errorCode;
+    }
+
+    public String getErrorCodeReason() {
+        return errorCodeReason;
+    }
+
+    public String getLogData() {
+        return logData;
+    }
+}

@@ -599,7 +599,7 @@ sample data with disabled SDM
 
                 isDesfireEv3 = desfireAuthenticateEv2.checkForDESFireEv3();
                 if (!isDesfireEv3) {
-                    writeToUiAppendBorderColor("The tag is not a DESFire EV3 tag, stopping any further activites", COLOR_RED);
+                    writeToUiAppendBorderColor("The tag is not a DESFire EV3 tag, stopping any further activities", COLOR_RED);
                     return;
                 }
 
@@ -866,45 +866,15 @@ sample data with disabled SDM
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.menu_activity_main, menu);
+        getMenuInflater().inflate(R.menu.menu_return_home, menu);
 
-        // todo change this to home activity
-        MenuItem mActivateSun = menu.findItem(R.id.action_activate_sdm);
-        mActivateSun.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
+        MenuItem mGoToHome = menu.findItem(R.id.action_return_main);
+        mGoToHome.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override
             public boolean onMenuItemClick(MenuItem item) {
                 Intent intent = new Intent(ActivateSdmActivity.this, MainActivity.class);
                 startActivity(intent);
-                return false;
-            }
-        });
-
-        MenuItem mApplications = menu.findItem(R.id.action_applications);
-        mApplications.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
-            @Override
-            public boolean onMenuItemClick(MenuItem item) {
-                //allLayoutsInvisible();
-                //llApplicationHandling.setVisibility(View.VISIBLE);
-                return false;
-            }
-        });
-
-        MenuItem mStandardFile = menu.findItem(R.id.action_standard_file);
-        mStandardFile.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
-            @Override
-            public boolean onMenuItemClick(MenuItem item) {
-                //allLayoutsInvisible();
-                //llStandardFile.setVisibility(View.VISIBLE);
-                return false;
-            }
-        });
-
-        MenuItem mExportTextFile = menu.findItem(R.id.action_export_text_file);
-        mExportTextFile.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
-            @Override
-            public boolean onMenuItemClick(MenuItem item) {
-                Log.i(TAG, "mExportTextFile");
-                exportTextFile();
+                finish();
                 return false;
             }
         });

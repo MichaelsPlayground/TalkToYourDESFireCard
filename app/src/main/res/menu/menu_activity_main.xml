@@ -6,6 +6,11 @@
     <!-- https://fonts.google.com/icons?selected=Material+Icons -->
 
     <item
+        android:id="@+id/action_prepare_sdm"
+        android:title="prepare SDM/SUN"
+        app:showAsAction="never"/>
+
+    <item
         android:id="@+id/action_activate_sdm"
         android:title="activate SDM/SUN"
         app:showAsAction="never"/>
