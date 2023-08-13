@@ -16,6 +16,11 @@
         app:showAsAction="never"/>
 
     <item
+        android:id="@+id/action_read_ndef_content"
+        android:title="read NDEF content"
+        app:showAsAction="never"/>
+
+    <item
         android:id="@+id/action_format_picc"
         android:title="format PICC"
         app:showAsAction="never"/>

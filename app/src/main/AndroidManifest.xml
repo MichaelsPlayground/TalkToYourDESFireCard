@@ -16,6 +16,9 @@
         android:theme="@style/Theme.TalkToYourDESFireCard"
         tools:targetApi="31">
         <activity
+            android:name=".ReadNdefContentActivity"
+            android:exported="false" />
+        <activity
             android:name=".FormatPiccActivity"
             android:exported="false" />
         <activity

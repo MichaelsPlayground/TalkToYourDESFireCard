@@ -1,6 +1,7 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
 import static de.androidcrypto.talktoyourdesfirecard.MainActivity.APPLICATION_KEY_MASTER_AES_DEFAULT;
+import static de.androidcrypto.talktoyourdesfirecard.MainActivity.APPLICATION_KEY_MASTER_AES;
 import static de.androidcrypto.talktoyourdesfirecard.MainActivity.APPLICATION_KEY_MASTER_NUMBER;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
 
@@ -46,9 +47,9 @@ import com.google.android.material.textfield.TextInputLayout;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 
-public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter.ReaderCallback {
+public class ReadNdefContentActivity extends AppCompatActivity implements NfcAdapter.ReaderCallback {
 
-    private static final String TAG = ActivateSdmActivity.class.getName();
+    private static final String TAG = ReadNdefContentActivity.class.getName();
 
     /**
      * UI elements
@@ -58,7 +59,7 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
     private com.google.android.material.textfield.TextInputEditText etSdmReadCounterLimit, etSdmAccessRights, etBaseUrl, etTemplateUrl;
     private com.google.android.material.textfield.TextInputLayout outputLayout, etSdmReadCounterLimitLayout, etSdmAccessRightsLayout;
     private RadioGroup rgStatus;
-    private RadioButton rbActivateSdmGetStatus, rbActivateSdmOn, rbActivateSdmOff;
+    private RadioButton rbReadNdefContentNoAuth, rbReadNdefContentAuthKey0, rbReadNdefContentAuthKey0Changed;
     private CheckBox cbSdmEnabled, cbAsciiEncoding, cbUidMirror, cbReadCounterMirror, cbUidReadCounterEncrypted, cbReadCounterLimit, cbEncryptedFileDataMirror;
 
     /**
@@ -89,35 +90,35 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_activate_sdm);
+        setContentView(R.layout.activity_read_ndef_content);
 
         Toolbar myToolbar = (Toolbar) findViewById(R.id.main_toolbar);
         setSupportActionBar(myToolbar);
 
-        output = findViewById(R.id.etActivateSdmOutput);
-        outputLayout = findViewById(R.id.etActivateSdmOutputLayout);
+        output = findViewById(R.id.etReadNdefContentOutput);
+        outputLayout = findViewById(R.id.etReadNdefContentOutputLayout);
 
         llUrl = findViewById(R.id.llUrlSettings);
-        rgStatus = findViewById(R.id.rgActivateSdmStatus);
-        rbActivateSdmGetStatus = findViewById(R.id.rbActivateSdmShowStatus);
-        rbActivateSdmOn = findViewById(R.id.rbActivateSdmOn);
-        rbActivateSdmOff = findViewById(R.id.rbActivateSdmOff);
+        rgStatus = findViewById(R.id.rgReadNdefContentStatus);
+        rbReadNdefContentNoAuth = findViewById(R.id.rbReadNdefContentNoAuth);
+        rbReadNdefContentAuthKey0 = findViewById(R.id.rbReadNdefContentAuthKey0);
+        rbReadNdefContentAuthKey0Changed = findViewById(R.id.rbReadNdefContentAuthKey0Changed);
 
-        etCommunicationSettings = findViewById(R.id.etActivateSdmCommunicationSettings);
-        etAccessRights = findViewById(R.id.etActivateSdmAccessRights);
-        cbSdmEnabled = findViewById(R.id.cbActivateSdmAccessSdmEnabled);
-        cbAsciiEncoding = findViewById(R.id.cbActivateSdmAsciiEncoding);
-        cbUidMirror = findViewById(R.id.cbActivateSdmUidMirror);
-        cbReadCounterMirror = findViewById(R.id.cbActivateSdmReadCounterMirror);
-        cbUidReadCounterEncrypted = findViewById(R.id.cbActivateSdmUidReadCounterEncrypted);
-        cbReadCounterLimit = findViewById(R.id.cbActivateSdmReadCounterLimit);
-        cbEncryptedFileDataMirror = findViewById(R.id.cbActivateSdmEncryptedFileDataMirror);
-        etSdmReadCounterLimit = findViewById(R.id.etActivateSdmReadCounterLimit);
-        etSdmReadCounterLimitLayout = findViewById(R.id.etActivateSdmAccessReadCounterLimitLayout);
-        etSdmAccessRights = findViewById(R.id.etActivateSdmSdmAccessRights);
-        etSdmAccessRightsLayout = findViewById(R.id.etActivateSdmAccessSdmAccessRightsLayout);
-        etBaseUrl = findViewById(R.id.etActivateSdmBaseUrl);
-        etTemplateUrl = findViewById(R.id.etActivateSdmTemplateUrl);
+        etCommunicationSettings = findViewById(R.id.etReadNdefContentCommunicationSettings);
+        etAccessRights = findViewById(R.id.etReadNdefContentAccessRights);
+        cbSdmEnabled = findViewById(R.id.cbReadNdefContentAccessSdmEnabled);
+        cbAsciiEncoding = findViewById(R.id.cbReadNdefContentAsciiEncoding);
+        cbUidMirror = findViewById(R.id.cbReadNdefContentUidMirror);
+        cbReadCounterMirror = findViewById(R.id.cbReadNdefContentReadCounterMirror);
+        cbUidReadCounterEncrypted = findViewById(R.id.cbReadNdefContentUidReadCounterEncrypted);
+        cbReadCounterLimit = findViewById(R.id.cbReadNdefContentReadCounterLimit);
+        cbEncryptedFileDataMirror = findViewById(R.id.cbReadNdefContentEncryptedFileDataMirror);
+        etSdmReadCounterLimit = findViewById(R.id.etReadNdefContentReadCounterLimit);
+        etSdmReadCounterLimitLayout = findViewById(R.id.etReadNdefContentAccessReadCounterLimitLayout);
+        etSdmAccessRights = findViewById(R.id.etReadNdefContentSdmAccessRights);
+        etSdmAccessRightsLayout = findViewById(R.id.etReadNdefContentAccessSdmAccessRightsLayout);
+        etBaseUrl = findViewById(R.id.etReadNdefContentBaseUrl);
+        etTemplateUrl = findViewById(R.id.etReadNdefContentTemplateUrl);
 
         // hide soft keyboard from showing up on startup
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
@@ -126,8 +127,11 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
 
         etBaseUrl.setText(NdefForSdm.SAMPLE_BASE_URL);
 
+
+
         showSdmParameter(false);
         clickableSdmParameter(false);
+
 
         // get status on what to do
         int checkedRadioButtonId = rgStatus.getCheckedRadioButtonId();
@@ -213,6 +217,63 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
         });
 
     }
+
+    private void readNdefContent() {
+        writeToUiAppend("read NDEF content from fileId 0x02");
+        writeToUiAppend("step 1: select application with ID 0x010000");
+        boolean success = desfireAuthenticateEv2.selectApplicationByAidEv2(NDEF_APPLICATION_ID);
+        byte[] responseData;
+        responseData = desfireAuthenticateEv2.getErrorCode();
+        if (success) {
+            writeToUiAppendBorderColor("selection of the application SUCCESS", COLOR_GREEN);
+            //vibrateShort();
+        } else {
+            writeToUiAppendBorderColor("selection of the application FAILURE with error code: " + EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
+            return;
+        }
+
+        byte[] result = desfireAuthenticateEv2.getAllFileIdsEv2();
+        FileSettings[] fsResult = desfireAuthenticateEv2.getAllFileSettingsEv2();
+
+        if (rbReadNdefContentNoAuth.isChecked()) {
+            writeToUiAppend("step 2: NO authentication with Application Key 0x00");
+        }
+        if (rbReadNdefContentAuthKey0.isChecked()) {
+            writeToUiAppend("step 2: authentication with DEFAULT Application Key 0x00");
+            success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+            responseData = desfireAuthenticateEv2.getErrorCode();
+            if (success) {
+                writeToUiAppendBorderColor("authenticate with DEFAULT Application Master Key SUCCESS", COLOR_GREEN);
+                //vibrateShort();
+            } else {
+                writeToUiAppendBorderColor("authenticate with DEFAULT Application Master Key FAILURE with error code: " + EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
+                return;
+            }
+        }
+        if (rbReadNdefContentAuthKey0Changed.isChecked()) {
+            writeToUiAppend("step 2: authentication with CHANGED Application Key 0x00");
+            success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES);
+            responseData = desfireAuthenticateEv2.getErrorCode();
+            if (success) {
+                writeToUiAppendBorderColor("authenticate with CHANGED Application Master Key SUCCESS", COLOR_GREEN);
+                //vibrateShort();
+            } else {
+                writeToUiAppendBorderColor("authenticate with CHANGED Application Master Key FAILURE with error code: " + EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
+                return;
+            }
+        }
+
+        writeToUiAppend("step 3: read the content from fileId 0x02");
+        // read the complete content and present in hex encoding
+        // second treat content a NDEF message/record and show String encoded content
+
+
+        byte[] content = desfireAuthenticateEv2.readDataFileEv2(NDEF_FILE_ID);
+        writeToUiAppend(printData("content", content));
+
+    }
+
+
 
     /**
      * get file settings from tag
@@ -611,15 +672,19 @@ sample data with disabled SDM
                 Log.d(TAG, "tag id: " + Utils.bytesToHex(tagIdByte));
                 writeToUiAppendBorderColor("The app and DESFire EV3 tag are ready to use", COLOR_GREEN);
 
-                if (rbActivateSdmGetStatus.isChecked()) {
+                readNdefContent();
+                /*
+                if (rbReadNdefContentGetStatus.isChecked()) {
                     getFileSettings();
                 }
-                if (rbActivateSdmOn.isChecked()) {
+                if (rbReadNdefContentOn.isChecked()) {
                     enableSdm();
                 }
-                if (rbActivateSdmOff.isChecked()) {
+                if (rbReadNdefContentOff.isChecked()) {
                     disableSdm();
                 }
+
+                 */
             }
         } catch (IOException e) {
             writeToUiAppendBorderColor("IOException: " + e.getMessage(), COLOR_RED);
@@ -874,7 +939,7 @@ sample data with disabled SDM
         mGoToHome.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override
             public boolean onMenuItemClick(MenuItem item) {
-                Intent intent = new Intent(ActivateSdmActivity.this, MainActivity.class);
+                Intent intent = new Intent(ReadNdefContentActivity.this, MainActivity.class);
                 startActivity(intent);
                 finish();
                 return false;

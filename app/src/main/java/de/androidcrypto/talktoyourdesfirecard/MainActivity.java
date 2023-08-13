@@ -217,9 +217,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private final byte[] APPLICATION_KEY_MASTER_DES_DEFAULT = Utils.hexStringToByteArray("0000000000000000"); // default DES key with 8 nulls
     private final byte[] APPLICATION_KEY_MASTER_DES = Utils.hexStringToByteArray("D000000000000000");
-    private final byte[] APPLICATION_KEY_MASTER_AES_DEFAULT = Utils.hexStringToByteArray("00000000000000000000000000000000"); // default AES key with 16 nulls
-    private final byte[] APPLICATION_KEY_MASTER_AES = Utils.hexStringToByteArray("A08899AABBCCDD223344556677889911");
-    private final byte APPLICATION_KEY_MASTER_NUMBER = (byte) 0x00;
+    public static final byte[] APPLICATION_KEY_MASTER_AES_DEFAULT = Utils.hexStringToByteArray("00000000000000000000000000000000"); // default AES key with 16 nulls
+    public static byte[] APPLICATION_KEY_MASTER_AES = Utils.hexStringToByteArray("A08899AABBCCDD223344556677889911");
+    public static final byte APPLICATION_KEY_MASTER_NUMBER = (byte) 0x00;
 
     private final byte[] APPLICATION_KEY_RW_DES_DEFAULT = Utils.hexStringToByteArray("0000000000000000"); // default DES key with 8 nulls
     private final byte[] APPLICATION_KEY_RW_DES = Utils.hexStringToByteArray("D10023456789ABCD");
@@ -6336,6 +6336,16 @@ posMacInpOffset:  75
             @Override
             public boolean onMenuItemClick(MenuItem item) {
                 Intent intent = new Intent(MainActivity.this, ActivateSdmActivity.class);
+                startActivity(intent);
+                return false;
+            }
+        });
+
+        MenuItem mReadNdefContent = menu.findItem(R.id.action_read_ndef_content);
+        mReadNdefContent.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                Intent intent = new Intent(MainActivity.this, ReadNdefContentActivity.class);
                 startActivity(intent);
                 return false;
             }

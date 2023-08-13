@@ -3731,7 +3731,7 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         // we are expecting that the status code is 0xAF means more data need to get exchanged
         if (!checkResponseMoreData(responseBytes)) {
             log(methodName, "expected to get get 0xAF as error code but  found: " + printData("errorCode", responseBytes) + ", aborted", false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(responseBytes, 0, errorCode, 0, 2);
             return false;
         }
         // now we know that we can work with the response, 16 bytes long
@@ -3789,7 +3789,7 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         // we are expecting that the status code is 0x00 means the exchange was OK
         if (!checkResponse(responseBytes)) {
             log(methodName, "expected to get get 0x00 as error code but  found: " + printData("errorCode", responseBytes) + ", aborted", false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(responseBytes, 0, errorCode, 0, 2);
             return false;
         }
         // now we know that we can work with the response, response is 32 bytes long
@@ -3938,7 +3938,7 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         // we are expecting that the status code is 0xAF means more data need to get exchanged
         if (!checkResponseMoreData(responseBytes)) {
             log(methodName, "expected to get get 0xAF as error code but  found: " + printData("errorCode", responseBytes) + ", aborted", false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(responseBytes, 0, errorCode, 0, 2);
             return false;
         }
         // now we know that we can work with the response, 16 bytes long
@@ -3996,7 +3996,7 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         // we are expecting that the status code is 0x00 means the exchange was OK
         if (!checkResponse(responseBytes)) {
             log(methodName, "expected to get get 0x00 as error code but  found: " + printData("errorCode", responseBytes) + ", aborted", false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            System.arraycopy(responseBytes, 0, errorCode, 0, 2);
             return false;
         }
         // now we know that we can work with the response, response is 32 bytes long
@@ -4351,7 +4351,6 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         // we are expecting that the status code is 0xAF means more data need to get exchanged
         if (!checkResponseMoreData(responseBytes)) {
             log(methodName, "expected to get get 0xAF as error code but  found: " + printData("errorCode", responseBytes) + ", aborted", false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return false;
         }
         // now we know that we can work with the response, 16 bytes long

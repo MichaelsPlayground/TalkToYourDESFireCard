@@ -244,3 +244,11 @@ Length of placeholder              |      32 chars = 16 bytes     |      | 16 ch
 ```
 
 
+Java AES-128 CMAC calculation: https://replit.com/@javacrypto/JavaAes128Cmac#Main.java
+detailed Java AES-128 CMAC calculation: https://replit.com/@javacrypto/JavaAes128CmacDetail#Main.java
+
+PHP AES-128 CMAC calculation: https://replit.com/@javacrypto/PhpAes128CmacDetailed#main.php
+
+PHP Decrypt SUN message: https://replit.com/@javacrypto/PhpDecryptSunMessage#main.php
+
+

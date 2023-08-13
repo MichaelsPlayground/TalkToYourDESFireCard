@@ -21,6 +21,11 @@
     <string name="description_activate_sdm">Activates the mirroring of data (UID, read counter, secret file data and MAC) in a NDEF message on tapping.\n\nThis is working on Mifare DESFire EV3 tags only.</string>
     <string name="description_activate_sdm_rg">choose your action on SUN/SDM feature</string>
 
+    <!-- strings for read ndef content -->
+    <string name="header_read_ndef_content">Read the NDEF content</string>
+    <string name="description_read_ndef_content">Reads the content of the NDEF Data File (2) and displays the content in hex and string encoding</string>
+    <string name="description_read_ndef_content_rg">select authenticate mode</string>
+
     <!-- strings for format picc -->
     <string name="header_format_picc">Format the PICC</string>
     <string name="description_format_picc">Formatting the PICC will delete all applications and files on the PICC and releases all storage space back to factory settings.\n
@@ -30,5 +35,6 @@
     <string name="more_information_format_picc">Formatting the PICC will release all storage space back to factory settings.\n
     The settings of the Master Application are not reset so if you changed the default Master Application Key and/or key settings these changes will remain.\n\n
     The app will authenticate with the DEFAULT Master Application Key first to run the format PICC command.</string>
+
 
 </resources>
