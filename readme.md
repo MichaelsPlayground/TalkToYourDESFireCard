@@ -216,3 +216,31 @@ File data (UTF-8): 0102030405060708
 
 
 Test in PHP:  https://replit.com/@javacrypto/PhpDecryptSunMessage#index.php
+
+## What are the 'Offsets' in the documents ?
+
+We are going to work with the most used template URL to show how the Offset concept is working.
+
+This is the template URL I'm using:
+
+https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac=0000000000000000
+
+but it is not stored in this form because it is within a NDEF Record with type URL, so there are 
+some header bytes for the NDEF encapsulating. The URL is written to the tag this  way:
+
+sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac=0000000000000000
+
+This important because I'm trying to find the  offset positions by searching within a string.
+
+```plaintext
+
+         10        20        30        40        50        60        70        80        90        100
+1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
+sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac=0000000000000000
+                                   | EncPiccDataOffset                   | CMACOffset
+Length of placeholder              |      32 chars = 16 bytes     |      | 16 ch./8 byt.|  
+
+
+```
+
+
