@@ -6664,7 +6664,7 @@ fileSize: 128
         // status:
 
         String logData = "";
-        final String methodName = "writeToNdefFile2Iso ";
+        final String methodName = "writeToNdefFile2Iso";
         log(methodName, "started", true);
         log(methodName, "templateUrl: " + templateUrl);
 

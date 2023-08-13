@@ -436,7 +436,7 @@ sample data with disabled SDM
         if (cbUidReadCounterEncrypted.isChecked()) {
             keySdmMetaRead = 3;
         }
-        String templateUrl = ndefForSdm.complexUrlBuilder(NDEF_FILE_ID, NdefForSdm.CommunicationSettings.Plain,
+        String templateUrl = ndefForSdm.complexUrlBuilder(DesfireEv3Light.NDEF_FILE_02_NUMBER, NdefForSdm.CommunicationSettings.Plain,
                 0, 0, 14, 0, true, cbUidMirror.isChecked(), cbReadCounterMirror.isChecked(),
                 cbReadCounterLimit.isChecked(), readCounterLimit, cbEncryptedFileDataMirror.isChecked(), 32,
                 true, 3, keySdmMetaRead, 3);
@@ -452,7 +452,7 @@ sample data with disabled SDM
             return;
         }
         // enabling the feature
-        success = desfireAuthenticateEv2.changeFileSettingsNtag424Dna(NDEF_FILE_ID, commandData);
+        success = desfireEv3.changeFileSettingsNtag424Dna(DesfireEv3Light.NDEF_FILE_02_NUMBER, commandData);
         if (success) {
             writeToUiAppendBorderColor("enabling the SDM feature on fileId 0x02 SUCCESS", COLOR_GREEN);
             //vibrateShort();
@@ -462,7 +462,8 @@ sample data with disabled SDM
         }
 
         writeToUiAppend("step 4: write the template URL to fileId 0x02");
-        success = desfireAuthenticateEv2.writeToNdefFile2(templateUrl);
+        //success = desfireEv3.writeToNdefFile2(templateUrl);
+        success = desfireEv3.writeToStandardFileUrlPlain(DesfireEv3Light.NDEF_FILE_02_NUMBER, templateUrl);
         if (success) {
             writeToUiAppendBorderColor("write the template URL to fileId 0x02 SUCCESS", COLOR_GREEN);
             runOnUiThread(() -> {
@@ -597,7 +598,7 @@ sample data with disabled SDM
                     isoDep.close();
                     return;
                 }
-
+                desfireEv3 = new DesfireEv3Light(isoDep);
                 isDesfireEv3 = desfireEv3.checkForDESFireEv3();
                 if (!isDesfireEv3) {
                     writeToUiAppendBorderColor("The tag is not a DESFire EV3 tag, stopping any further activities", COLOR_RED);
