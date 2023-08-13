@@ -6341,6 +6341,16 @@ posMacInpOffset:  75
             }
         });
 
+        MenuItem mFormatPicc = menu.findItem(R.id.action_format_picc);
+        mFormatPicc.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                Intent intent = new Intent(MainActivity.this, FormatPiccActivity.class);
+                startActivity(intent);
+                return false;
+            }
+        });
+
         MenuItem mApplications = menu.findItem(R.id.action_applications);
         mApplications.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override

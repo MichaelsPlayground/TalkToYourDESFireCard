@@ -1,14 +1,11 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
 
-import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
-
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.TagLostException;
 import android.nfc.tech.IsoDep;
 import android.util.Log;
-import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
@@ -23,6 +20,7 @@ import java.util.Arrays;
  * based on Secure Dynamic Messaging (SDM) that is available on DESFire EV3 tags.
  *
  */
+
 public class DesfireEv3Light {
 
 
@@ -46,16 +44,17 @@ public class DesfireEv3Light {
      */
 
     public static final byte[] NDEF_APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("010000"); // this is the AID for NDEF application
+    public static final byte[] NDEF_ISO_APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("10E1"); // this is the ISO AID for NDEF application
     public static final byte[] NDEF_APPLICATION_DF_NAME = Utils.hexStringToByteArray("D2760000850101"); // this is the Data File name for NDEF application
     public static final byte NDEF_FILE_01_NUMBER = (byte) 0x01;
     public static final byte[] NDEF_FILE_01_ISO_NAME = Utils.hexStringToByteArray("03E1");
     //public static final byte[] NDEF_FILE_01_ACCESS_RIGHTS = Utils.hexStringToByteArray("EEEE"); // free access to all rights
     public static final byte[] NDEF_FILE_01_ACCESS_RIGHTS = Utils.hexStringToByteArray("E0EE"); // free access to all rights except CAR (key 0)
-    public static final int NDEF_FILE_01_SIZE = 32;
+    public static final int NDEF_FILE_01_SIZE = 15;
     private byte[] NDEF_FILE_01_CONTENT_CONTAINER = Utils.hexStringToByteArray("000F20003A00340406E10401000000"); // 256 byte
     public static final byte NDEF_FILE_02_NUMBER = (byte) 0x02;
     public static final byte[] NDEF_FILE_02_ISO_NAME = Utils.hexStringToByteArray("04E1");
-    public static final byte[] NDEF_FILE_02_ACCESS_RIGHTS = Utils.hexStringToByteArray("00E0"); // free access for reading, an authentication is needed for all other accesses
+    public static final byte[] NDEF_FILE_02_ACCESS_RIGHTS = Utils.hexStringToByteArray("00EE"); // free access for reading and writing, an authentication is needed for all other accesses
     public static final int NDEF_FILE_02_SIZE = 256;
 
     public static final int MAXIMUM_FILE_SIZE = 256; // this is fixed by me, could as long as about free memory of the tag
@@ -79,8 +78,9 @@ public class DesfireEv3Light {
 
     private final byte APPLICATION_MASTER_KEY_SETTINGS = (byte) 0x0F; // 'amks' all default values
     private final byte APPLICATION_CRYPTO_DES = 0x00; // add this to number of keys for DES
-    private final byte APPLICATION_CRYPTO_3KTDES = (byte) 0x40; // add this to number of keys for 3KTDES
-    private final byte APPLICATION_CRYPTO_AES = (byte) 0x80; // add this to number of keys for AES
+    //private final byte APPLICATION_CRYPTO_3KTDES = (byte) 0x40; // add this to number of keys for 3KTDES
+    //private final byte APPLICATION_CRYPTO_AES = (byte) 0x80; // add this to number of keys for AES
+    private final byte APPLICATION_CRYPTO_AES = (byte) 0xA0; // add this to number of keys for AES
     private final byte FILE_COMMUNICATION_SETTINGS_PLAIN = (byte) 0x00; // plain communication
     private final byte FILE_COMMUNICATION_SETTINGS_MACED = (byte) 0x01; // mac'ed communication
     private final byte FILE_COMMUNICATION_SETTINGS_FULL = (byte) 0x03; // full = enciphered communication
@@ -119,16 +119,23 @@ public class DesfireEv3Light {
      * Note: check errorCode and errorCodeReason in case of failure
      */
 
-    public boolean createApplicationAesIso(byte[] applicationIdentifier, byte[] applicationDfName, CommunicationSettings communicationSettings, int numberOfApplicationKeys) {
+    public boolean createApplicationAesIso(byte[] applicationIdentifier, byte[] isoApplicationIdentifier, byte[] applicationDfName, CommunicationSettings communicationSettings, int numberOfApplicationKeys) {
         String logData = "";
         final String methodName = "createApplicationAesIso";
         log(methodName, "started", true);
         log(methodName, printData("applicationIdentifier", applicationIdentifier));
+        log(methodName, printData("isoApplicationIdentifier", isoApplicationIdentifier));
         log(methodName, printData("applicationDfName", applicationDfName));
         //log(methodName, "communicationSettings: " + communicationSettings.toString());
         log(methodName, "numberOfApplicationKeys: " + numberOfApplicationKeys);
         // sanity checks
         if (!checkApplicationIdentifier(applicationIdentifier)) return false; // logFile and errorCode are updated
+        if ((isoApplicationIdentifier == null) || (isoApplicationIdentifier.length != 2)) {
+            log(methodName, "isoApplicationIdentifier is NULL or not of length 2, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "isoApplicationIdentifier is NULL or not of length 2";
+            return false;
+        }
         if ((applicationDfName == null) || (applicationDfName.length < 1) || (applicationDfName.length > 16)) {
             log(methodName, "applicationDfName is NULL or not of length range 1..16, aborted");
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
@@ -152,6 +159,7 @@ public class DesfireEv3Light {
         baos.write(applicationIdentifier, 0, applicationIdentifier.length);
         baos.write(APPLICATION_MASTER_KEY_SETTINGS); // application master key settings, fixed value
         baos.write(keyNumbers);
+        baos.write(isoApplicationIdentifier, 0, isoApplicationIdentifier.length);
         baos.write(applicationDfName, 0, applicationDfName.length);
         byte[] commandParameter = baos.toByteArray();
         byte[] apdu;
@@ -176,6 +184,12 @@ public class DesfireEv3Light {
             return false;
         }
     }
+
+/*
+90 CA 00 00 0E 01 00 00 0F 21 10 E1 D2 76 00 00 85 01 01 00h
+90 ca 00 00 0c 01 00 00 0f a5       d276000085010100
+
+ */
 
     /**
      * select an application by it's application identifier (AID)
@@ -306,7 +320,7 @@ public class DesfireEv3Light {
 
     public boolean writeToStandardFileNdefContainerPlain(byte fileNumber) {
         String logData = "";
-        final String methodName = "writeToStandardFileRawPlain";
+        final String methodName = "writeToStandardFileNdefContainerPlain";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
 
@@ -325,7 +339,7 @@ public class DesfireEv3Light {
      * THe URL should point to a webserver that can handle SUN/SDM messages
      * @param fileNumber    | in range 0..31
      * @param urlToWrite
-     * @return
+     * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
      */
 
@@ -337,8 +351,9 @@ public class DesfireEv3Light {
         log(methodName, "urlToWrite: " + urlToWrite);
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if (!Utils.isValidUrl(urlToWrite)) {
-            Log.d(TAG, "inValid urlToWrite, aborted");
+            log(methodName, "invalid urlToWrite, aborted");
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "invalid urlToWrite";
             return false;
         }
         if (!checkIsoDep()) return false; // logFile and errorCode are updated
@@ -351,9 +366,67 @@ public class DesfireEv3Light {
         byte[] data = new byte[ndefMessageBytesHeadless.length + 2];
         System.arraycopy(new byte[]{(byte) 0x00, (byte) (ndefMessageBytesHeadless.length)}, 0, data, 0, 2);
         System.arraycopy(ndefMessageBytesHeadless, 0, data, 2, ndefMessageBytesHeadless.length);
+        if (data.length > MAXIMUM_FILE_SIZE) {
+            log(methodName, "NDEF message exceeds MAXIMUM_FILE_SIZE, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "NDEF message exceeds MAXIMUM_FILE_SIZE";
+            return false;
+        }
+        return writeToStandardFilePlain(fileNumber, data);
+    }
 
+    /**
+     * The method writes a byte array to a Standard file using CommunicationMode.Plain. If the data
+     * length exceeds the MAXIMUM_MESSAGE_LENGTH the data will be written in chunks.
+     * If the data length exceeds MAXIMUM_FILE_LENGTH the methods returns a FAILURE
+     * @param fileNumber | in range 0..31
+     * @param data
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+    public boolean writeToStandardFilePlain(byte fileNumber, byte[] data) {
+        String logData = "";
+        final String methodName = "writeToStandardFilePlain";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, printData("data", data));
+        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
+        if ((data == null) || (data.length < 1) || (data.length > MAXIMUM_FILE_SIZE)) {
+            log(methodName, "data length exceeds MAXIMUM_FILE_SIZE, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "data length exceeds MAXIMUM_FILE_SIZE";
+            return false;
+        }
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
 
-        return false;
+        // The chunking is done to avoid framing as the maximum command APDU length is limited to 66
+        // bytes including all overhead and attached MAC
+        int dataLength = data.length;
+        int numberOfWrites = dataLength / MAXIMUM_MESSAGE_LENGTH;
+        int numberOfWritesMod = Utils.mod(dataLength, MAXIMUM_MESSAGE_LENGTH);
+        if (numberOfWritesMod > 0) numberOfWrites++; // one extra write for the remainder
+        Log.d(TAG, "data length: " + dataLength + " numberOfWrites: " + numberOfWrites);
+        boolean completeSuccess = true;
+        int offset = 0;
+        int numberOfDataToWrite = MAXIMUM_MESSAGE_LENGTH; // we are starting with a maximum length
+        for (int i = 0; i < numberOfWrites; i++) {
+            if (offset + numberOfDataToWrite > dataLength) {
+                numberOfDataToWrite = dataLength - offset;
+            }
+            byte[] dataToWrite = Arrays.copyOfRange(data, offset, (offset + numberOfDataToWrite));
+            boolean success = writeToStandardFileRawPlain(fileNumber, dataToWrite, offset);
+            offset = offset + numberOfDataToWrite;
+            if (!success) {
+                completeSuccess = false;
+                Log.e(TAG, methodName + " could not successfully write, aborted");
+                log(methodName, "could not successfully write, aborted");
+                System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+                return false;
+            }
+        }
+        System.arraycopy(RESPONSE_OK, 0, errorCode, 0, 2);
+        log(methodName, "SUCCESS");
+        return true;
     }
 
 
@@ -402,7 +475,6 @@ public class DesfireEv3Light {
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return false;
         }
-
         byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset);
         byte[] lengthOfDataBytes = Utils.intTo3ByteArrayInversed(data.length);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -432,7 +504,6 @@ public class DesfireEv3Light {
             return false;
         }
     }
-
 
     /**
      * section for general tasks

@@ -16,6 +16,11 @@
         app:showAsAction="never"/>
 
     <item
+        android:id="@+id/action_format_picc"
+        android:title="format PICC"
+        app:showAsAction="never"/>
+
+    <item
         android:id="@+id/action_applications"
         android:title="Applications"
         app:showAsAction="never"/>

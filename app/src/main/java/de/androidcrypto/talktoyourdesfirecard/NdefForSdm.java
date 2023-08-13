@@ -33,7 +33,7 @@ import java.net.URL;
  */
 public class NdefForSdm {
     private static final String TAG = NdefForSdm.class.getName();
-
+    public static final String SAMPLE_URL = "https://sdm.nfcdeveloper.com/";
     public static final String SAMPLE_BASE_URL2 = "https://sdm.nfcdeveloper.com/tag?picc_data=EF963FF7828658A599F3041510671E88&cmac=94EED9EE65337086";
     public static final String FULL_SAMPLE_BASE_UR1 = "https://sdm.nfcdeveloper.com/tag?picc_data=00000000000000000000000000000000&cmac=0000000000000000";
     public static final String SAMPLE_BASE_URL = "https://sdm.nfcdeveloper.com/tag";

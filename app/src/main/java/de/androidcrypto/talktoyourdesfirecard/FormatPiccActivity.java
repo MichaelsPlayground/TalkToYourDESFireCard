@@ -32,9 +32,9 @@ import com.google.android.material.textfield.TextInputLayout;
 import java.io.IOException;
 import java.util.Arrays;
 
-public class PrepareSdmActivity extends AppCompatActivity implements NfcAdapter.ReaderCallback {
+public class FormatPiccActivity extends AppCompatActivity implements NfcAdapter.ReaderCallback {
 
-    private static final String TAG = PrepareSdmActivity.class.getName();
+    private static final String TAG = FormatPiccActivity.class.getName();
 
     /**
      * UI elements
@@ -59,6 +59,7 @@ public class PrepareSdmActivity extends AppCompatActivity implements NfcAdapter.
     private NfcAdapter mNfcAdapter;
     private IsoDep isoDep;
     private byte[] tagIdByte;
+    private DesfireD40Light desfireD40;
     private DesfireEv3Light desfireEv3;
     private FileSettings fileSettings;
     private boolean isDesfireEv3 = false;
@@ -66,14 +67,14 @@ public class PrepareSdmActivity extends AppCompatActivity implements NfcAdapter.
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_prepare_sdm);
+        setContentView(R.layout.activity_format_picc);
 
         Toolbar myToolbar = (Toolbar) findViewById(R.id.main_toolbar);
         setSupportActionBar(myToolbar);
 
-        output = findViewById(R.id.etPrepareSdmOutput);
-        outputLayout = findViewById(R.id.etPrepareSdmOutputLayout);
-        moreInformation = findViewById(R.id.btnPrepareSdmMoreInformation);
+        output = findViewById(R.id.etFormatPiccOutput);
+        outputLayout = findViewById(R.id.etFormatPiccOutputLayout);
+        moreInformation = findViewById(R.id.btnFormatPiccMoreInformation);
 
         // hide soft keyboard from showing up on startup
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
@@ -84,35 +85,36 @@ public class PrepareSdmActivity extends AppCompatActivity implements NfcAdapter.
             @Override
             public void onClick(View view) {
                 // provide more information about the application and file
-                showDialog(PrepareSdmActivity.this, getResources().getString(R.string.more_information_prepare_sdm));
+                showDialog(FormatPiccActivity.this, getResources().getString(R.string.more_information_format_picc));
             }
         });
     }
 
-    private void runPrepareSdm() {
+    private void runFormatPicc() {
         clearOutputFields();
-        String logString = "runPrepareSdm";
+        String logString = "runFormatPicc";
         writeToUiAppend(output, logString);
         /**
-         * the method will do these 5 steps to prepare the tag for SDM
-         * 1) create a new application ("NDEF application")
-         * 2) select the new application
-         * 3) create a new Standard File 01
-         * 4) write the NDEF Container to the file 01
-         * 5) create a new Standard File 02
-         * 6) write an URL as Link NDEF Record/Message to file 02
+         * the method will do these 3 steps to format the PICC
+         * 1) select the Master Application
+         * 2) authenticate with the DEFAULT DES Master Application Key
+         * 3) format the PICC
+         * Note: all 3 step are encapsulated within the DesfireD40Light class.
          */
 
         boolean success;
         byte[] errorCode;
         String errorCodeReason = "";
         writeToUiAppend(output, "");
-        String stepString = "1 create a new application (\"NDEF application\")";
+        String stepString = "1 select the Master Application";
         writeToUiAppend(output, stepString);
-        success = desfireEv3.createApplicationAesIso(DesfireEv3Light.NDEF_APPLICATION_IDENTIFIER, DesfireEv3Light.NDEF_ISO_APPLICATION_IDENTIFIER,
-                DesfireEv3Light.NDEF_APPLICATION_DF_NAME, DesfireEv3Light.CommunicationSettings.Plain, 5);
-        errorCode = desfireEv3.getErrorCode();
-        errorCodeReason = desfireEv3.getErrorCodeReason();
+        stepString = "2 authenticate with the DEFAULT DES Master Application Key";
+        writeToUiAppend(output, stepString);
+        stepString = "3 format the PICC";
+        writeToUiAppend(output, stepString);
+
+        success = desfireD40.formatPicc();
+        errorCode = desfireD40.getErrorCode();
         if (success) {
             writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
         } else {
@@ -123,89 +125,7 @@ public class PrepareSdmActivity extends AppCompatActivity implements NfcAdapter.
                 return;
             }
         }
-
-        writeToUiAppend(output, "");
-        stepString = "2 select the new application";
-        writeToUiAppend(output, stepString);
-        success = desfireEv3.selectApplicationByAid(DesfireEv3Light.NDEF_APPLICATION_IDENTIFIER);
-        errorCode = desfireEv3.getErrorCode();
-        errorCodeReason = desfireEv3.getErrorCodeReason();
-        if (success) {
-            writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
-        } else {
-            writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
-            return;
-        }
-
-        writeToUiAppend(output, "");
-        stepString = "3 create a new Standard File 01";
-        writeToUiAppend(output, stepString);
-        success = desfireEv3.createStandardFileIso(DesfireEv3Light.NDEF_FILE_01_NUMBER, DesfireEv3Light.NDEF_FILE_01_ISO_NAME,
-                DesfireEv3Light.CommunicationSettings.Plain, DesfireEv3Light.NDEF_FILE_01_ACCESS_RIGHTS, DesfireEv3Light.NDEF_FILE_01_SIZE);
-        errorCode = desfireEv3.getErrorCode();
-        errorCodeReason = desfireEv3.getErrorCodeReason();
-        if (success) {
-            writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
-        } else {
-            if (Arrays.equals(errorCode, DesfireEv3Light.RESPONSE_DUPLICATE_ERROR)) {
-                writeToUiAppendBorderColor(stepString + " FAILURE because file already exits", COLOR_GREEN);
-            } else {
-                writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
-                return;
-            }
-        }
-
-        writeToUiAppend(output, "");
-        stepString = "4 write the NDEF Container to the file 01";
-        writeToUiAppend(output, stepString);
-        success = desfireEv3.writeToStandardFileNdefContainerPlain(DesfireEv3Light.NDEF_FILE_01_NUMBER);
-        if (success) {
-            writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
-        } else {
-            writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
-            return;
-        }
-
-        writeToUiAppend(output, "");
-        stepString = "5 create a new Standard File 02";
-        writeToUiAppend(output, stepString);
-        success = desfireEv3.createStandardFileIso(DesfireEv3Light.NDEF_FILE_02_NUMBER, DesfireEv3Light.NDEF_FILE_02_ISO_NAME,
-                DesfireEv3Light.CommunicationSettings.Plain, DesfireEv3Light.NDEF_FILE_02_ACCESS_RIGHTS, DesfireEv3Light.NDEF_FILE_02_SIZE);
-        errorCode = desfireEv3.getErrorCode();
-        errorCodeReason = desfireEv3.getErrorCodeReason();
-        if (success) {
-            writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
-        } else {
-            if (Arrays.equals(errorCode, DesfireEv3Light.RESPONSE_DUPLICATE_ERROR)) {
-                writeToUiAppendBorderColor(stepString + " FAILURE because file already exits", COLOR_GREEN);
-            } else {
-                writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
-                return;
-            }
-        }
-
-        writeToUiAppend(output, "");
-        stepString = "6 write an URL as Link NDEF Record/Message to file 02";
-        writeToUiAppend(output, stepString);
-        String urlToWrite = NdefForSdm.SAMPLE_URL;
-        writeToUiAppend("Base url: " + urlToWrite);
-        success = desfireEv3.writeToStandardFileUrlPlain(DesfireEv3Light.NDEF_FILE_02_NUMBER, urlToWrite);
-        if (success) {
-            writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
-        } else {
-            writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
-            return;
-        }
-
-
-
-        writeToUiAppend(output, "");
-        stepString = "";
-
-        writeToUiAppend(output, desfireEv3.getLogData());
-
         vibrateShort();
-
     }
 
     /**
@@ -237,7 +157,8 @@ public class PrepareSdmActivity extends AppCompatActivity implements NfcAdapter.
                     isoDep.close();
                     return;
                 }
-                desfireEv3 = new DesfireEv3Light(isoDep); // true means all data is logged
+                desfireEv3 = new DesfireEv3Light(isoDep);
+                desfireD40 = new DesfireD40Light(isoDep);
 
                 isDesfireEv3 = desfireEv3.checkForDESFireEv3();
                 if (!isDesfireEv3) {
@@ -251,7 +172,7 @@ public class PrepareSdmActivity extends AppCompatActivity implements NfcAdapter.
                 Log.d(TAG, "tag id: " + Utils.bytesToHex(tagIdByte));
                 writeToUiAppendBorderColor("The app and DESFire EV3 tag are ready to use", COLOR_GREEN);
 
-                runPrepareSdm();
+                runFormatPicc();
 
             }
         } catch (IOException e) {
@@ -433,7 +354,7 @@ public class PrepareSdmActivity extends AppCompatActivity implements NfcAdapter.
         mGoToHome.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override
             public boolean onMenuItemClick(MenuItem item) {
-                Intent intent = new Intent(PrepareSdmActivity.this, MainActivity.class);
+                Intent intent = new Intent(FormatPiccActivity.this, MainActivity.class);
                 startActivity(intent);
                 finish();
                 return false;
