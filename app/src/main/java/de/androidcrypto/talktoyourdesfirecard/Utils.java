@@ -2,11 +2,13 @@ package de.androidcrypto.talktoyourdesfirecard;
 
 import android.os.Build;
 
+import java.lang.reflect.Array;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -311,6 +313,68 @@ public class Utils {
             System.arraycopy(basis, 0, target, dataLoop, length - dataLoop);
         }
         return target;
+    }
+
+    public static String parseTextrecordPayload(byte[] ndefPayload) {
+        int languageCodeLength = Array.getByte(ndefPayload, 0);
+        int ndefPayloadLength = ndefPayload.length;
+        byte[] languageCode = new byte[languageCodeLength];
+        System.arraycopy(ndefPayload, 1, languageCode, 0, languageCodeLength);
+        byte[] message = new byte[ndefPayloadLength - 1 - languageCodeLength];
+        System.arraycopy(ndefPayload, 1 + languageCodeLength, message, 0, ndefPayloadLength - 1 - languageCodeLength);
+        return new String(message, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * NFC Forum "URI Record Type Definition"<p>
+     * This is a mapping of "URI Identifier Codes" to URI string prefixes,
+     * per section 3.2.2 of the NFC Forum URI Record Type Definition document.
+     */
+    // source: https://github.com/skjolber/ndef-tools-for-android
+    public static final String[] URI_PREFIX_MAP = new String[] {
+            "", // 0x00
+            "http://www.", // 0x01
+            "https://www.", // 0x02
+            "http://", // 0x03
+            "https://", // 0x04
+            "tel:", // 0x05
+            "mailto:", // 0x06
+            "ftp://anonymous:anonymous@", // 0x07
+            "ftp://ftp.", // 0x08
+            "ftps://", // 0x09
+            "sftp://", // 0x0A
+            "smb://", // 0x0B
+            "nfs://", // 0x0C
+            "ftp://", // 0x0D
+            "dav://", // 0x0E
+            "news:", // 0x0F
+            "telnet://", // 0x10
+            "imap:", // 0x11
+            "rtsp://", // 0x12
+            "urn:", // 0x13
+            "pop:", // 0x14
+            "sip:", // 0x15
+            "sips:", // 0x16
+            "tftp:", // 0x17
+            "btspp://", // 0x18
+            "btl2cap://", // 0x19
+            "btgoep://", // 0x1A
+            "tcpobex://", // 0x1B
+            "irdaobex://", // 0x1C
+            "file://", // 0x1D
+            "urn:epc:id:", // 0x1E
+            "urn:epc:tag:", // 0x1F
+            "urn:epc:pat:", // 0x20
+            "urn:epc:raw:", // 0x21
+            "urn:epc:", // 0x22
+    };
+
+    public static String parseUrirecordPayload(byte[] ndefPayload) {
+        int uriPrefix = Array.getByte(ndefPayload, 0);
+        int ndefPayloadLength = ndefPayload.length;
+        byte[] message = new byte[ndefPayloadLength - 1];
+        System.arraycopy(ndefPayload, 1, message, 0, ndefPayloadLength - 1);
+        return URI_PREFIX_MAP[uriPrefix] + new String(message, StandardCharsets.UTF_8);
     }
 
 

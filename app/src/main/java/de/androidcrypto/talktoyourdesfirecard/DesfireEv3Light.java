@@ -1,11 +1,14 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
 
+import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
+
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.TagLostException;
 import android.nfc.tech.IsoDep;
 import android.util.Log;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
@@ -25,6 +28,7 @@ public class DesfireEv3Light {
 
 
     private static final String TAG = DesfireEv3Light.class.getName();
+
 
     private IsoDep isoDep;
     private String logData;
@@ -70,6 +74,7 @@ public class DesfireEv3Light {
     private final byte SELECT_APPLICATION_COMMAND = (byte) 0x5A;
     private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
     private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
+    private final byte READ_STANDARD_FILE_COMMAND = (byte) 0xBD;
 
     /**
      * class internal constants and limitations
@@ -458,12 +463,7 @@ public class DesfireEv3Light {
         log(methodName, "fileNumber: " + fileNumber + Utils.printData(" data", data) + " offset: " + offset);
 
         // sanity checks
-        if ((fileNumber < 0) || (fileNumber > 31)) {
-            Log.e(TAG, methodName + " fileNumber is not in range 00..31, aborted");
-            log(methodName, "fileNumber is not in range 00..31, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
-            return false;
-        }
+        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if ((data == null) || (data.length > 40)) {
             Log.e(TAG, methodName + " data is NULL or length is > 40, aborted");
             log(methodName, "data is NULL or length is > 40, aborted");
@@ -476,12 +476,7 @@ public class DesfireEv3Light {
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
             return false;
         }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            log(methodName, "isoDep is NULL or not connected, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return false;
-        }
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
         byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset);
         byte[] lengthOfDataBytes = Utils.intTo3ByteArrayInversed(data.length);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -490,11 +485,11 @@ public class DesfireEv3Light {
         baos.write(lengthOfDataBytes, 0, lengthOfDataBytes.length);
         baos.write(data, 0, data.length);
         byte[] commandParameter = baos.toByteArray();
-        byte[] wrappedCommand;
+        byte[] apdu;
         byte[] response;
         try {
-            wrappedCommand = wrapMessage(WRITE_STANDARD_FILE_COMMAND, commandParameter);
-            response = sendData(wrappedCommand);
+            apdu = wrapMessage(WRITE_STANDARD_FILE_COMMAND, commandParameter);
+            response = sendData(apdu);
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage());
@@ -511,6 +506,51 @@ public class DesfireEv3Light {
             return false;
         }
     }
+
+    public byte[] readFromStandardFileRawPlain(byte fileNumber, int offset, int length) {
+        String logData = "";
+        final String methodName = "readFromStandardFileRawPlain";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + "size: " + length);
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return null; // logFile and errorCode are updated
+        if (offset < 0) {
+            Log.e(TAG, methodName + " offset is < 0, aborted");
+            log(methodName, "offset is < 0, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            return null;
+        }
+        if ((length <= 0) || (length > MAXIMUM_FILE_SIZE)) {
+            Log.e(TAG, methodName + " length has to be in range 1.." + MAXIMUM_FILE_SIZE + " but found " + length + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        if (!checkIsoDep()) return null; // logFile and errorCode are updated
+        // generate the parameter
+        byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset); // LSB order
+        byte[] lengthBytes = Utils.intTo3ByteArrayInversed(length); // LSB order
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(offsetBytes, 0, offsetBytes.length);
+        baos.write(lengthBytes, 0, lengthBytes.length);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+        try {
+            //pdu = wrapMessage(READ_STANDARD_FILE_COMMAND, commandParameter);
+            response = sendRequest(READ_STANDARD_FILE_COMMAND, commandParameter);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        // as sendRequest strips off the statusByte there is no checkResponse here
+        errorCode = RESPONSE_OK.clone();
+        errorCodeReason = "SUCCESS";
+        return getData(response);
+    }
+
 
     /**
      * section for general tasks
@@ -545,7 +585,7 @@ public class DesfireEv3Light {
         return sendRequest(command, null);
     }
 
-    private byte[] sendRequest(byte command, byte[] parameters) throws Exception {
+    private byte[] sendRequest(byte command, byte[] parameters) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
 
         byte[] recvBuffer = sendData(wrapMessage(command, parameters));
@@ -554,7 +594,7 @@ public class DesfireEv3Light {
         }
         while (true) {
             if (recvBuffer[recvBuffer.length - 2] != (byte) 0x91) {
-                throw new Exception("Invalid response");
+                throw new IOException("Invalid response");
             }
             output.write(recvBuffer, 0, recvBuffer.length - 2);
             byte status = recvBuffer[recvBuffer.length - 1];
@@ -567,7 +607,7 @@ public class DesfireEv3Light {
             } else if (status == (byte) 0xAE) {
                 throw new AccessControlException("Authentication error");
             } else {
-                throw new Exception("Unknown status code: " + Integer.toHexString(status & 0xFF));
+                throw new IOException("Unknown status code: " + Integer.toHexString(status & 0xFF));
             }
         }
         return output.toByteArray();
@@ -615,6 +655,25 @@ public class DesfireEv3Light {
 
     private byte[] returnStatusBytes(byte[] data) {
         return Arrays.copyOfRange(data, (data.length - 2), data.length);
+    }
+
+    /**
+     * Returns a copy of the data bytes in the response body. If this APDU as
+     * no body, this method returns a byte array with a length of zero.
+     *
+     * @return a copy of the data bytes in the response body or the empty
+     * byte array if this APDU has no body.
+     */
+    private byte[] getData(byte[] responseAPDU) {
+        log("getData", printData("responseAPDU", responseAPDU), true);
+        if ((responseAPDU == null) || (responseAPDU.length < 2)) {
+            Log.e(TAG, "responseApdu is NULL or length is < 2, aborted");
+            return null;
+        }
+        byte[] data = new byte[responseAPDU.length - 2];
+        System.arraycopy(responseAPDU, 0, data, 0, data.length);
+        log("getData", printData("responseData", data), false);
+        return data;
     }
 
     /**
