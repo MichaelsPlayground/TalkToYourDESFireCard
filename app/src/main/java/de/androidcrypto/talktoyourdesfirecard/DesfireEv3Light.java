@@ -241,11 +241,12 @@ public class DesfireEv3Light {
      * @param communicationSettings | Plain, MACed or Full
      * @param accessRights          | Read & Write access key, CAR ke, Read key, Write key
      * @param fileSize              | maximum of 256 bytes
+     * @param preEnableSdm          | set to true if you (later) want to enable SDM. If you don't set this on file creation it cannot get enabled later.
      * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
      */
 
-    public boolean createStandardFileIso(byte fileNumber, byte[] isoFileId, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize) {
+    public boolean createStandardFileIso(byte fileNumber, byte[] isoFileId, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize, boolean preEnableSdm) {
         final String methodName = "createStandardFileIso";
         logData = "";
         log(methodName, "started", true);
@@ -254,6 +255,7 @@ public class DesfireEv3Light {
         log(methodName, "communicationSettings: " + communicationSettings.toString());
         log(methodName, printData("accessRights", accessRights));
         log(methodName, "fileSize: " + fileSize);
+        log(methodName, "preEnableSdm: " + preEnableSdm);
         errorCode = new byte[2];
         // sanity checks
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
@@ -276,6 +278,11 @@ public class DesfireEv3Light {
         if (communicationSettings == CommunicationSettings.Plain) commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
         if (communicationSettings == CommunicationSettings.MACed) commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
         if (communicationSettings == CommunicationSettings.Full) commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
+        // add 0x40 for pre-enabled SDM
+        if (preEnableSdm) {
+            commSettings = (byte) (commSettings | (byte) 0x40);
+        }
+
         byte[] fileSizeByte = Utils.intTo3ByteArrayInversed(fileSize);
         // build the command string
         ByteArrayOutputStream baos = new ByteArrayOutputStream();

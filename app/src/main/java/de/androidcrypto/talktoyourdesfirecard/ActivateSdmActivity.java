@@ -368,7 +368,7 @@ sample data with disabled SDM
                 ;
             } else {
                 // unset all checkboxes and edit text
-                cbAsciiEncoding.setChecked(false);
+                //cbAsciiEncoding.setChecked(false);
                 cbUidMirror.setChecked(false);
                 cbReadCounterMirror.setChecked(false);
                 cbReadCounterLimit.setChecked(false);

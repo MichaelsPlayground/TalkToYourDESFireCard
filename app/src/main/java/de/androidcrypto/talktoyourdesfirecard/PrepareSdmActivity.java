@@ -141,7 +141,7 @@ public class PrepareSdmActivity extends AppCompatActivity implements NfcAdapter.
         stepString = "3 create a new Standard File 01";
         writeToUiAppend(output, stepString);
         success = desfireEv3.createStandardFileIso(DesfireEv3Light.NDEF_FILE_01_NUMBER, DesfireEv3Light.NDEF_FILE_01_ISO_NAME,
-                DesfireEv3Light.CommunicationSettings.Plain, DesfireEv3Light.NDEF_FILE_01_ACCESS_RIGHTS, DesfireEv3Light.NDEF_FILE_01_SIZE);
+                DesfireEv3Light.CommunicationSettings.Plain, DesfireEv3Light.NDEF_FILE_01_ACCESS_RIGHTS, DesfireEv3Light.NDEF_FILE_01_SIZE, false);
         errorCode = desfireEv3.getErrorCode();
         errorCodeReason = desfireEv3.getErrorCodeReason();
         if (success) {
@@ -170,7 +170,7 @@ public class PrepareSdmActivity extends AppCompatActivity implements NfcAdapter.
         stepString = "5 create a new Standard File 02";
         writeToUiAppend(output, stepString);
         success = desfireEv3.createStandardFileIso(DesfireEv3Light.NDEF_FILE_02_NUMBER, DesfireEv3Light.NDEF_FILE_02_ISO_NAME,
-                DesfireEv3Light.CommunicationSettings.Plain, DesfireEv3Light.NDEF_FILE_02_ACCESS_RIGHTS, DesfireEv3Light.NDEF_FILE_02_SIZE);
+                DesfireEv3Light.CommunicationSettings.Plain, DesfireEv3Light.NDEF_FILE_02_ACCESS_RIGHTS, DesfireEv3Light.NDEF_FILE_02_SIZE, true);
         errorCode = desfireEv3.getErrorCode();
         errorCodeReason = desfireEv3.getErrorCodeReason();
         if (success) {
