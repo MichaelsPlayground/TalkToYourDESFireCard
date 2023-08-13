@@ -75,7 +75,7 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
     private NfcAdapter mNfcAdapter;
     private IsoDep isoDep;
     private byte[] tagIdByte;
-    private DesfireAuthenticateEv2 desfireAuthenticateEv2;
+    private DesfireEv3Light desfireEv3;
     private FileSettings fileSettings;
     private boolean isEncryptedPiccData = false;
     private boolean isDesfireEv3 = false;
@@ -228,9 +228,9 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
         //
         writeToUiAppend("get FileSettings for fileId 0x02");
         writeToUiAppend("step 1: select application with ID 0x010000");
-        boolean success = desfireAuthenticateEv2.selectApplicationByAidEv2(NDEF_APPLICATION_ID);
+        boolean success = desfireEv3.selectApplicationByAid(NDEF_APPLICATION_ID);
         byte[] responseData;
-        responseData = desfireAuthenticateEv2.getErrorCode();
+        responseData = desfireEv3.getErrorCode();
         if (success) {
             writeToUiAppendBorderColor("selection of the application SUCCESS", COLOR_GREEN);
             //vibrateShort();
@@ -242,8 +242,8 @@ public class ActivateSdmActivity extends AppCompatActivity implements NfcAdapter
 
         //writeToUiAppend("step 3: get the file settings for file ID 0x02");
         writeToUiAppend("step 2: get the file settings for file ID 0x02");
-        byte[] response = desfireAuthenticateEv2.getFileSettingsEv2(NDEF_FILE_ID);
-        responseData = desfireAuthenticateEv2.getErrorCode();
+        byte[] response = desfireEv3.getFileSettings(NDEF_FILE_ID);
+        responseData = desfireEv3.getErrorCode();
         if (response == null) {
             writeToUiAppendBorderColor("get the file settings for file ID 0x02 FAILURE with error code: " + EV3.getErrorCode(responseData) + ", aborted", COLOR_RED);
             return;
@@ -406,9 +406,9 @@ sample data with disabled SDM
     private void enableSdm() {
         writeToUiAppend("disable the SDM feature for fileId 0x02");
         writeToUiAppend("step 1: select application with ID 0x010000");
-        boolean success = desfireAuthenticateEv2.selectApplicationByAidEv2(NDEF_APPLICATION_ID);
+        boolean success = desfireEv3.selectApplicationByAid(NDEF_APPLICATION_ID);
         byte[] responseData;
-        responseData = desfireAuthenticateEv2.getErrorCode();
+        responseData = desfireEv3.getErrorCode();
         if (success) {
             writeToUiAppendBorderColor("selection of the application SUCCESS", COLOR_GREEN);
             //vibrateShort();
@@ -418,8 +418,8 @@ sample data with disabled SDM
         }
 
         writeToUiAppend("step 2: authenticate with default Application Master Key");
-        success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
-        responseData = desfireAuthenticateEv2.getErrorCode();
+        success = desfireEv3.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+        responseData = desfireEv3.getErrorCode();
         if (success) {
             writeToUiAppendBorderColor("authenticate with default Application Master Key SUCCESS", COLOR_GREEN);
             //vibrateShort();
@@ -491,9 +491,9 @@ sample data with disabled SDM
     private void disableSdm() {
         writeToUiAppend("disable the SDM feature for fileId 0x02");
         writeToUiAppend("step 1: select application with ID 0x010000");
-        boolean success = desfireAuthenticateEv2.selectApplicationByAidEv2(NDEF_APPLICATION_ID);
+        boolean success = desfireEv3.selectApplicationByAid(NDEF_APPLICATION_ID);
         byte[] responseData;
-        responseData = desfireAuthenticateEv2.getErrorCode();
+        responseData = desfireEv3.getErrorCode();
         if (success) {
             writeToUiAppendBorderColor("selection of the application SUCCESS", COLOR_GREEN);
             //vibrateShort();
@@ -503,8 +503,8 @@ sample data with disabled SDM
         }
 
         writeToUiAppend("step 2: authenticate with default Application Master Key");
-        success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
-        responseData = desfireAuthenticateEv2.getErrorCode();
+        success = desfireEv3.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+        responseData = desfireEv3.getErrorCode();
         if (success) {
             writeToUiAppendBorderColor("authenticate with default Application Master Key SUCCESS", COLOR_GREEN);
             //vibrateShort();
@@ -514,8 +514,8 @@ sample data with disabled SDM
         }
 
         writeToUiAppend("step 3: disabling the SDM feature on fileId 0x02");
-        success = desfireAuthenticateEv2.changeFileSettingsNtag424Dna(NDEF_FILE_ID, DesfireAuthenticateEv2.CommunicationSettings.Plain, 0, 0, 14, 0, false, 0, 0, 0);
-        responseData = desfireAuthenticateEv2.getErrorCode();
+        success = desfireEv3.changeFileSettingsNtag424Dna(NDEF_FILE_ID, DesfireAuthenticateEv2.CommunicationSettings.Plain, 0, 0, 14, 0, false, 0, 0, 0);
+        responseData = desfireEv3.getErrorCode();
         if (success) {
             writeToUiAppendBorderColor("disabling the SDM feature on fileId 0x02 SUCCESS", COLOR_GREEN);
             vibrateShort();
@@ -597,9 +597,8 @@ sample data with disabled SDM
                     isoDep.close();
                     return;
                 }
-                desfireAuthenticateEv2 = new DesfireAuthenticateEv2(isoDep, true); // true means all data is logged
 
-                isDesfireEv3 = desfireAuthenticateEv2.checkForDESFireEv3();
+                isDesfireEv3 = desfireEv3.checkForDESFireEv3();
                 if (!isDesfireEv3) {
                     writeToUiAppendBorderColor("The tag is not a DESFire EV3 tag, stopping any further activities", COLOR_RED);
                     return;

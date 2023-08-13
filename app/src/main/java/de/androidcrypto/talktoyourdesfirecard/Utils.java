@@ -171,6 +171,10 @@ public class Utils {
         }
     }
 
+    // bytes are signed value, e.g. 0x83 would - without this method - return -125
+    public static int intFromByteUnsigned(byte value) {
+        return Byte.toUnsignedInt(value);
+    }
 
     // converts an int to a 3 byte long array
     public static byte[] intTo3ByteArray(int value) {

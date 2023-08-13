@@ -77,7 +77,6 @@ public class ReadNdefContentActivity extends AppCompatActivity implements NfcAda
     private NfcAdapter mNfcAdapter;
     private IsoDep isoDep;
     private byte[] tagIdByte;
-    private DesfireAuthenticateEv2 desfireAuthenticateEv2;
     private DesfireEv3Light desfireEv3;
     private FileSettings fileSettings;
     private boolean isDesfireEv3 = false;
@@ -107,9 +106,9 @@ public class ReadNdefContentActivity extends AppCompatActivity implements NfcAda
     private void readNdefContent() {
         writeToUiAppend("read NDEF content from fileId 0x02");
         writeToUiAppend("step 1: select application with ID 0x010000");
-        boolean success = desfireAuthenticateEv2.selectApplicationByAidEv2(NDEF_APPLICATION_ID);
+        boolean success = desfireEv3.selectApplicationByAid(NDEF_APPLICATION_ID);
         byte[] responseData;
-        responseData = desfireAuthenticateEv2.getErrorCode();
+        responseData = desfireEv3.getErrorCode();
         if (success) {
             writeToUiAppendBorderColor("selection of the application SUCCESS", COLOR_GREEN);
             //vibrateShort();
@@ -118,8 +117,8 @@ public class ReadNdefContentActivity extends AppCompatActivity implements NfcAda
             return;
         }
 
-        byte[] result = desfireAuthenticateEv2.getAllFileIdsEv2();
-        FileSettings[] fsResult = desfireAuthenticateEv2.getAllFileSettingsEv2();
+        byte[] result = desfireEv3.getAllFileIds();
+        FileSettings[] fsResult = desfireEv3.getAllFileSettings();
         if ((fsResult != null) && (fsResult.length > 2)) {
             //writeToUiAppend(fsResult[2].dump());
             writeToUiAppendBorderColor("get all FileSettings SUCCESS", COLOR_GREEN);
@@ -132,8 +131,8 @@ public class ReadNdefContentActivity extends AppCompatActivity implements NfcAda
         }
         if (rbReadNdefContentAuthKey0.isChecked()) {
             writeToUiAppend("step 2: authentication with DEFAULT Application Key 0x00");
-            success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
-            responseData = desfireAuthenticateEv2.getErrorCode();
+            success = desfireEv3.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+            responseData = desfireEv3.getErrorCode();
             if (success) {
                 writeToUiAppendBorderColor("authenticate with DEFAULT Application Master Key SUCCESS", COLOR_GREEN);
                 //vibrateShort();
@@ -144,8 +143,8 @@ public class ReadNdefContentActivity extends AppCompatActivity implements NfcAda
         }
         if (rbReadNdefContentAuthKey0Changed.isChecked()) {
             writeToUiAppend("step 2: authentication with CHANGED Application Key 0x00");
-            success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES);
-            responseData = desfireAuthenticateEv2.getErrorCode();
+            success = desfireEv3.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES);
+            responseData = desfireEv3.getErrorCode();
             if (success) {
                 writeToUiAppendBorderColor("authenticate with CHANGED Application Master Key SUCCESS", COLOR_GREEN);
                 //vibrateShort();
@@ -176,7 +175,7 @@ public class ReadNdefContentActivity extends AppCompatActivity implements NfcAda
         //content = Arrays.copyOf(content, content.length - 2);
         // con we use only ndefLength bytes
         byte ndefLength = content[1];
-        content = Arrays.copyOf(content, ndefLength);
+        content = Arrays.copyOf(content, Byte.toUnsignedInt(ndefLength));
         String url = Utils.URI_PREFIX_MAP[ndefUrlTape] + new String(Arrays.copyOfRange(content, 7, content.length));
         writeToUiAppend(url);
     }
@@ -197,7 +196,7 @@ public class ReadNdefContentActivity extends AppCompatActivity implements NfcAda
         try {
             isoDep = IsoDep.get(tag);
             if (isoDep != null) {
-                // Make a Vibration
+                // Make a vibration
                 vibrateShort();
 
                 runOnUiThread(() -> {
@@ -210,10 +209,9 @@ public class ReadNdefContentActivity extends AppCompatActivity implements NfcAda
                     isoDep.close();
                     return;
                 }
-                desfireAuthenticateEv2 = new DesfireAuthenticateEv2(isoDep, true); // true means all data is logged
                 desfireEv3 = new DesfireEv3Light(isoDep);
 
-                isDesfireEv3 = desfireAuthenticateEv2.checkForDESFireEv3();
+                isDesfireEv3 = desfireEv3.checkForDESFireEv3();
                 if (!isDesfireEv3) {
                     writeToUiAppendBorderColor("The tag is not a DESFire EV3 tag, stopping any further activities", COLOR_RED);
                     return;
@@ -226,18 +224,6 @@ public class ReadNdefContentActivity extends AppCompatActivity implements NfcAda
                 writeToUiAppendBorderColor("The app and DESFire EV3 tag are ready to use", COLOR_GREEN);
 
                 readNdefContent();
-                /*
-                if (rbReadNdefContentGetStatus.isChecked()) {
-                    getFileSettings();
-                }
-                if (rbReadNdefContentOn.isChecked()) {
-                    enableSdm();
-                }
-                if (rbReadNdefContentOff.isChecked()) {
-                    disableSdm();
-                }
-
-                 */
             }
         } catch (IOException e) {
             writeToUiAppendBorderColor("IOException: " + e.getMessage(), COLOR_RED);
