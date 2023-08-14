@@ -249,8 +249,14 @@ detailed Java AES-128 CMAC calculation: https://replit.com/@javacrypto/JavaAes12
 
 PHP AES-128 CMAC calculation: https://replit.com/@javacrypto/PhpAes128CmacDetailed#main.php
 
-https://replit.com/@javacrypto/PhpAes128CmacDetailed2#main.php
+Running AES-128 CMAC: https://replit.com/@javacrypto/PhpAes128CmacDetailed2#main.php
 
 PHP Decrypt SUN message: https://replit.com/@javacrypto/PhpDecryptSunMessage#main.php
+
+# LRP section
+
+Leakage Resilient Primitive (LRP) Specification: https://www.nxp.com/docs/en/application-note/AN12304.pdf
+
+
 
 

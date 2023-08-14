@@ -103,6 +103,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button fileRecordCreateEv2, fileRecordWriteEv2, fileRecordReadEv2;
     //private Button fileCreateEv2;
 
+    // LRP authentication
+    private Button authD0LEv2, authD1LEv2, authD2LEv2, authD3LCEv2;
+
     private Button fileCreateFileSetPlain, fileCreateFileSetMaced, fileCreateFileSetEnciphered;
 
     private Button changeKeyD3AtoD3AC, changeKeyD3ACtoD3A;
@@ -305,6 +308,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     //DesfireAuthenticateProximity desfireAuthenticateProximity;
     DesfireAuthenticateLegacy desfireAuthenticateLegacy;
     DesfireAuthenticateEv2 desfireAuthenticateEv2;
+    DesfireLrpEv2 desfireLrpEv2;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -361,6 +365,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         authD2ACEv2 = findViewById(R.id.btnAuthD2ACEv2);
         getCardUidEv2 = findViewById(R.id.btnGetCardUidEv2);
         getFileSettingsEv2 = findViewById(R.id.btnGetFileSettingsEv2);
+
+        // LRP authentication
+        authD0LEv2 = findViewById(R.id.btnAuthD0LEv2);
 
         // methods for sdm
         createNdefFile256Ev2 = findViewById(R.id.btnCreateNdef256);
@@ -1156,6 +1163,69 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
                 }
 
+            }
+        });
+
+        /**
+         * section for authentication using authenticationLrpEv2First (LRP)
+         */
+
+        authD0LEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // authenticate with the read access key = 03...
+                clearOutputFields();
+                String logString = "LRP EV2 First authenticate with DEFAULT AES key number 0x00 = application master key";
+                writeToUiAppend(output, logString);
+                if (selectedApplicationId == null) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
+                    return;
+                }
+
+                // run a self test
+                //boolean getSesAuthKeyTestResult = desfireAuthenticateEv2.getSesAuthKeyTest();
+                //writeToUiAppend(output, "getSesAuthKeyTestResult: " + getSesAuthKeyTestResult);
+
+                exportString = "";
+                exportStringFileName = "auth.html";
+
+                boolean success = authLrpEv2(output, APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }  else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                }
+
+                /*
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    SES_AUTH_ENC_KEY = desfireAuthenticateEv2.getSesAuthENCKey();
+                    SES_AUTH_MAC_KEY = desfireAuthenticateEv2.getSesAuthMACKey();
+                    TRANSACTION_IDENTIFIER = desfireAuthenticateEv2.getTransactionIdentifier();
+                    CMD_COUNTER = desfireAuthenticateEv2.getCmdCounter();
+                    writeToUiAppend(output, printData("SES_AUTH_ENC_KEY", SES_AUTH_ENC_KEY));
+                    writeToUiAppend(output, printData("SES_AUTH_MAC_KEY", SES_AUTH_MAC_KEY));
+                    writeToUiAppend(output, printData("TRANSACTION_IDENTIFIER", TRANSACTION_IDENTIFIER));
+                    writeToUiAppend(output, "CMD_COUNTER: " + CMD_COUNTER);
+                    vibrateShort();
+                    // show logData
+
+                    // prepare data for export
+                    exportString = desfireAuthenticateEv2.getLogData();
+                    exportStringFileName = "auth0a_ev2.html";
+                    writeToUiToast("your authentication log file is ready for export");
+
+                    //showDialog(MainActivity.this, desfireAuthenticateProximity.getLogData());
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+                 */
             }
         });
 
@@ -5799,7 +5869,7 @@ posMacInpOffset:  75
      */
 
     private boolean authAesEv2(TextView textView, byte keyNumber, byte[] keyForAuthentication) {
-        final String methodName = "getFileSettings";
+        final String methodName = "authAesEv2";
         Log.d(TAG, methodName);
         // sanity checks
         if ((keyNumber < 0) || keyNumber > 13) {
@@ -5831,6 +5901,42 @@ posMacInpOffset:  75
         }
     }
 
+    /**
+     * section for LRP authentication with EV2
+     */
+
+    private boolean authLrpEv2(TextView textView, byte keyNumber, byte[] keyForAuthentication) {
+        final String methodName = "authLrpEv2";
+        Log.d(TAG, methodName);
+        // sanity checks
+        if ((keyNumber < 0) || keyNumber > 13) {
+            Log.e(TAG, "the keyNumber is not in range 0..13, aborted");
+            return false;
+        }
+        if ((keyForAuthentication == null) || (keyForAuthentication.length != 16)) {
+            Log.e(TAG, "the keyForAuthentication is NULL or not of length 16, aborted");
+            return false;
+        }
+        byte[] responseData = new byte[2];
+        boolean success = desfireLrpEv2.authenticateLrpEv2First(keyNumber, keyForAuthentication);
+        responseData = desfireLrpEv2.getErrorCode();
+        if (success) {
+            Log.d(TAG, methodName + " SUCCESS");
+            SES_AUTH_ENC_KEY = desfireAuthenticateEv2.getSesAuthENCKey();
+            SES_AUTH_MAC_KEY = desfireAuthenticateEv2.getSesAuthMACKey();
+            TRANSACTION_IDENTIFIER = desfireAuthenticateEv2.getTransactionIdentifier();
+            CMD_COUNTER = desfireAuthenticateEv2.getCmdCounter();
+            writeToUiAppend(textView, printData("SES_AUTH_ENC_KEY", SES_AUTH_ENC_KEY));
+            writeToUiAppend(textView, printData("SES_AUTH_MAC_KEY", SES_AUTH_MAC_KEY));
+            writeToUiAppend(textView, printData("TRANSACTION_IDENTIFIER", TRANSACTION_IDENTIFIER));
+            writeToUiAppend(textView, "CMD_COUNTER: " + CMD_COUNTER);
+            vibrateShort();
+            return true;
+        } else {
+            writeToUiAppend(textView, methodName + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData));
+            return false;
+        }
+    }
 
 
     /**
@@ -6063,6 +6169,7 @@ posMacInpOffset:  75
                 //desfireAuthenticateProximity = new DesfireAuthenticateProximity(isoDep, true); // true means all data is logged
                 desfireAuthenticateLegacy = new DesfireAuthenticateLegacy(isoDep, true); // true means all data is logged
                 desfireAuthenticateEv2 = new DesfireAuthenticateEv2(isoDep, true); // true means all data is logged
+                desfireLrpEv2 = new DesfireLrpEv2(isoDep, true);
 
                 // setup the communication adapter
                 //adapter = new CommunicationAdapter(isoDep, true);

@@ -645,55 +645,6 @@
                 </LinearLayout>
 
                 <TextView
-                    android:id="@+id/tv15Ev2"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="10dp"
-                    android:text="LRP (AES) authentication"
-                    android:textAlignment="center"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="horizontal">
-
-                    <Button
-                        android:id="@+id/btnAuthD0LEv2"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginRight="8dp"
-                        android:layout_weight="1"
-                        android:text="L0 auth" />
-
-                    <Button
-                        android:id="@+id/btnAuthD1LEv2"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginLeft="8dp"
-                        android:layout_weight="1"
-                        android:text="L1 auth" />
-
-                    <Button
-                        android:id="@+id/btnAuthD2LEv2"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginLeft="8dp"
-                        android:layout_weight="1"
-                        android:text="L2 auth" />
-
-                    <Button
-                        android:id="@+id/btnAuthD3LCEv2"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginLeft="8dp"
-                        android:layout_weight="1"
-                        android:text="L3C auth" />
-
-                </LinearLayout>
-
-                <TextView
                     android:id="@+id/tv13Ev2"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
