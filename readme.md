@@ -258,5 +258,27 @@ PHP Decrypt SUN message: https://replit.com/@javacrypto/PhpDecryptSunMessage#mai
 Leakage Resilient Primitive (LRP) Specification: https://www.nxp.com/docs/en/application-note/AN12304.pdf
 
 
+Icons: https://www.freeiconspng.com/images/nfc-icon
 
+Nfc Simple PNG Transparent Background: https://www.freeiconspng.com/img/20581
 
+<a href="https://www.freeiconspng.com/img/20581">Nfc Png Simple</a>
+
+Author: Ahkâm, Image License: Personal Use Only
+
+Icon / Vector editor: https://editor.method.ac/
+
+Android Studio Asset Manager: sun_icon1: 54% background color: 85FD9E
+
+new settings:
+```
+Android Studio Asset Manager: sun_icon2: 47% background color: F8F09A
+<color name="colorPrimary">#FBC02D</color>
+<color name="colorStatusBar">#FBC02D</color>
+```
+
+old settings:
+```
+<color name="colorPrimary">#2196F3</color>
+<color name="colorStatusBar">#1E88E5</color>
+```
