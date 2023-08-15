@@ -3664,7 +3664,7 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
      * Messaging (AES)   |          ||           | (16 bytes rndB)    |
      * ------------------|----------||-----------|--------------------|-------------------------
      * EV2 Secure        |   00h    || 02h (LRP) | Permission denied  | no authentication
-     * Messaging (AES)   |          ||           |                    | available possible
+     * Messaging (AES)   |          ||           | 9dh                | available possible
      * ------------------|----------||-----------|--------------------|-------------------------
      * ------------------|----------||-----------|--------------------|-------------------------
      * LRP Secure        |   02h    || 00h (AES) | 1 byte with AFh    | no authentication but

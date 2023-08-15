@@ -217,7 +217,6 @@ public class PrepareSdmActivity extends AppCompatActivity implements NfcAdapter.
     // Use `runOnUiThread` method to change the UI from this method
     @Override
     public void onTagDiscovered(Tag tag) {
-
         clearOutputFields();
         writeToUiAppend("NFC tag discovered");
         isoDep = null;

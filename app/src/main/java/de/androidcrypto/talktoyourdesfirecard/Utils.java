@@ -171,6 +171,13 @@ public class Utils {
         }
     }
 
+    // converts an int to a 2 byte long array inversed = LSB
+    public static byte[] intTo2ByteArrayInversed(int value) {
+        return new byte[]{
+                (byte) value,
+                (byte) (value >> 8)};
+    }
+
     // bytes are signed value, e.g. 0x83 would - without this method - return -125
     public static int intFromByteUnsigned(byte value) {
         return Byte.toUnsignedInt(value);
