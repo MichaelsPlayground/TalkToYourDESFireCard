@@ -141,6 +141,7 @@ public class DesfireAuthenticateEv2 {
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
     private final byte[] RESPONSE_ISO_OK = new byte[]{(byte) 0x90, (byte) 0x00};
+    private final byte[] RESPONSE_LENGTH_ERROR = new byte[]{(byte) 0x91, (byte) 0x7E};
     private final byte[] RESPONSE_PERMISSION_DENIED_ERROR = new byte[]{(byte) 0x91, (byte) 0x9D};
     private final byte[] RESPONSE_AUTHENTICATION_ERROR = new byte[]{(byte) 0x91, (byte) 0xAE};
     private final byte[] RESPONSE_MORE_DATA_AVAILABLE = new byte[]{(byte) 0x91, (byte) 0xAF};
@@ -327,6 +328,72 @@ public class DesfireAuthenticateEv2 {
      */
 
     /**
+     * The method writes a byte array to a Standard file using CommunicationMode.Plain. If the data
+     * length exceeds the MAXIMUM_MESSAGE_LENGTH the data will be written in chunks.
+     * If the data length exceeds MAXIMUM_FILE_LENGTH the methods returns a FAILURE
+     * @param fileNumber | in range 0..31
+     * @param data
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+    public boolean writeToStandardFilePlain(byte fileNumber, byte[] data) {
+        String logData = "";
+        final String methodName = "writeToStandardFilePlain";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, printData("data", data));
+        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
+        if ((data == null) || (data.length < 1)) {
+            log(methodName, "no data to write, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "data length exceeds MAXIMUM_FILE_SIZE";
+            return false;
+        }
+        // getFileSettings for length information
+        FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+
+        // it seems to be not a good idea to get the fileSettings in Authenticate mode, it invalidates
+        // the Authenticate mode, for that I'm using the cached ones
+        int fileSize = fileSettings.getFileSizeInt();
+        if (data.length > fileSize) {
+            Log.e(TAG, methodName + " length is > fileSize, aborted");
+            log(methodName, "length is > fileSize, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            return false;
+        }
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+
+        // The chunking is done to avoid framing as the maximum command APDU length is limited to 66
+        // bytes including all overhead and attached MAC
+        int dataLength = data.length;
+        int numberOfWrites = dataLength / MAXIMUM_MESSAGE_LENGTH;
+        int numberOfWritesMod = Utils.mod(dataLength, MAXIMUM_MESSAGE_LENGTH);
+        if (numberOfWritesMod > 0) numberOfWrites++; // one extra write for the remainder
+        Log.d(TAG, "data length: " + dataLength + " numberOfWrites: " + numberOfWrites);
+        boolean completeSuccess = true;
+        int offset = 0;
+        int numberOfDataToWrite = MAXIMUM_MESSAGE_LENGTH; // we are starting with a maximum length
+        for (int i = 0; i < numberOfWrites; i++) {
+            if (offset + numberOfDataToWrite > dataLength) {
+                numberOfDataToWrite = dataLength - offset;
+            }
+            byte[] dataToWrite = Arrays.copyOfRange(data, offset, (offset + numberOfDataToWrite));
+            boolean success = writeToStandardFileRawPlainEv2(fileNumber, dataToWrite, offset);
+            offset = offset + numberOfDataToWrite;
+            if (!success) {
+                completeSuccess = false;
+                Log.e(TAG, methodName + " could not successfully write, aborted");
+                log(methodName, "could not successfully write, aborted");
+                System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+                return false;
+            }
+        }
+        System.arraycopy(RESPONSE_OK, 0, errorCode, 0, 2);
+        log(methodName, "SUCCESS");
+        return true;
+    }
+
+    /**
      * writes a byte array to a Standard file, beginning at offset position
      * This works for a Standard file with CommunicationMode.Plain only
      * Note: as the number of bytes is limited per transmission this method limits the amount
@@ -340,7 +407,7 @@ public class DesfireAuthenticateEv2 {
      * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
      */
-    public boolean writeToStandardFileRawPlainEv2(byte fileNumber, byte[] data, int offset) {
+    private boolean writeToStandardFileRawPlainEv2(byte fileNumber, byte[] data, int offset) {
         String logData = "";
         final String methodName = "writeToStandardFileRawPlain";
         log(methodName, "started", true);
@@ -909,12 +976,12 @@ public class DesfireAuthenticateEv2 {
         }
     }
 
-
+    // does not need chunking as this is handled by sendRequest
     public byte[] readFromStandardFileRawPlain(byte fileNumber, int offset, int length) {
         String logData = "";
         final String methodName = "readFromStandardFileRawPlain";
         log(methodName, "started", true);
-        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + "size: " + length);
+        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + " size: " + length);
         // sanity checks
         if (!checkFileNumber(fileNumber)) return null; // logFile and errorCode are updated
         if (offset < 0) {
@@ -923,16 +990,44 @@ public class DesfireAuthenticateEv2 {
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
             return null;
         }
-        // todo sanity checks on offset + length
+        // getFileSettings for length information
+        FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+
+        // it seems to be not a good idea to get the fileSettings in Authenticate mode, it invalidates
+        // the Authenticate mode, for that I'm using the cached ones
+        /**
+         * found a strange behaviour on the getFileSettings: after a (successful) authentication the first
+         * getFileSettings command returns an 0x7e = 'length error', so in case of an error I'm trying to
+         * get the file settings a second time
+         */
         /*
-        if ((length <= 0) || (length > MAXIMUM_FILE_SIZE)) {
-            Log.e(TAG, methodName + " length has to be in range 1.." + MAXIMUM_FILE_SIZE + " but found " + length + ", aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+        // check for errorCode 0x917E / Length Error
+        if (Arrays.equals(errorCode, RESPONSE_LENGTH_ERROR)) {
+            // call getFileSettings a second time
+            fileSettings = new FileSettings(fileNumber, getFileSettingsEv2(fileNumber));
+        }
+        if ((fileSettings.getFileType() != STANDARD_FILE_TYPE) || (fileSettings.getFileSizeInt() < 1)) {
+            Log.e(TAG, methodName + " insufficient FileSettings for fileNumber, aborted");
+            log(methodName, "insufficient FileSettings for fileNumber, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
             return null;
         }
-
          */
+        int fileSize = fileSettings.getFileSizeInt();
+        if (length > fileSize) {
+            Log.e(TAG, methodName + " length is > fileSize, aborted");
+            log(methodName, "length is > fileSize, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            return null;
+        }
+        if ((offset + length) > fileSize) {
+            Log.e(TAG, methodName + " (offset + length) is > fileSize, aborted");
+            log(methodName, "(offset + length) is > fileSize, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            return null;
+        }
         if (!checkIsoDep()) return null; // logFile and errorCode are updated
+
         // generate the parameter
         byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset); // LSB order
         byte[] lengthBytes = Utils.intTo3ByteArrayInversed(length); // LSB order
@@ -943,23 +1038,14 @@ public class DesfireAuthenticateEv2 {
         byte[] commandParameter = baos.toByteArray();
         byte[] apdu;
         byte[] response;
-        try {
-            //apdu = wrapMessage(READ_STANDARD_FILE_COMMAND, commandParameter);
-            response = sendRequest(READ_STANDARD_FILE_COMMAND, commandParameter);
-        } catch (IOException e) {
-            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
-            log(methodName, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+        response = sendRequest(READ_STANDARD_FILE_COMMAND, commandParameter);
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (!checkResponse(response)) {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
             return null;
         }
-        catch (Exception e) {
-            Log.e(TAG, methodName + " transceive failed, Exception:\n" + e.getMessage());
-            log(methodName, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return null;
-        }
-
-        // as sendRequest strips off the statusByte there is no checkResponse here
         errorCode = RESPONSE_OK.clone();
         errorCodeReason = "SUCCESS";
         return getData(response);
@@ -1069,7 +1155,6 @@ public class DesfireAuthenticateEv2 {
         int FILE_SIZE = fileSettings.getFileSizeInt();
         log(methodName, "read the file with a length of " + FILE_SIZE + " bytes");
 
-        // found a strange behaviour on the getFileSettings
         /**
          * found a strange behaviour on the getFileSettings: after a (successful) authentication the first
          * getFileSettings command returns an 0x7e = 'length error', so in case of an error I'm trying to
@@ -4786,7 +4871,7 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
             Log.d(TAG, methodName + " SUCCESS");
             log(methodName, "SUCCESS");
             selectedApplicationId = applicationIdentifier.clone();
-            APPLICATION_ALL_FILE_IDS = null;
+            APPLICATION_ALL_FILE_IDS = getAllFileIdsEv2();
             return true;
         } else {
             Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
@@ -4858,7 +4943,7 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
      * Note: depending on the application master key settings this requires an preceding authentication
      * with the application master key
      *
-     * @return an array of bytes with all available fileIds
+     * @return an array of bytes with all available fileSettings
      */
     public FileSettings[] getAllFileSettingsEv2() {
         final String methodName = "getAllFileSettings EV2";
@@ -4876,6 +4961,8 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return null;
         }
+        // get all fileIds is done when application is selected
+        //getAllFileIdsEv2();
         if (APPLICATION_ALL_FILE_IDS.length == 0) {
             Log.e(TAG, methodName + " there are no files available, aborted");
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
@@ -4938,7 +5025,7 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
             log(methodName, printData("apdu", apdu));
             // method: getFileSettingsEv2: apdu length: 7 data: 90f50000010200
             // sample                                           90F50000010300
-            response = isoDep.transceive(apdu);
+            response = sendData(apdu);
             log(methodName, printData("response", response));
         } catch (Exception e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
@@ -6484,6 +6571,7 @@ fileSize: 128
         }
         if (checkResponse(response)) {
             Log.d(TAG, methodName + " SUCCESS");
+            APPLICATION_ALL_FILE_IDS = getAllFileIdsEv2();
             return true;
         } else {
             Log.d(TAG, methodName + " FAILURE");
@@ -6524,6 +6612,7 @@ fileSize: 128
         }
         if (checkResponseIso(response)) {
             log(methodName, methodName + " SUCCESS");
+            APPLICATION_ALL_FILE_IDS = getAllFileIdsEv2();
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
@@ -8466,7 +8555,7 @@ fileSize: 128
         return data;
     }
 
-    public byte[] sendRequest(byte command) throws Exception {
+    public byte[] sendRequest(byte command) {
         return sendRequest(command, null);
     }
 

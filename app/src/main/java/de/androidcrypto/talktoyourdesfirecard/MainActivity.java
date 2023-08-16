@@ -650,6 +650,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     applicationSelected.setText(bytesToHexNpeUpperCase(selectedApplicationId));
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+
+                    // this is the right time to read all file settings
+                    desfireAuthenticateEv2.getAllFileSettingsEv2();
                     vibrateShort();
                 } else {
                     selectedApplicationId = null;
@@ -821,6 +824,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     applicationSelected.setText(bytesToHexNpeUpperCase(selectedApplicationId));
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+
+                    desfireAuthenticateEv2.getAllFileSettingsEv2();
+
                     vibrateShort();
                 } else {
                     selectedApplicationId = null;
@@ -1662,7 +1668,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 byte[] responseData = new byte[2];
                 //byte[] result = readFromAStandardFilePlainCommunicationDes(output, fileIdByte, selectedFileSize, responseData);
-                byte[] result = desfireAuthenticateEv2.readFromStandardFileRawPlain(fileIdByte, 0, 60);
+                byte[] result = desfireAuthenticateEv2.readFromStandardFileRawPlain(fileIdByte, 0, 320);
                 responseData = desfireAuthenticateEv2.getErrorCode();
                 if (result == null) {
                     // something gone wrong
@@ -1725,14 +1731,14 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 //byte[] fullDataToWrite = new byte[SELECTED_FILE_SIZE_FIXED];
                 //System.arraycopy(dataToWriteBytes, 0, fullDataToWrite, 0, fullDataToWrite.length);
 
-                byte[] fullDataToWrite = Utils.generateTestData(32);
+                byte[] fullDataToWrite = Utils.generateTestData(320);
 
                 byte fileIdByte = Byte.parseByte(selectedFileId);
                 byte[] responseData = new byte[2];
                 //boolean success = writeToAStandardFilePlainCommunicationDes(output, fileIdByte, fullDataToWrite, responseData);
 
                 // writeStandardFileRawPlainEv2 maximum data is 40
-                boolean success = desfireAuthenticateEv2.writeToStandardFileRawPlainEv2(fileIdByte, fullDataToWrite, 0);
+                boolean success = desfireAuthenticateEv2.writeToStandardFilePlain(fileIdByte, fullDataToWrite);
                 //boolean success = false;
                 responseData = desfireAuthenticateEv2.getErrorCode();
 

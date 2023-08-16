@@ -92,9 +92,15 @@ public class FileSettings {
     public FileSettings(byte fileNumber, byte[] completeResponse) {
         this.fileNumber = fileNumber;
         this.completeResponse = completeResponse;
-        if (completeResponse == null) return;
+        if (completeResponse == null) {
+            isUnexpectedResponseLength = true;
+            return;
+        }
         this.completeResponseLength = completeResponse.length;
-        if (completeResponse.length < 6) return;
+        if (completeResponse.length < 6) {
+            isUnexpectedResponseLength = true;
+            return;
+        }
         analyze();
     }
 
@@ -537,6 +543,10 @@ public class FileSettings {
 
     public int getFileNumberInt() {
         return (int) fileNumber;
+    }
+
+    public byte getFileType() {
+        return fileType;
     }
 
     public String getFileTypeName() {
