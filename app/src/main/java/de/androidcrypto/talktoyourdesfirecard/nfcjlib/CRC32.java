@@ -1,4 +1,4 @@
-package de.androidcrypto.talktoyourdesfirecard;
+package de.androidcrypto.talktoyourdesfirecard.nfcjlib;
 
 /**
  * Compute the CRC32.

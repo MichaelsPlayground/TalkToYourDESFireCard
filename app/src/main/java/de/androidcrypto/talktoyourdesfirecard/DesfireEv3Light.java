@@ -3,14 +3,12 @@ package de.androidcrypto.talktoyourdesfirecard;
 
 import static de.androidcrypto.talktoyourdesfirecard.DesfireAuthenticateEv2.intTo2ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
-import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
 
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.TagLostException;
 import android.nfc.tech.IsoDep;
 import android.util.Log;
-import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
@@ -27,6 +25,8 @@ import java.util.List;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
 
 /**
  * This class is the light weight version of a larger library that connects to Mifare DESFire EV3 tags.
@@ -628,7 +628,7 @@ public class DesfireEv3Light {
         byte[] apdu;
         byte[] response;
         try {
-            //pdu = wrapMessage(READ_STANDARD_FILE_COMMAND, commandParameter);
+            //apdu = wrapMessage(READ_STANDARD_FILE_COMMAND, commandParameter);
             response = sendRequest(READ_STANDARD_FILE_COMMAND, commandParameter);
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());

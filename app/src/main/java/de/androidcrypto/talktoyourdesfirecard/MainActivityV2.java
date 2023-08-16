@@ -42,6 +42,9 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.TripleDES;
+
 public class MainActivityV2 extends AppCompatActivity implements NfcAdapter.ReaderCallback {
     // this class contains all of the manual authentication methods but all of them failed
     // the actual MainActivity uses the DesfireAuthenticate class

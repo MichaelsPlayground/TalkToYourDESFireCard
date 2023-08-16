@@ -742,6 +742,60 @@
 
                 </LinearLayout>
 
+                <LinearLayout
+                    android:id="@+id/llStandardFileEnc"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"
+                    android:orientation="vertical"
+                    android:visibility="visible">
+
+                    <TextView
+                        android:id="@+id/tvStandardLargeFiles"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:padding="10dp"
+                        android:text="work with large Standard files"
+                        android:textAlignment="center"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnCreateStandardFileLargeEv2"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginRight="8dp"
+                            android:layout_weight="1"
+                            android:text="create" />
+
+                        <Button
+                            android:id="@+id/btnWriteStandardFileLargeEv2"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginLeft="8dp"
+                            android:layout_weight="1"
+                            android:text="write" />
+
+                        <Button
+                            android:id="@+id/btnReadStandardFileLargeEv2"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginLeft="8dp"
+                            android:layout_weight="1"
+                            android:text="read" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+
+
                 <TextView
                     android:id="@+id/tv9Ev2"
                     android:layout_width="match_parent"

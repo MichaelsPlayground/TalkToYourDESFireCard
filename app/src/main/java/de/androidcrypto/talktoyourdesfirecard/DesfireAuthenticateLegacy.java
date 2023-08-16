@@ -1,11 +1,8 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
-import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
-
 import android.nfc.tech.IsoDep;
 import android.text.TextUtils;
 import android.util.Log;
-import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
@@ -20,6 +17,8 @@ import java.util.Arrays;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.TripleDES;
 
 /**
  * This class is based on the work of

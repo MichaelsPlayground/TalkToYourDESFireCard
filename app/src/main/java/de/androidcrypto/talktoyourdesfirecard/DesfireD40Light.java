@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.Arrays;
 
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.TripleDES;
+
 /**
  * This class is the light weight version of a larger library that connects to Mifare DESFire D40 tags ('legacy').
  * It contains all commands that are necessary to format a PICC (select Master Application and authenticateD40)

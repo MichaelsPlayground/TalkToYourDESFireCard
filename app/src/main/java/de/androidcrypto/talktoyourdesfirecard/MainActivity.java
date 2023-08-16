@@ -6,7 +6,6 @@ import static de.androidcrypto.talktoyourdesfirecard.Utils.bytesToHexNpeUpperCas
 import static de.androidcrypto.talktoyourdesfirecard.Utils.bytesToHexNpeUpperCaseBlank;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
-import static de.androidcrypto.talktoyourdesfirecard.Utils.reverseByteArrayInPlace;
 
 import android.app.Activity;
 import android.app.Dialog;
@@ -50,9 +49,12 @@ import com.google.android.material.textfield.TextInputLayout;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.io.StringBufferInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.TripleDES;
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.CRC32;
 
 public class MainActivity extends AppCompatActivity implements NfcAdapter.ReaderCallback {
 
@@ -102,6 +104,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button fileValueSetConfigurationEv2, fileValueDeleteEv2;
     private Button fileRecordCreateEv2, fileRecordWriteEv2, fileRecordReadEv2;
     //private Button fileCreateEv2;
+
+    // working with large standard files (> 60 bytes to simulate chunking)
+    private Button fileStandardLargeCreateEv2, fileStandardLargeWriteEv2, fileStandardLargeReadEv2;
+
 
     // LRP authentication
     private Button authD0LEv2, authD1LEv2, authD2LEv2, authD3LCEv2;
@@ -401,6 +407,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileRecordCreateEv2 = findViewById(R.id.btnCreateRecordFileEv2);
         fileRecordReadEv2 = findViewById(R.id.btnReadRecordFileEv2);
         fileRecordWriteEv2 = findViewById(R.id.btnWriteRecordFileEv2);
+
+        // large standard files
+        fileStandardLargeCreateEv2 = findViewById(R.id.btnCreateStandardFileLargeEv2);
+        fileStandardLargeWriteEv2 = findViewById(R.id.btnWriteStandardFileLargeEv2);
+        fileStandardLargeReadEv2 = findViewById(R.id.btnReadStandardFileLargeEv2);
 
         fileCreateFileSetEnciphered = findViewById(R.id.btnCreateFileSetEncipheredEv2);
 
@@ -1571,6 +1582,157 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte[] responseData = new byte[2];
                 //boolean success = writeToAStandardFilePlainCommunicationDes(output, fileIdByte, fullDataToWrite, responseData);
                 boolean success = desfireAuthenticateEv2.writeStandardFileEv2(fileIdByte, fullDataToWrite);
+                //boolean success = false;
+                responseData = desfireAuthenticateEv2.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        /**
+         * section for large Standard files
+         */
+
+        fileStandardLargeCreateEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "create a large standard file 320 bytes EV2";
+                writeToUiAppend(output, logString);
+                writeToUiAppend(output, "Note: using a FIXED fileNumber 12 and fileSize of 320 for this method");
+                byte fileIdByte = (byte) 0xc; // fixed
+                int fileSizeInt = 320; // fixed
+                // check that an application was selected before
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                writeToUiAppend(output, logString + " with id: " + fileIdByte + " size: " + fileSizeInt);
+                byte[] responseData = new byte[2];
+                // create a Standard file with Plain communication
+                boolean success = desfireAuthenticateEv2.createStandardFileEv2(fileIdByte, fileSizeInt, true, false);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                //boolean success = createStandardFilePlainCommunicationDes(output, fileIdByte, fileSizeInt, rbFileFreeAccess.isChecked(), responseData);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        fileStandardLargeReadEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "read from a large standard file 320 bytes EV2";
+                writeToUiAppend(output, logString);
+                // todo skipped, using a fixed fileNumber
+                selectedFileId = "12"; // 0c
+                fileSelected.setText(selectedFileId);
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                //byte fileIdByte = Byte.parseByte(selectedFileId);
+
+                // just for testing - test the macOverCommand value
+                //boolean readDataFullPart1TestResult = desfireAuthenticateEv2.readDataFullPart1Test();
+                //writeToUiAppend(output, "readDataFullPart1TestResult: " + readDataFullPart1TestResult);
+
+                //byte fileIdByte = desfireAuthenticateEv2.STANDARD_FILE_ENCRYPTED_NUMBER; //byte) 0x02; // fixed
+                byte fileIdByte = (byte) 0x0c;
+
+                byte[] responseData = new byte[2];
+                //byte[] result = readFromAStandardFilePlainCommunicationDes(output, fileIdByte, selectedFileSize, responseData);
+                byte[] result = desfireAuthenticateEv2.readFromStandardFileRawPlain(fileIdByte, 0, 60);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (result == null) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkResponseMoreData(responseData)) {
+                        writeToUiAppend(output, "the file is too long to read, sorry");
+                    }
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " ID: " + fileIdByte + printData(" data", result));
+                    writeToUiAppend(output, logString + " ID: " + fileIdByte + " data: " + new String(result, StandardCharsets.UTF_8));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }
+            }
+        });
+
+        fileStandardLargeWriteEv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "write to a large standard file 320 bytes EV2";
+                writeToUiAppend(output, logString);
+
+                // todo skipped, using a fixed fileNumber
+                //selectedFileId = String.valueOf(desfireAuthenticateEv2.STANDARD_FILE_ENCRYPTED_NUMBER); // 2
+                selectedFileId = String.valueOf(12); // 0c
+                fileSelected.setText(selectedFileId);
+                int SELECTED_FILE_SIZE_FIXED = 320;
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+
+                // we are going to write a timestamp to the file
+                String dataToWrite = Utils.getTimestamp();
+
+                //dataToWrite = "123 some data";
+
+                if (TextUtils.isEmpty(dataToWrite)) {
+                    //writeToUiAppend(errorCode, "please enter some data to write");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "please enter some data to write", COLOR_RED);
+                    return;
+                }
+
+                // just for testing - test the macOverCommand value
+                //boolean writeDataFullPart1TestResult = desfireAuthenticateEv2.writeDataFullPart1Test();
+                //writeToUiAppend(output, "writeDataFullPart1TestResult: " + writeDataFullPart1TestResult);
+
+                byte[] dataToWriteBytes = dataToWrite.getBytes(StandardCharsets.UTF_8);
+                // create an empty array and copy the dataToWrite to clear the complete standard file
+                //byte[] fullDataToWrite = new byte[32];
+                //byte[] fullDataToWrite = new byte[SELECTED_FILE_SIZE_FIXED];
+                //System.arraycopy(dataToWriteBytes, 0, fullDataToWrite, 0, fullDataToWrite.length);
+
+                byte[] fullDataToWrite = Utils.generateTestData(32);
+
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                byte[] responseData = new byte[2];
+                //boolean success = writeToAStandardFilePlainCommunicationDes(output, fileIdByte, fullDataToWrite, responseData);
+
+                // writeStandardFileRawPlainEv2 maximum data is 40
+                boolean success = desfireAuthenticateEv2.writeToStandardFileRawPlainEv2(fileIdByte, fullDataToWrite, 0);
                 //boolean success = false;
                 responseData = desfireAuthenticateEv2.getErrorCode();
 

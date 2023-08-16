@@ -7,6 +7,9 @@ import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.Arrays;
 
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.TripleDES;
+
 public class DesfireAuthenticate {
 
     /**

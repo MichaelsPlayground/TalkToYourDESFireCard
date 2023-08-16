@@ -1,4 +1,4 @@
-package de.androidcrypto.talktoyourdesfirecard;
+package de.androidcrypto.talktoyourdesfirecard.nfcjlib;
 
 import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
 

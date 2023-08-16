@@ -1,5 +1,8 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.TripleDES;
+
 /**
  * CMAC implementation according to NIST 800-38B.
  * 

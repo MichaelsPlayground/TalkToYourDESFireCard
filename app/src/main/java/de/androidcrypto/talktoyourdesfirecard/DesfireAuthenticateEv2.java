@@ -6,7 +6,6 @@ import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo3ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo4ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
-import static de.androidcrypto.talktoyourdesfirecard.Utils.removeAllNonAlphaNumeric;
 
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
@@ -19,7 +18,6 @@ import androidx.annotation.NonNull;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.security.AccessControlException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -31,6 +29,9 @@ import java.util.List;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.CRC32;
 
 
 /**
@@ -140,6 +141,7 @@ public class DesfireAuthenticateEv2 {
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
     private final byte[] RESPONSE_ISO_OK = new byte[]{(byte) 0x90, (byte) 0x00};
+    private final byte[] RESPONSE_PERMISSION_DENIED_ERROR = new byte[]{(byte) 0x91, (byte) 0x9D};
     private final byte[] RESPONSE_AUTHENTICATION_ERROR = new byte[]{(byte) 0x91, (byte) 0xAE};
     private final byte[] RESPONSE_MORE_DATA_AVAILABLE = new byte[]{(byte) 0x91, (byte) 0xAF};
     private final byte[] RESPONSE_FAILURE = new byte[]{(byte) 0x91, (byte) 0xFF}; // general, undefined failure
@@ -160,6 +162,13 @@ public class DesfireAuthenticateEv2 {
      * byte = 1: Plain communication secured by DES/3DES/AES MACing
      * byte = 3: Fully DES/3DES/AES enciphered communication
      */
+
+    private final byte STANDARD_FILE_TYPE = (byte) 0x00;
+    private final byte BACKUP_FILE_TYPE = (byte) 0x01;
+    private final byte VALUE_FILE_TYPE = (byte) 0x02;
+    private final byte LINEAR_RECORD_FILE_TYPE = (byte) 0x03;
+    private final byte CYCLIC_RECORD_FILE_TYPE = (byte) 0x04;
+    private final byte TRANSACTION_MAC_FILE_TYPE = (byte) 0x05;
 
     private final byte STANDARD_FILE_FREE_ACCESS_ID = (byte) 0x01; // file ID with free access
     private final byte STANDARD_FILE_KEY_SECURED_ACCESS_ID = (byte) 0x02; // file ID with key secured access
@@ -217,6 +226,9 @@ public class DesfireAuthenticateEv2 {
     // this value get invalidated after creation of a new file in this application and you need to reselect the application
     private String errorCodeReason = "";
 
+    // the CommunicationAdapter takes all of the transmissions to avoid framing on outgoing or incoming data
+    CommunicationAdapter communicationAdapter;
+
     public enum CommunicationSettings {
         Plain, MACed, Encrypted
     }
@@ -229,6 +241,7 @@ public class DesfireAuthenticateEv2 {
     public DesfireAuthenticateEv2(IsoDep isoDep, boolean printToLog) {
         this.isoDep = isoDep;
         this.printToLog = printToLog;
+        this.communicationAdapter = new CommunicationAdapter(isoDep, printToLog);
     }
 
     // getFileSettings, command 0xF5, pages 24-27
@@ -243,10 +256,13 @@ public class DesfireAuthenticateEv2 {
         log(methodName, "fileNumber: " + fileNumber + " fileSize: " + fileSize +
                 " isStandardFile: " + isStandardFile + " isEncrypted: " + isEncrypted);
         // sanity checks
-        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
-            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
-            return false;
+        if (isEncrypted) {
+            // run this check on isEncrypted only
+            if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+                Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+                System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+                return false;
+            }
         }
         if ((isoDep == null) || (!isoDep.isConnected())) {
             Log.e(TAG, methodName + " lost connection to the card, aborted");
@@ -262,9 +278,12 @@ public class DesfireAuthenticateEv2 {
         byte[] paddingParameter = Utils.hexStringToByteArray("");
         // generate the parameter
         ByteArrayOutputStream baosParameter = new ByteArrayOutputStream();
-        baosParameter.write(CREATE_STANDARD_FILE_COMMAND);
         baosParameter.write(fileNumber);
-        baosParameter.write(FILE_COMMUNICATION_SETTINGS_ENCIPHERED); // todo this should not be fixed
+        if (isEncrypted) {
+            baosParameter.write(FILE_COMMUNICATION_SETTINGS_ENCIPHERED);
+        } else {
+            baosParameter.write(FILE_COMMUNICATION_SETTINGS_PLAIN);
+        }
         // the access rights depend on free access or not
         /*
         if (isFreeAccess) {
@@ -280,16 +299,166 @@ public class DesfireAuthenticateEv2 {
         byte[] parameter = baosParameter.toByteArray();
         Log.d(TAG, methodName + printData(" parameter", parameter));
 
-        //
-        // todo THIS IS NOT READY TO USE
-
-
-        return false;
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(CREATE_STANDARD_FILE_COMMAND, parameter);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
     }
 
     /**
      * section for Standard Files
      */
+
+    /**
+     * writes a byte array to a Standard file, beginning at offset position
+     * This works for a Standard file with CommunicationMode.Plain only
+     * Note: as the number of bytes is limited per transmission this method limits the amount
+     * of data to a maximum of MAXIMUM_MESSAGE_LENGTH bytes
+     * The method does not take care of the offset so 'offset + data.length <= file size' needs to obeyed
+     * Do not call this method from outside this class but use one of the writeToStandardFile callers
+     *
+     * @param fileNumber | in range 0..31
+     * @param data       | maximum of 40 bytes to avoid framing
+     * @param offset     | offset in the file
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+    public boolean writeToStandardFileRawPlainEv2(byte fileNumber, byte[] data, int offset) {
+        String logData = "";
+        final String methodName = "writeToStandardFileRawPlain";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber + Utils.printData(" data", data) + " offset: " + offset);
+
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
+        if ((data == null) || (data.length > 40)) {
+            Log.e(TAG, methodName + " data is NULL or length is > 40, aborted");
+            log(methodName, "data is NULL or length is > 40, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (offset < 0) {
+            Log.e(TAG, methodName + " offset is < 0, aborted");
+            log(methodName, "offset is < 0, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+        byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset);
+        byte[] lengthOfDataBytes = Utils.intTo3ByteArrayInversed(data.length);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(offsetBytes, 0, offsetBytes.length);
+        baos.write(lengthOfDataBytes, 0, lengthOfDataBytes.length);
+        baos.write(data, 0, data.length);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+        try {
+            apdu = wrapMessage(WRITE_STANDARD_FILE_COMMAND, commandParameter);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE");
+            return false;
+        }
+    }
+
+
+
+
+
+    public boolean writeStandardFilePlainOldEv2(byte fileNumber, byte[] dataToWrite) {
+        String logData = "";
+        final String methodName = "writeStandardFilePlainEv2";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, printData("dataToWrite", dataToWrite));
+        // sanity checks
+        // todo other sanity checks
+        if ((dataToWrite == null) || (dataToWrite.length < 1)) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        int offset = 0;
+        int length = dataToWrite.length;
+        byte[] offsetBytes = intTo3ByteArrayInversed(offset);
+        byte[] lengthBytes = intTo3ByteArrayInversed(length);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(offsetBytes, 0, offsetBytes.length);
+        baos.write(lengthBytes, 0, lengthBytes.length);
+        baos.write(dataToWrite, 0, dataToWrite.length);
+        byte[] commandParameter = baos.toByteArray();
+        Log.d(TAG, methodName + printData(" commandParameter", commandParameter));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(WRITE_STANDARD_FILE_COMMAND, commandParameter);
+            Log.d(TAG, "calling sendAllData with " + Utils.printData("apdu", apdu));
+            //response = sendData(apdu);
+            //response = communicationAdapter.sendAllData(apdu);
+            response = communicationAdapter.sendAdpuChain(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        catch (Exception e) {
+            Log.e(TAG, methodName + " transceive failed, Exception:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, 2);
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+    }
 
     public boolean writeStandardFileEv2(byte fileNumber, byte[] dataToWrite) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 55 - 58
@@ -738,6 +907,114 @@ public class DesfireAuthenticateEv2 {
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
             return false;
         }
+    }
+
+
+    public byte[] readFromStandardFileRawPlain(byte fileNumber, int offset, int length) {
+        String logData = "";
+        final String methodName = "readFromStandardFileRawPlain";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + "size: " + length);
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return null; // logFile and errorCode are updated
+        if (offset < 0) {
+            Log.e(TAG, methodName + " offset is < 0, aborted");
+            log(methodName, "offset is < 0, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            return null;
+        }
+        // todo sanity checks on offset + length
+        /*
+        if ((length <= 0) || (length > MAXIMUM_FILE_SIZE)) {
+            Log.e(TAG, methodName + " length has to be in range 1.." + MAXIMUM_FILE_SIZE + " but found " + length + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+
+         */
+        if (!checkIsoDep()) return null; // logFile and errorCode are updated
+        // generate the parameter
+        byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset); // LSB order
+        byte[] lengthBytes = Utils.intTo3ByteArrayInversed(length); // LSB order
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(offsetBytes, 0, offsetBytes.length);
+        baos.write(lengthBytes, 0, lengthBytes.length);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+        try {
+            //apdu = wrapMessage(READ_STANDARD_FILE_COMMAND, commandParameter);
+            response = sendRequest(READ_STANDARD_FILE_COMMAND, commandParameter);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        catch (Exception e) {
+            Log.e(TAG, methodName + " transceive failed, Exception:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+
+        // as sendRequest strips off the statusByte there is no checkResponse here
+        errorCode = RESPONSE_OK.clone();
+        errorCodeReason = "SUCCESS";
+        return getData(response);
+    }
+
+    public byte[] readStandardFilePlainOldEv2(byte fileNumber, int offset, int length) {
+        String logData = "";
+        final String methodName = "readStandardFilePlainEv2";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + " length: " + length);
+        // sanity checks
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+
+        byte[] offsetBytes = intTo3ByteArrayInversed(offset);
+        byte[] lengthBytes = intTo3ByteArrayInversed(length);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(offsetBytes, 0, offsetBytes.length);
+        baos.write(lengthBytes, 0, lengthBytes.length);
+        byte[] commandParameter = baos.toByteArray();
+        Log.d(TAG, methodName + printData(" commandParameter", commandParameter));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        try {
+            apdu = wrapMessage(READ_STANDARD_FILE_COMMAND, commandParameter);
+            Log.d(TAG, "calling sendAllData with " + Utils.printData("apdu", apdu));
+            //response = sendData(apdu);
+            //response = communicationAdapter.sendAllData(apdu);
+            response = communicationAdapter.sendAdpuChain(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        catch (Exception e) {
+            Log.e(TAG, methodName + " transceive failed, Exception:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (!checkResponse(response)) {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return null;
+        }
+        byte[] responseData = getData(response);
+        return responseData;
     }
 
     public byte[] readStandardFileEv2(byte fileNumber) {
@@ -6071,6 +6348,30 @@ fileSize: 128
         return recvBuffer;
     }
 
+    /**
+     * section for communication that avoids framing
+     * Note: the code is taken from the project desfire-tools-for-android
+     * Author: Thomas Skjølberg
+     * Source: https://github.com/skjolber/desfire-tools-for-android
+     */
+
+    /* Max APDU sizes to be ISO encapsulated by DESFIRE_TRANSCEIVE()
+	   From MIFARE DESFire Functional specification:
+	   MAX_CAPDU_SIZE:   "The length of the total wrapped DESFire
+	                      command is not longer than 55 byte long."
+	   MAX_RAPDU_SIZE:   1 status byte + 59 bytes
+	 */
+    public static final int MAX_CAPDU_SIZE = 55;
+    public static final int MAX_RAPDU_SIZE = 60; // the PICC will avoid framing itself by sending '0xAF' indication that more data is available
+
+
+
+
+
+    /**
+     * section for files
+     */
+
     private boolean getSelectedFileSettings(byte fileNumber) {
         Log.d(TAG, "getSelectedFileSettings for fileNumber " + fileNumber);
         // no sanity checks are done !
@@ -8105,6 +8406,51 @@ fileSize: 128
     }
 
     /**
+     * check some know method parameters
+     */
+
+    private boolean checkApplicationIdentifier(byte[] applicationIdentifier) {
+        if ((applicationIdentifier == null) || (applicationIdentifier.length != 3)) {
+            log("checkApplicationIdentifier", "applicationIdentifier is NULL or not of length 3, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "applicationIdentifier is NULL or not of length 3";
+            return false;
+        }
+        return true;
+    }
+
+    private boolean checkFileNumber(byte fileNumber) {
+        if ((fileNumber < 0) || (fileNumber > 31)) {
+            log("checkFileNumber", "fileNumber is not in range 0..31, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "applicationIdentifier is NULL or not of length 3";
+            return false;
+        }
+        return true;
+    }
+
+    // note: this does not check if in application creation all keys got created
+    private boolean checkAccessRights(byte[] accessRights) {
+        if ((accessRights == null) || (accessRights.length != 2)) {
+            log("checkAccessRights", "accessRights are NULL or not of length 2, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "accessRights are NULL or not of length 2";
+            return false;
+        }
+        return true;
+    }
+
+    private boolean checkIsoDep() {
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            log("checkIsoDep", "lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCodeReason = "lost connection to the card";
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Returns a copy of the data bytes in the response body. If this APDU as
      * no body, this method returns a byte array with a length of zero.
      *
@@ -8125,9 +8471,68 @@ fileSize: 128
     }
 
     // todo take this as MASTER for sending commands to the card and receiving data
+    private byte[] sendRequest(byte command, byte[] parameters) {
+        try {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] recvBuffer = sendData(wrapMessage(command, parameters));
+
+        //writeToUiAppend(readResult, printData("sendRequest recvBuffer", recvBuffer));
+        if (recvBuffer == null) {
+            errorCode = RESPONSE_FAILURE.clone();
+            return RESPONSE_FAILURE.clone();
+        }
+        if (recvBuffer.length < 2) {
+            errorCode = RESPONSE_FAILURE.clone();
+            return RESPONSE_FAILURE.clone();
+        }
+        while (true) {
+            if (recvBuffer[recvBuffer.length - 2] != (byte) 0x91) {
+                errorCode = RESPONSE_FAILURE.clone();
+                return RESPONSE_FAILURE.clone();
+            }
+            output.write(recvBuffer, 0, recvBuffer.length - 2);
+            byte status = recvBuffer[recvBuffer.length - 1];
+            if (status == (byte) 0x00) {
+                break;
+            } else if (status == (byte) 0xAF) {
+                recvBuffer = sendData(wrapMessage((byte) 0xAF, null));
+            } else if (status == (byte) 0x9D) {
+                errorCode = RESPONSE_PERMISSION_DENIED_ERROR.clone();
+                errorCodeReason = "Permission denied";
+                return recvBuffer;
+            } else if (status == (byte) 0xAE) {
+                errorCode = RESPONSE_AUTHENTICATION_ERROR.clone();
+                errorCodeReason = "Authentication error";
+                return recvBuffer;
+            } else {
+                errorCode = RESPONSE_FAILURE.clone();
+                errorCodeReason = "Unknown status code: " + Integer.toHexString(status & 0xFF);
+                return recvBuffer;
+            }
+        }
+        byte[] data = output.toByteArray();
+        // adding return codes
+        byte[] returnData = new byte[data.length + 2];
+        System.arraycopy(data, 0, returnData, 0, data.length);
+        System.arraycopy(RESPONSE_OK, 0, returnData, data.length, RESPONSE_OK.length);
+        return returnData;
+        } catch (IOException e) {
+            Log.e(TAG, "transceive failed, IOException:\n" + e.getMessage());
+            log("sendRequest", "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return RESPONSE_FAILURE.clone();
+        }
+    }
+
+    /*
+    old ones with Exception and without returning status bytes
+    public byte[] sendRequest(byte command) throws Exception {
+        return sendRequest(command, null);
+    }
+
+    // todo take this as MASTER for sending commands to the card and receiving data
     private byte[] sendRequest(byte command, byte[] parameters) throws Exception {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-
         byte[] recvBuffer = sendData(wrapMessage(command, parameters));
         //writeToUiAppend(readResult, printData("sendRequest recvBuffer", recvBuffer));
         if (recvBuffer == null) {
@@ -8153,6 +8558,7 @@ fileSize: 128
         }
         return output.toByteArray();
     }
+     */
 
     /**
      * section for service methods
