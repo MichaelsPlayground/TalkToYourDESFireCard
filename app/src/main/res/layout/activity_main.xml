@@ -575,6 +575,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
+                        android:backgroundTint="#66CF5B"
                         android:text="A1 auth" />
 
                     <Button
@@ -788,6 +789,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginLeft="8dp"
                             android:layout_weight="1"
+                            android:backgroundTint="#66CF5B"
                             android:text="select apl" />
 
                     </LinearLayout>
@@ -798,28 +800,59 @@
                         android:orientation="horizontal">
 
                         <Button
-                            android:id="@+id/btnCreateStandardFileLargeEv3"
+                            android:id="@+id/btnCreateStandardFileLargePEv3"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginRight="8dp"
                             android:layout_weight="1"
-                            android:text="create" />
+                            android:text="create P" />
 
                         <Button
-                            android:id="@+id/btnWriteStandardFileLargeEv3"
+                            android:id="@+id/btnWriteStandardFileLargePEv3"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginLeft="8dp"
                             android:layout_weight="1"
-                            android:text="write" />
+                            android:text="write P" />
 
                         <Button
-                            android:id="@+id/btnReadStandardFileLargeEv3"
+                            android:id="@+id/btnReadStandardFileLargePEv3"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginLeft="8dp"
                             android:layout_weight="1"
-                            android:text="read" />
+                            android:text="read P" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnCreateStandardFileLargeFEv3"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginRight="8dp"
+                            android:layout_weight="1"
+                            android:text="create F" />
+
+                        <Button
+                            android:id="@+id/btnWriteStandardFileLargeFEv3"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginLeft="8dp"
+                            android:layout_weight="1"
+                            android:text="write F" />
+
+                        <Button
+                            android:id="@+id/btnReadStandardFileLargeFEv3"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginLeft="8dp"
+                            android:layout_weight="1"
+                            android:text="read F" />
 
                     </LinearLayout>
 

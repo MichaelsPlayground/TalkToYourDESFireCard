@@ -232,7 +232,8 @@ public class DesfireEv3 {
         // build the command string
         byte keyNumbers = (byte) numberOfApplicationKeys;
         // now adding the constant for key type, here fixed to AES = 0x80
-        keyNumbers = (byte) (keyNumbers | APPLICATION_CRYPTO_AES);
+        //keyNumbers = (byte) (keyNumbers | APPLICATION_CRYPTO_AES);
+        keyNumbers = (byte) (keyNumbers | (byte) 0x80);
         // "90CA00000E 010000 0F A5 10E1 D276000085010100"
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         baos.write(applicationIdentifier, 0, applicationIdentifier.length);
@@ -372,6 +373,7 @@ public class DesfireEv3 {
             invalidateAllData();
             selectedApplicationId = applicationIdentifier.clone();
             APPLICATION_ALL_FILE_IDS = getAllFileIds();
+            APPLICATION_ALL_FILE_SETTINGS = getAllFileSettings();
             return true;
         } else {
             log(methodName, "FAILURE with " + printData("errorCode", errorCode));
@@ -445,12 +447,20 @@ public class DesfireEv3 {
         // sanity checks
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if (!checkAccessRights(accessRights)) return false; // logFile and errorCode are updated
+        if (fileSize < 1) {
+            log(methodName, "fileSize is < 1, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "fileSize is < 1";
+            return false;
+        }
+        /*
         if ((fileSize < 1) || (fileSize > MAXIMUM_FILE_SIZE)) {
             log(methodName, "fileSize is not in range 1..MAXIMUM_FILE_SIZE, aborted");
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
             errorCodeReason = "fileSize is not in range 1..MAXIMUM_FILE_SIZE";
             return false;
         }
+         */
         if (!checkIsoDep()) return false; // logFile and errorCode are updated
 
         byte commSettings = (byte) 0;
@@ -472,7 +482,6 @@ public class DesfireEv3 {
         byte[] commandParameter = baos.toByteArray();
         byte[] apdu;
         byte[] response;
-
         try {
             apdu = wrapMessage(CREATE_STANDARD_FILE_COMMAND, commandParameter);
             response = sendData(apdu);
@@ -724,9 +733,9 @@ public class DesfireEv3 {
         log(methodName, printData("data", data));
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if ((data == null) || (data.length < 1) || (data.length > MAXIMUM_FILE_SIZE)) {
-            log(methodName, "data length exceeds MAXIMUM_FILE_SIZE, aborted");
+            log(methodName, "data length not in range 1..MAXIMUM_FILE_SIZE, aborted");
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
-            errorCodeReason = "data length exceeds MAXIMUM_FILE_SIZE";
+            errorCodeReason = "data length not in range 1..MAXIMUM_FILE_SIZE";
             return false;
         }
         if (!checkIsoDep()) return false; // logFile and errorCode are updated
