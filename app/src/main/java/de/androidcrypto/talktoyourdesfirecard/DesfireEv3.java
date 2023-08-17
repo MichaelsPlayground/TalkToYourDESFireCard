@@ -22,6 +22,7 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -30,10 +31,10 @@ import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
 
 /**
  * This class is the full library that connects to Mifare DESFire EV1/EV2/EV3 tags for these commands:
- * - create, select and delete (*1) an AES key based application
+ * - create (*1), select and delete (*2) an AES key based application
  * - authenticate with AES keys using 'authenticateEV2First' and 'authenticateEV2NonFirst'
- * - create and delete (*1) a Standard file with communication mode Plain or Full enciphered (but not MACed)
- * - write to and read from a Standard file in communication modes Plain and Full enciphered (but not MACed) (*2)
+ * - create and delete (*2) a Standard file with communication mode Plain or Full enciphered (but not MACed)
+ * - write to and read from a Standard file in communication modes Plain and Full enciphered (but not MACed) (*3)
  *
  *
  * supported service methods:
@@ -50,15 +51,26 @@ import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
  * For DESFire EV3 only:
  * It contains all commands that are necessary to enable the Secret Unique NFC (SUN) feature that is
  * based on Secure Dynamic Messaging (SDM) that is available on DESFire EV3 tags only:
- * - createApplicationAesIso (adding an ISO applicationNumber and ISO applicationName
+ * - createApplicationAesIso (adding an ISO application identifier and ISO Data File Name)
  * - createNdefContainerFile (having a dedicated fileNumber for NDEF usage)
  * - writeNdefContainer
  * - createStandardFileIso (adding an ISO fileNumber and ISO fileName with communication mode Plain only
  * - write a NDEF message containing an URL/Link record with communication mode Plain only
  *
- *
- * (*1): A deletion of an application or file does NOT release the (memory) space on the tag, that does happen on formatting the PICC only
- * (*2): by reading of the fileSettings the method automatically detects and selects the communication mode
+ * (*1): using fixed application settings '0x0f' meaning Application master key authentication is necessary to change any key (default),
+ *       the configuration is changeable if authenticated with the application master key (default setting)
+ *       CreateFile / DeleteFile is permitted also without application master key authentication (default setting)
+ *       GetFileIDs, GetFileSettings and GetKeySettings commands succeed independently of a preceding application master key authentication (default setting)
+ *       Application master key is changeable (authentication with the current application master key necessary, default setting)
+ *       You change this later using changeApplicationSettings
+ *       The number of AES application keys is fixed to 5 to support the different access key rights that are set to (access rights can be changed later):
+ *       key number 0 = Application Master Key
+ *       key number 1 = Read & Write Access key
+ *       key number 2 = Change Access rights key (CAR)
+ *       key number 3 = Read Access key
+ *       key number 4 = Write Access key
+ * (*2): A deletion of an application or file does NOT release the (memory) space on the tag, that does happen on formatting the PICC only
+ * (*3): by reading of the fileSettings the method automatically detects and selects the communication mode
  *
  * Not supported commands so far:
  * - working with Backup, Value, Linear Record, Cyclic Record and Transaction MAC files
@@ -181,7 +193,7 @@ public class DesfireEv3 {
      */
 
     /**
-     * create a new application including Data File Name using AES keys
+     * create a new application including ISO application identifier and ISO Data File Name using AES keys
      * This uses a fixed Application Master Key Settings value of 0x0F which is default value
      * @param applicationIdentifier   | length 3
      * @param applicationDfName       | length in range 1..16
@@ -400,7 +412,7 @@ public class DesfireEv3 {
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if (!checkIsoDep()) return false; // logFile and errorCode are updated
 
-        return writeToStandardFileRawPlain(fileNumber, NDEF_FILE_01_CONTENT_CONTAINER, 0);
+        return writeToStandardFileRawPlain(fileNumber, 0, NDEF_FILE_01_CONTENT_CONTAINER);
     }
 
     /**
@@ -512,11 +524,12 @@ public class DesfireEv3 {
         return true;
     }
 */
+
     /**
      * The method writes a byte array to a Standard file using CommunicationMode.Plain. If the data
      * length exceeds the MAXIMUM_MESSAGE_LENGTH the data will be written in chunks.
      * If the data length exceeds MAXIMUM_FILE_LENGTH the methods returns a FAILURE
-     * @param fileNumber | in range 0..31
+     * @param fileNumber | in range 0..31 AND file is a Standard file
      * @param data
      * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
@@ -551,7 +564,7 @@ public class DesfireEv3 {
                 numberOfDataToWrite = dataLength - offset;
             }
             byte[] dataToWrite = Arrays.copyOfRange(data, offset, (offset + numberOfDataToWrite));
-            boolean success = writeToStandardFileRawPlain(fileNumber, dataToWrite, offset);
+            boolean success = writeToStandardFileRawPlain(fileNumber, offset, dataToWrite);
             offset = offset + numberOfDataToWrite;
             if (!success) {
                 completeSuccess = false;
@@ -566,22 +579,21 @@ public class DesfireEv3 {
         return true;
     }
 
-
     /**
      * writes a byte array to a Standard file, beginning at offset position
      * This works for a Standard file with CommunicationMode.Plain only
      * Note: as the number of bytes is limited per transmission this method limits the amount
      * of data to a maximum of MAXIMUM_MESSAGE_LENGTH bytes
      * The method does not take care of the offset so 'offset + data.length <= file size' needs to obeyed
-     * Do not call this method from outside this class but use one of the writeToStandardFile callers
-     *
-     * @param fileNumber | in range 0..31
+     * Do NOT CALL this method from outside this class but use one of the writeToStandardFile callers
+     * as it uses the pre-read fileSettings
+     * @param fileNumber | in range 0..31 AND file is a Standard file
      * @param data       | maximum of 40 bytes to avoid framing
      * @param offset     | offset in the file
      * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
      */
-    private boolean writeToStandardFileRawPlain(byte fileNumber, byte[] data, int offset) {
+    private boolean writeToStandardFileRawPlain(byte fileNumber, int offset, byte[] data) {
         String logData = "";
         final String methodName = "writeToStandardFileRawPlain";
         log(methodName, "started", true);
@@ -599,6 +611,21 @@ public class DesfireEv3 {
             Log.e(TAG, methodName + " offset is < 0, aborted");
             log(methodName, "offset is < 0, aborted");
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            return false;
+        }
+        // getFileSettings for file type and length information
+        FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        int fileSize = fileSettings.getFileSizeInt();
+        if (data.length > fileSize) {
+            Log.e(TAG, methodName + " data length is > fileSize, aborted");
+            log(methodName, "length is > fileSize, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            return false;
+        }
+        if (!Objects.equals(fileSettings.getFileTypeName(), FileSettings.STANDARD_FILE_TYPE)) {
+            Log.e(TAG, methodName + " fileType is not a Standard file, aborted");
+            log(methodName, "fileType is not a Standard file, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
             return false;
         }
         if (!checkIsoDep()) return false; // logFile and errorCode are updated
@@ -632,11 +659,36 @@ public class DesfireEv3 {
         }
     }
 
-    public byte[] readFromStandardFileRawPlain(byte fileNumber, int offset, int length) {
+    /**
+     * reads a Standard file in communication mode Plain from the beginning (offset = 0)
+     * @param fileNumber
+     * @param length
+     * @return
+     */
+    public byte[] readStandardFilePlain(byte fileNumber, int length) {
+        return readFromStandardFileRawPlain(fileNumber, 0, length);
+    }
+
+
+    /**
+     * Read data from a Standard file, beginning at offset position and length of data.
+     * As the amount of data that can be send from PICC to reader is limited the PCC will chunk the
+     * data if exceeding this limit. The method automatically detects this behaviour and send the
+     * necessary commands to get all data.
+     * DO NOT CALL this method from outside this class but use one of the ReadFromStandardFile callers
+     * as it uses the pre-read fileSettings
+     * @param fileNumber | in range 0..31
+     * @param offset     | offset in the file
+     * @param length     | length of data > 1
+     * @return the read data or NULL
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+
+    private byte[] readFromStandardFileRawPlain(byte fileNumber, int offset, int length) {
         String logData = "";
         final String methodName = "readFromStandardFileRawPlain";
         log(methodName, "started", true);
-        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + "size: " + length);
+        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + " size: " + length);
         // sanity checks
         if (!checkFileNumber(fileNumber)) return null; // logFile and errorCode are updated
         if (offset < 0) {
@@ -645,12 +697,31 @@ public class DesfireEv3 {
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
             return null;
         }
-        if ((length <= 0) || (length > MAXIMUM_FILE_SIZE)) {
-            Log.e(TAG, methodName + " length has to be in range 1.." + MAXIMUM_FILE_SIZE + " but found " + length + ", aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+        // getFileSettings for file type and length information
+        FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        int fileSize = fileSettings.getFileSizeInt();
+        if (length > fileSize) {
+            Log.e(TAG, methodName + " length is > fileSize, aborted");
+            log(methodName, "length is > fileSize, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
             return null;
         }
+        if ((offset + length) > fileSize) {
+            Log.e(TAG, methodName + " (offset + length) is > fileSize, aborted");
+            log(methodName, "(offset + length) is > fileSize, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            return null;
+        }
+        if (!Objects.equals(fileSettings.getFileTypeName(), FileSettings.STANDARD_FILE_TYPE)) {
+            Log.e(TAG, methodName + " fileType is not a Standard file, aborted");
+            log(methodName, "fileType is not a Standard file, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            return null;
+        }
+
+
         if (!checkIsoDep()) return null; // logFile and errorCode are updated
+
         // generate the parameter
         byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset); // LSB order
         byte[] lengthBytes = Utils.intTo3ByteArrayInversed(length); // LSB order
@@ -659,7 +730,6 @@ public class DesfireEv3 {
         baos.write(offsetBytes, 0, offsetBytes.length);
         baos.write(lengthBytes, 0, lengthBytes.length);
         byte[] commandParameter = baos.toByteArray();
-        byte[] apdu;
         byte[] response;
         response = sendRequest(READ_STANDARD_FILE_COMMAND, commandParameter);
         byte[] responseBytes = returnStatusBytes(response);

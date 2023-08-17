@@ -147,7 +147,7 @@ public class DesfireEv3Light {
      */
 
     /**
-     * create a new application including Data File Name using AES keys
+     * create a new application including ISO application identifier and ISO Data File Name using AES keys
      * This uses a fixed Application Master Key Settings value of 0x0F which is default value
      * @param applicationIdentifier   | length 3
      * @param applicationDfName       | length in range 1..16
