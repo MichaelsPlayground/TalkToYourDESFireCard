@@ -272,6 +272,9 @@ Android Studio Asset Manager: sun_icon1: 54% background color: 85FD9E
 
 new settings:
 ```
+
+Green background icon: 40DC00
+
 Android Studio Asset Manager: sun_icon2: 47% background color: F8F09A
 <color name="colorPrimary">#FBC02D</color>
 <color name="colorStatusBar">#FBC02D</color>
