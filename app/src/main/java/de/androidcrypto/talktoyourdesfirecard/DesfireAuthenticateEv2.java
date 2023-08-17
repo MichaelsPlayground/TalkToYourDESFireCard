@@ -330,9 +330,10 @@ public class DesfireAuthenticateEv2 {
     /**
      * The method writes a byte array to a Standard file using CommunicationMode.Plain. If the data
      * length exceeds the MAXIMUM_MESSAGE_LENGTH the data will be written in chunks.
-     * If the data length exceeds MAXIMUM_FILE_LENGTH the methods returns a FAILURE
+     * The methods reads the file settings to get the fileSize for limiting the amount of data,
+     * if the data length exceeds fileSize the method returns a FAILURE
      * @param fileNumber | in range 0..31
-     * @param data
+     * @param data | is written to the beginning of the file (offset = 0)
      * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
      */
@@ -378,7 +379,7 @@ public class DesfireAuthenticateEv2 {
                 numberOfDataToWrite = dataLength - offset;
             }
             byte[] dataToWrite = Arrays.copyOfRange(data, offset, (offset + numberOfDataToWrite));
-            boolean success = writeToStandardFileRawPlainEv2(fileNumber, dataToWrite, offset);
+            boolean success = writeToStandardFileRawPlainEv2(fileNumber, offset, dataToWrite);
             offset = offset + numberOfDataToWrite;
             if (!success) {
                 completeSuccess = false;
@@ -407,7 +408,7 @@ public class DesfireAuthenticateEv2 {
      * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
      */
-    private boolean writeToStandardFileRawPlainEv2(byte fileNumber, byte[] data, int offset) {
+    private boolean writeToStandardFileRawPlainEv2(byte fileNumber, int offset, byte[] data) {
         String logData = "";
         final String methodName = "writeToStandardFileRawPlain";
         log(methodName, "started", true);
@@ -8559,7 +8560,6 @@ fileSize: 128
         return sendRequest(command, null);
     }
 
-    // todo take this as MASTER for sending commands to the card and receiving data
     private byte[] sendRequest(byte command, byte[] parameters) {
         try {
         ByteArrayOutputStream output = new ByteArrayOutputStream();

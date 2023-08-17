@@ -314,6 +314,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     //DesfireAuthenticateProximity desfireAuthenticateProximity;
     DesfireAuthenticateLegacy desfireAuthenticateLegacy;
     DesfireAuthenticateEv2 desfireAuthenticateEv2;
+    DesfireEv3 desfireEv3;
     DesfireLrpEv2 desfireLrpEv2;
 
     @Override
@@ -6338,6 +6339,7 @@ posMacInpOffset:  75
                 desfireAuthenticateLegacy = new DesfireAuthenticateLegacy(isoDep, true); // true means all data is logged
                 desfireAuthenticateEv2 = new DesfireAuthenticateEv2(isoDep, true); // true means all data is logged
                 desfireLrpEv2 = new DesfireLrpEv2(isoDep, true);
+                desfireEv3 = new DesfireEv3(isoDep);
 
                 // setup the communication adapter
                 //adapter = new CommunicationAdapter(isoDep, true);
