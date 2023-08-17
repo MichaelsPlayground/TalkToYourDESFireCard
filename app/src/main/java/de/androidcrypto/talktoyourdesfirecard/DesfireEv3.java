@@ -88,6 +88,7 @@ public class DesfireEv3 {
 
     private static final String TAG = DesfireEv3.class.getName();
 
+
     private IsoDep isoDep;
     private String logData;
     private boolean authenticateEv2FirstSuccess = false;
@@ -134,6 +135,7 @@ public class DesfireEv3 {
     private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
     private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
     private final byte READ_STANDARD_FILE_COMMAND = (byte) 0xBD;
+    private final byte DELETE_FILE_COMMAND = (byte) 0xDF;
     private final byte GET_FILE_IDS_COMMAND = (byte) 0x6F;
     private final byte GET_FILE_SETTINGS_COMMAND = (byte) 0xF5;
     private final byte CHANGE_KEY_SECURE_COMMAND = (byte) 0xC4;
@@ -789,6 +791,47 @@ public class DesfireEv3 {
         errorCode = RESPONSE_OK.clone();
         errorCodeReason = "SUCCESS";
         return getData(response);
+    }
+
+    /**
+     * Deletes (better deactivates) a file in the selected application permanently. The space for
+     * the file is NOT released (only possible on formatting the PICC).
+     * Note: Depending on the application master key settings, see chapter 4.3.2, a preceding
+     *       authentication with the application master key is required.
+     * @param fileNumber
+     * @return true on success
+     */
+
+    public boolean deleteFile(byte fileNumber) {
+        final String methodName = "deleteFile";
+        logData = "";
+        log(methodName, "started", true);
+        errorCode = new byte[2];
+        // sanity checks
+        if (!checkApplicationIdentifier(selectedApplicationId)) return false; // logFile and errorCode are updated
+        if (!checkAuthentication()) return false; // logFile and errorCode are updated
+        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+        byte[] apdu;
+        byte[] response;
+        try {
+            apdu = wrapMessage(DELETE_FILE_COMMAND, new byte[]{fileNumber});
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            log(methodName, "SUCCESS");
+            return true;
+        } else {
+            log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            return false;
+        }
     }
 
     /**

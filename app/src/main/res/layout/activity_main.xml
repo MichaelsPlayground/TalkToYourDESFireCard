@@ -756,7 +756,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:padding="10dp"
-                        android:text="work with large Standard files"
+                        android:text="work with large Standard files (EV3 class)"
                         android:textAlignment="center"
                         android:textSize="16sp"
                         android:textStyle="bold" />
@@ -767,7 +767,7 @@
                         android:orientation="horizontal">
 
                         <Button
-                            android:id="@+id/btnCreateStandardFileLargeEv2"
+                            android:id="@+id/btnCreateStandardFileLargeEv3"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginRight="8dp"
@@ -775,7 +775,7 @@
                             android:text="create" />
 
                         <Button
-                            android:id="@+id/btnWriteStandardFileLargeEv2"
+                            android:id="@+id/btnWriteStandardFileLargeEv3"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginLeft="8dp"
@@ -783,12 +783,43 @@
                             android:text="write" />
 
                         <Button
-                            android:id="@+id/btnReadStandardFileLargeEv2"
+                            android:id="@+id/btnReadStandardFileLargeEv3"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginLeft="8dp"
                             android:layout_weight="1"
                             android:text="read" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnDeleteStandardFileLargePEv3"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginRight="8dp"
+                            android:layout_weight="1"
+                            android:text="delete P" />
+
+                        <Button
+                            android:id="@+id/btnDeleteStandardFileLargeFEv3"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginLeft="8dp"
+                            android:layout_weight="1"
+                            android:text="delete F" />
+
+                        <Button
+                            android:id="@+id/btnDeleteAesApplicationEv3"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginLeft="8dp"
+                            android:layout_weight="1"
+                            android:text="delete APL" />
 
                     </LinearLayout>
 
