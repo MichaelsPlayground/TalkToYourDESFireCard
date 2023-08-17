@@ -154,6 +154,7 @@ public class DesfireEv3 {
     private final byte FILE_COMMUNICATION_SETTINGS_PLAIN = (byte) 0x00; // plain communication
     private final byte FILE_COMMUNICATION_SETTINGS_MACED = (byte) 0x01; // mac'ed communication
     private final byte FILE_COMMUNICATION_SETTINGS_FULL = (byte) 0x03; // full = enciphered communication
+    public static final byte[] ACCESS_RIGHTS_DEFAULT = hexStringToByteArray("1234"); // R&W access 1, CAR 2, R 3, W 4
     private final int MAXIMUM_MESSAGE_LENGTH = 40;
     private static final byte MAXIMUM_NUMBER_OF_KEYS = 5; // the maximum of keys per application is 14
     private final int MAXIMUM_NUMBER_OF_FILES = 32; // as per datasheet DESFire EV3 this is valid for EV1, EV2 and EV3
@@ -166,7 +167,7 @@ public class DesfireEv3 {
     private final byte[] RESPONSE_AUTHENTICATION_ERROR = new byte[]{(byte) 0x91, (byte) 0xAE};
     private final byte[] RESPONSE_MORE_DATA_AVAILABLE = new byte[]{(byte) 0x91, (byte) 0xAF};
     private final byte[] RESPONSE_FAILURE_MISSING_AUTHENTICATION = new byte[]{(byte) 0x91, (byte) 0xFD};
-    private static final byte[] RESPONSE_PARAMETER_ERROR = new byte[]{(byte) 0x91, (byte) 0xFE}; // failure because of wrong parameter
+    private static final byte[] RESPONSE_PARAMETER_ERROR = new byte[]{(byte) 0x91, (byte) 0xFC}; // failure because of wrong parameter
     private final byte[] RESPONSE_FAILURE = new byte[]{(byte) 0x91, (byte) 0xFF}; // general, undefined failure
 
     private final byte[] HEADER_ENC = new byte[]{(byte) (0x5A), (byte) (0xA5)}; // fixed to 0x5AA5
@@ -203,6 +204,64 @@ public class DesfireEv3 {
      */
 
     /**
+     * create a new application using 5 AES keys
+     * This uses a fixed Application Master Key Settings value of 0x0F which is default value
+     * @param applicationIdentifier   | length 3
+     * @param numberOfApplicationKeys | range 1..14
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+
+    public boolean createApplicationAes(byte[] applicationIdentifier, int numberOfApplicationKeys) {
+        String logData = "";
+        final String methodName = "createApplicationAesIso";
+        log(methodName, "started", true);
+        log(methodName, printData("applicationIdentifier", applicationIdentifier));
+        //log(methodName, "communicationSettings: " + communicationSettings.toString());
+        log(methodName, "numberOfApplicationKeys: " + numberOfApplicationKeys);
+        // sanity checks
+        if (!checkApplicationIdentifier(applicationIdentifier)) return false; // logFile and errorCode are updated
+        if ((numberOfApplicationKeys < 1) || (numberOfApplicationKeys > 14)) {
+            log(methodName, "numberOfApplicationKeys is not in range 1..14, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "numberOfApplicationKeys is not in range 1..14";
+            return false;
+        }
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+
+        // build the command string
+        byte keyNumbers = (byte) numberOfApplicationKeys;
+        // now adding the constant for key type, here fixed to AES = 0x80
+        keyNumbers = (byte) (keyNumbers | APPLICATION_CRYPTO_AES);
+        // "90CA00000E 010000 0F A5 10E1 D276000085010100"
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(applicationIdentifier, 0, applicationIdentifier.length);
+        baos.write(APPLICATION_MASTER_KEY_SETTINGS); // application master key settings, fixed value
+        baos.write(keyNumbers);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+        try {
+            apdu = wrapMessage(CREATE_APPLICATION_COMMAND, commandParameter);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            log(methodName, "SUCCESS");
+            return true;
+        } else {
+            log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            return false;
+        }
+    }
+
+    /**
      * create a new application including ISO application identifier and ISO Data File Name using AES keys
      * This uses a fixed Application Master Key Settings value of 0x0F which is default value
      * @param applicationIdentifier   | length 3
@@ -212,7 +271,7 @@ public class DesfireEv3 {
      * Note: check errorCode and errorCodeReason in case of failure
      */
 
-    public boolean createApplicationAesIso(byte[] applicationIdentifier, byte[] isoApplicationIdentifier, byte[] applicationDfName, CommunicationSettings communicationSettings, int numberOfApplicationKeys) {
+    public boolean createApplicationAesIso(byte[] applicationIdentifier, byte[] isoApplicationIdentifier, byte[] applicationDfName, int numberOfApplicationKeys) {
         String logData = "";
         final String methodName = "createApplicationAesIso";
         log(methodName, "started", true);
@@ -361,6 +420,78 @@ public class DesfireEv3 {
     /**
      * section for standard file handling
      */
+
+    /**
+     * create a Standard file in selected application using file Number and ISO fileId
+     * @param fileNumber            | in range 0..31
+     * @param communicationSettings | Plain, MACed or Full Note: Please do not use MACed as there are no methods in this class to handle that communication type
+     * @param accessRights          | Read & Write access key, CAR ke, Read key, Write key
+     * @param fileSize              | maximum of 256 bytes
+     * @param preEnableSdm          | set to true if you (later) want to enable SDM. If you don't set this on file creation it cannot get enabled later. Valid only on Standard files !
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+
+    public boolean createStandardFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize, boolean preEnableSdm) {
+        final String methodName = "createStandardFile";
+        logData = "";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "communicationSettings: " + communicationSettings.toString());
+        log(methodName, printData("accessRights", accessRights));
+        log(methodName, "fileSize: " + fileSize);
+        log(methodName, "preEnableSdm: " + preEnableSdm);
+        errorCode = new byte[2];
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
+        if (!checkAccessRights(accessRights)) return false; // logFile and errorCode are updated
+        if ((fileSize < 1) || (fileSize > MAXIMUM_FILE_SIZE)) {
+            log(methodName, "fileSize is not in range 1..MAXIMUM_FILE_SIZE, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "fileSize is not in range 1..MAXIMUM_FILE_SIZE";
+            return false;
+        }
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+
+        byte commSettings = (byte) 0;
+        if (communicationSettings == CommunicationSettings.Plain) commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        if (communicationSettings == CommunicationSettings.MACed) commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
+        if (communicationSettings == CommunicationSettings.Full) commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
+        // add 0x40 for pre-enabled SDM
+        if (preEnableSdm) {
+            commSettings = (byte) (commSettings | (byte) 0x40);
+        }
+
+        byte[] fileSizeByte = Utils.intTo3ByteArrayInversed(fileSize);
+        // build the command string
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(commSettings);
+        baos.write(accessRights, 0, accessRights.length);
+        baos.write(fileSizeByte, 0, fileSizeByte.length);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+
+        try {
+            apdu = wrapMessage(CREATE_STANDARD_FILE_COMMAND, commandParameter);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            log(methodName, "SUCCESS");
+            return true;
+        } else {
+            log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            return false;
+        }
+    }
 
     /**
      * create a Standard file in selected application using file Number and ISO fileId
@@ -716,10 +847,9 @@ public class DesfireEv3 {
      * @param length
      * @return
      */
-    public byte[] readStandardFilePlain(byte fileNumber, int length) {
+    public byte[] readFromStandardFilePlain(byte fileNumber, int length) {
         return readFromStandardFileRawPlain(fileNumber, 0, length);
     }
-
 
     /**
      * Read data from a Standard file, beginning at offset position and length of data.
@@ -809,7 +939,7 @@ public class DesfireEv3 {
         errorCode = new byte[2];
         // sanity checks
         if (!checkApplicationIdentifier(selectedApplicationId)) return false; // logFile and errorCode are updated
-        if (!checkAuthentication()) return false; // logFile and errorCode are updated
+        //if (!checkAuthentication()) return false; // logFile and errorCode are updated
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if (!checkIsoDep()) return false; // logFile and errorCode are updated
         byte[] apdu;

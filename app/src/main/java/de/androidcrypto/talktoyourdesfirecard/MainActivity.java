@@ -106,10 +106,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     //private Button fileCreateEv2;
 
     // working with large standard files (> 60 bytes to simulate chunking) in new DesfireEv3 class
-    private Button fileStandardLargeCreateEv2, fileStandardLargeWriteEv2, fileStandardLargeReadEv2;
+    private Button applicationCreateAesLargeEv3, applicationDeleteAesLargeEv3, applicationSelectAesLargeEv3;
+    private Button fileStandardLargeCreateEv3, fileStandardLargeWriteEv3, fileStandardLargeReadEv3;
     private Button fileStandardLargeDeletePEv3; // delete the Plain Standard File 12
     private Button fileStandardLargeDeleteFEv3; // delete the Full Standard File 13
-    private Button deleteAesApplicationEv3; // deletes the AES application D1D2D3
+    //private Button deleteAesApplicationEv3; // deletes the AES application D1D2D3
 
     // LRP authentication
     private Button authD0LEv2, authD1LEv2, authD2LEv2, authD3LCEv2;
@@ -184,6 +185,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     private final byte[] APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("D0D1D2"); // AID 'D0 D1 D2'
+    private final byte[] APPLICATION_IDENTIFIER_AES = Utils.hexStringToByteArray("D1D2D3"); // AID 'D1 D2 D3'
     private final byte APPLICATION_NUMBER_OF_KEYS = (byte) 0x05; // maximum 5 keys for secured access
     private final byte APPLICATION_MASTER_KEY_SETTINGS = (byte) 0x0F; // 'amks'
     /**
@@ -412,13 +414,16 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileRecordWriteEv2 = findViewById(R.id.btnWriteRecordFileEv2);
 
         // large standard files using DESFire EV3 class
-        fileStandardLargeCreateEv2 = findViewById(R.id.btnCreateStandardFileLargeEv3);
-        fileStandardLargeWriteEv2 = findViewById(R.id.btnWriteStandardFileLargeEv3);
-        fileStandardLargeReadEv2 = findViewById(R.id.btnReadStandardFileLargeEv3);
+        applicationCreateAesLargeEv3 = findViewById(R.id.btnCreateAesApplicationLargeEv3);
+        applicationDeleteAesLargeEv3 = findViewById(R.id.btnDeleteAesApplicationEv3);
+        applicationSelectAesLargeEv3 = findViewById(R.id.btnSelectAesApplicationLargeEv3);
+
+        fileStandardLargeCreateEv3 = findViewById(R.id.btnCreateStandardFileLargeEv3);
+        fileStandardLargeWriteEv3 = findViewById(R.id.btnWriteStandardFileLargeEv3);
+        fileStandardLargeReadEv3 = findViewById(R.id.btnReadStandardFileLargeEv3);
 
         fileStandardLargeDeletePEv3 = findViewById(R.id.btnDeleteStandardFileLargePEv3);
         fileStandardLargeDeleteFEv3 = findViewById(R.id.btnDeleteStandardFileLargeFEv3);
-        deleteAesApplicationEv3 = findViewById(R.id.btnDeleteAesApplicationEv3);
 
         fileCreateFileSetEnciphered = findViewById(R.id.btnCreateFileSetEncipheredEv2);
 
@@ -1613,14 +1618,88 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         });
 
         /**
-         * section for large Standard files
+         * section for large Standard files working with DesfireEv3 class
          */
 
-        fileStandardLargeCreateEv2.setOnClickListener(new View.OnClickListener() {
+        applicationCreateAesLargeEv3.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 clearOutputFields();
-                String logString = "create a large standard file 320 bytes EV2";
+                String logString = "create the AES application D1D2D3 EV3";
+                writeToUiAppend(output, logString);
+                selectedApplicationId = APPLICATION_IDENTIFIER_AES.clone();
+                applicationSelected.setText(bytesToHexNpeUpperCase(APPLICATION_IDENTIFIER_AES));
+                byte[] responseData = new byte[2];
+                boolean success = desfireEv3.createApplicationAes(APPLICATION_IDENTIFIER_AES, 5);
+                responseData = desfireEv3.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        applicationDeleteAesLargeEv3.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "delete the AES application EV3";
+                writeToUiAppend(output, logString);
+                // check that an application was selected before
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte[] responseData = new byte[2];
+                boolean success = desfireEv3.deleteSelectedApplication();
+                responseData = desfireEv3.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        applicationSelectAesLargeEv3.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "select the AES application EV3";
+                writeToUiAppend(output, logString);
+                // check that an application was selected before
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte[] responseData = new byte[2];
+                boolean success = desfireEv3.selectApplicationByAid(selectedApplicationId);
+                responseData = desfireEv3.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+        fileStandardLargeCreateEv3.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "create a large standard file 320 bytes EV3";
                 writeToUiAppend(output, logString);
                 writeToUiAppend(output, "Note: using a FIXED fileNumber 12 and fileSize of 320 for this method");
                 byte fileIdByte = (byte) 0xc; // fixed
@@ -1634,8 +1713,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 writeToUiAppend(output, logString + " with id: " + fileIdByte + " size: " + fileSizeInt);
                 byte[] responseData = new byte[2];
                 // create a Standard file with Plain communication
-                boolean success = desfireAuthenticateEv2.createStandardFileEv2(fileIdByte, fileSizeInt, true, false);
-                responseData = desfireAuthenticateEv2.getErrorCode();
+                boolean success = desfireEv3.createStandardFile(fileIdByte, DesfireEv3.CommunicationSettings.Plain, DesfireEv3.ACCESS_RIGHTS_DEFAULT, fileSizeInt, false);
+                responseData = desfireEv3.getErrorCode();
                 //boolean success = createStandardFilePlainCommunicationDes(output, fileIdByte, fileSizeInt, rbFileFreeAccess.isChecked(), responseData);
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
@@ -1648,11 +1727,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
-        fileStandardLargeReadEv2.setOnClickListener(new View.OnClickListener() {
+        fileStandardLargeReadEv3.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 clearOutputFields();
-                String logString = "read from a large standard file 320 bytes EV2";
+                String logString = "read from a large standard file 320 bytes EV3";
                 writeToUiAppend(output, logString);
                 // todo skipped, using a fixed fileNumber
                 selectedFileId = "12"; // 0c
@@ -1675,8 +1754,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 byte[] responseData = new byte[2];
                 //byte[] result = readFromAStandardFilePlainCommunicationDes(output, fileIdByte, selectedFileSize, responseData);
-                byte[] result = desfireAuthenticateEv2.readFromStandardFileRawPlain(fileIdByte, 0, 320);
-                responseData = desfireAuthenticateEv2.getErrorCode();
+                byte[] result = desfireEv3.readFromStandardFilePlain(fileIdByte, 320);
+                responseData = desfireEv3.getErrorCode();
                 if (result == null) {
                     // something gone wrong
                     writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
@@ -1697,11 +1776,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
-        fileStandardLargeWriteEv2.setOnClickListener(new View.OnClickListener() {
+        fileStandardLargeWriteEv3.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 clearOutputFields();
-                String logString = "write to a large standard file 320 bytes EV2";
+                String logString = "write to a large standard file 320 bytes EV3";
                 writeToUiAppend(output, logString);
 
                 // todo skipped, using a fixed fileNumber
@@ -1745,9 +1824,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 //boolean success = writeToAStandardFilePlainCommunicationDes(output, fileIdByte, fullDataToWrite, responseData);
 
                 // writeStandardFileRawPlainEv2 maximum data is 40
-                boolean success = desfireAuthenticateEv2.writeToStandardFilePlain(fileIdByte, fullDataToWrite);
+                boolean success = desfireEv3.writeToStandardFilePlain(fileIdByte, fullDataToWrite);
                 //boolean success = false;
-                responseData = desfireAuthenticateEv2.getErrorCode();
+                responseData = desfireEv3.getErrorCode();
 
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
@@ -1822,31 +1901,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
-        deleteAesApplicationEv3.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                clearOutputFields();
-                String logString = "delete the AES application EV3";
-                writeToUiAppend(output, logString);
-                // check that an application was selected before
-                if (selectedApplicationId == null) {
-                    writeToUiAppend(output, "You need to select an application first, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
-                    return;
-                }
-                byte[] responseData = new byte[2];
-                boolean success = desfireEv3.deleteSelectedApplication();
-                responseData = desfireEv3.getErrorCode();
-                if (success) {
-                    writeToUiAppend(output, logString + " SUCCESS");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    vibrateShort();
-                } else {
-                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
-                }
-            }
-        });
+
 
         /**
          * section for Backup files

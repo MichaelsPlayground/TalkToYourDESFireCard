@@ -767,6 +767,37 @@
                         android:orientation="horizontal">
 
                         <Button
+                            android:id="@+id/btnCreateAesApplicationLargeEv3"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginRight="8dp"
+                            android:layout_weight="1"
+                            android:text="create AES apl" />
+
+                        <Button
+                            android:id="@+id/btnDeleteAesApplicationLargeEv3"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginLeft="8dp"
+                            android:layout_weight="1"
+                            android:text="delete apl" />
+
+                        <Button
+                            android:id="@+id/btnSelectAesApplicationLargeEv3"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginLeft="8dp"
+                            android:layout_weight="1"
+                            android:text="select apl" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="horizontal">
+
+                        <Button
                             android:id="@+id/btnCreateStandardFileLargeEv3"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
