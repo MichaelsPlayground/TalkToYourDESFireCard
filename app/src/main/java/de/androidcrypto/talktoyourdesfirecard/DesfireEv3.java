@@ -159,7 +159,8 @@ public class DesfireEv3 {
     public static final byte[] ACCESS_RIGHTS_DEFAULT = hexStringToByteArray("1234"); // R&W access 1, CAR 2, R 3, W 4
     private final byte[] IV_LABEL_ENC = new byte[]{(byte) 0xA5, (byte) 0x5A}; // use as header for AES encryption
     private final byte[] IV_LABEL_DEC = new byte[]{(byte) 0x5A, (byte) 0xA5}; // use as header for AES decryption
-    private final int MAXIMUM_MESSAGE_LENGTH = 40;
+    private final int MAXIMUM_MESSAGE_LENGTH = 32;//
+    //private final int MAXIMUM_MESSAGE_LENGTH = 40;//
     private static final byte MAXIMUM_NUMBER_OF_KEYS = 5; // the maximum of keys per application is 14
     private final int MAXIMUM_NUMBER_OF_FILES = 32; // as per datasheet DESFire EV3 this is valid for EV1, EV2 and EV3
 
@@ -1016,7 +1017,6 @@ public class DesfireEv3 {
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        byte[] header = new byte[]{(byte) (0xA5), (byte) (0x5A)}; // fixed to 0xA55A
         byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
         ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
         baosIvInput.write(IV_LABEL_ENC, 0, IV_LABEL_ENC.length);
