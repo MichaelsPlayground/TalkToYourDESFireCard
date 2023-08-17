@@ -1,6 +1,5 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
-
 import static de.androidcrypto.talktoyourdesfirecard.DesfireAuthenticateEv2.intTo2ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
 
@@ -14,7 +13,6 @@ import androidx.annotation.NonNull;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.security.AccessControlException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -57,6 +55,12 @@ import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
  * - createStandardFileIso (adding an ISO fileNumber and ISO fileName with communication mode Plain only
  * - write a NDEF message containing an URL/Link record with communication mode Plain only
  *
+ * General behaviour of the class:
+ * - this class is using (application) access key based reading and writing methods. Although it is allowed
+ *   to use the value '0xE' (decimal 14) meaning 'free access without key' all read and write methods will
+ *   always check for a preceding authentication with a Read&Write, Read and/or Write access key. So if you
+ *   change the access key rights to '0xE' you cannot read or write from/to a file anymore with this class
+ *
  * (*1): using fixed application settings '0x0f' meaning Application master key authentication is necessary to change any key (default),
  *       the configuration is changeable if authenticated with the application master key (default setting)
  *       CreateFile / DeleteFile is permitted also without application master key authentication (default setting)
@@ -83,7 +87,6 @@ import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
 public class DesfireEv3 {
 
     private static final String TAG = DesfireEv3.class.getName();
-
 
     private IsoDep isoDep;
     private String logData;
@@ -117,7 +120,6 @@ public class DesfireEv3 {
     public static final int NDEF_FILE_02_SIZE = 256;
     public static final int MAXIMUM_FILE_SIZE = 256; // this is fixed by me, could as long as about free memory of the tag
 
-
     /**
      * constants for commands
      */
@@ -128,6 +130,7 @@ public class DesfireEv3 {
     private final byte GET_VERSION_INFO_COMMAND = (byte) 0x60;
     private final byte CREATE_APPLICATION_COMMAND = (byte) 0xCA;
     private final byte SELECT_APPLICATION_COMMAND = (byte) 0x5A;
+    private final byte DELETE_APPLICATION_COMMAND = (byte) 0xDA;
     private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
     private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
     private final byte READ_STANDARD_FILE_COMMAND = (byte) 0xBD;
@@ -169,10 +172,15 @@ public class DesfireEv3 {
     private final byte[] PADDING_FULL = hexStringToByteArray("80000000000000000000000000000000");
 
     /**
-     * standard file
+     * application
      */
 
     private byte[] selectedApplicationId; // filled by 'select application'
+
+    /**
+     * standard file
+     */
+
     private static byte[] APPLICATION_ALL_FILE_IDS; // filled by getAllFileIds and invalidated by selectApplication AND createFile
     private static FileSettings[] APPLICATION_ALL_FILE_SETTINGS; // filled by getAllFileSettings and invalidated by selectApplication AND createFile
     private FileSettings selectedFileSetting; // takes the fileSettings of the actual file
@@ -300,6 +308,9 @@ public class DesfireEv3 {
         System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
             log(methodName, "SUCCESS");
+            invalidateAllData();
+            selectedApplicationId = applicationIdentifier.clone();
+            APPLICATION_ALL_FILE_IDS = getAllFileIds();
             return true;
         } else {
             log(methodName, "FAILURE with " + printData("errorCode", errorCode));
@@ -308,7 +319,45 @@ public class DesfireEv3 {
     }
 
     /**
-     * section for file handling
+     * Deletes the selected application without any further confirmation
+     * Note: this command requires a preceding authentication with Application Master key
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+
+    public boolean deleteSelectedApplication() {
+        final String methodName = "deleteSelectedApplication";
+        logData = "";
+        log(methodName, "started", true);
+        errorCode = new byte[2];
+        // sanity checks
+        if (!checkApplicationIdentifier(selectedApplicationId)) return false; // logFile and errorCode are updated
+        if (!checkAuthentication()) return false; // logFile and errorCode are updated
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+        byte[] apdu;
+        byte[] response;
+        try {
+            apdu = wrapMessage(DELETE_APPLICATION_COMMAND, selectedApplicationId);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            log(methodName, "SUCCESS");
+            return true;
+        } else {
+            log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            return false;
+        }
+    }
+
+    /**
+     * section for standard file handling
      */
 
     /**
@@ -622,11 +671,11 @@ public class DesfireEv3 {
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
             return false;
         }
-        if (!Objects.equals(fileSettings.getFileTypeName(), FileSettings.STANDARD_FILE_TYPE)) {
-            Log.e(TAG, methodName + " fileType is not a Standard file, aborted");
-            log(methodName, "fileType is not a Standard file, aborted");
+        if (!checkFileTypeStandard(fileNumber)) {
+            Log.e(TAG, methodName + " fileType is not Standard file, aborted");
+            log(methodName, "fileType is not Standard file, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
-            return false;
+            return false; // logFile and errorCode are updated
         }
         if (!checkIsoDep()) return false; // logFile and errorCode are updated
         byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset);
@@ -712,14 +761,12 @@ public class DesfireEv3 {
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
             return null;
         }
-        if (!Objects.equals(fileSettings.getFileTypeName(), FileSettings.STANDARD_FILE_TYPE)) {
-            Log.e(TAG, methodName + " fileType is not a Standard file, aborted");
-            log(methodName, "fileType is not a Standard file, aborted");
+        if (!checkFileTypeStandard(fileNumber)) {
+            Log.e(TAG, methodName + " fileType is not Standard file, aborted");
+            log(methodName, "fileType is not Standard file, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
             return null;
         }
-
-
         if (!checkIsoDep()) return null; // logFile and errorCode are updated
 
         // generate the parameter
@@ -2707,12 +2754,82 @@ fileSize: 128
         return true;
     }
 
+    private boolean checkFileTypeStandard(byte fileNumber) {
+        FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        if  (fileSettings.getFileType() == FileSettings.STANDARD_FILE_TYPE) {
+            return true;
+        } else {
+            Log.d(TAG, "fileType is not a Standard file type");
+            return false;
+        }
+    }
+
+    private boolean checkFileTypeBackup(byte fileNumber) {
+        FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        if  (fileSettings.getFileType() == FileSettings.BACKUP_FILE_TYPE) {
+            return true;
+        } else {
+            Log.d(TAG, "fileType is not a Backup file type");
+            return false;
+        }
+    }
+
+    private boolean checkFileTypeValue(byte fileNumber) {
+        FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        if  (fileSettings.getFileType() == FileSettings.VALUE_FILE_TYPE) {
+            return true;
+        } else {
+            Log.d(TAG, "fileType is not a Value file type");
+            return false;
+        }
+    }
+
+    private boolean checkFileTypeLinearRecord(byte fileNumber) {
+        FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        if  (fileSettings.getFileType() == FileSettings.LINEAR_RECORD_FILE_TYPE) {
+            return true;
+        } else {
+            Log.d(TAG, "fileType is not a Linear Record file type");
+            return false;
+        }
+    }
+
+    private boolean checkFileTypeCyclicRecord(byte fileNumber) {
+        FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        if  (fileSettings.getFileType() == FileSettings.CYCLIC_RECORD_FILE_TYPE) {
+            return true;
+        } else {
+            Log.d(TAG, "fileType is not a Cyclic Record file type");
+            return false;
+        }
+    }
+
+    private boolean checkFileTypeTransactionMac(byte fileNumber) {
+        FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        if  (fileSettings.getFileType() == FileSettings.TRANSACTION_MAC_FILE_TYPE) {
+            return true;
+        } else {
+            Log.d(TAG, "fileType is not a Transaction MAC file type");
+            return false;
+        }
+    }
+
     // note: this does not check if in application creation all keys got created
     private boolean checkAccessRights(byte[] accessRights) {
         if ((accessRights == null) || (accessRights.length != 2)) {
             log("checkAccessRights", "accessRights are NULL or not of length 2, aborted");
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
             errorCodeReason = "accessRights are NULL or not of length 2";
+            return false;
+        }
+        return true;
+    }
+
+    private boolean checkAuthentication() {
+        if ((!authenticateEv2FirstSuccess) && (!authenticateEv2NonFirstSuccess)) {
+            log("checkAuthentication", "missing authentication with authenticateEV2First or authenticateEV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+            errorCodeReason = "missing authentication with authenticateEV2First or authenticateEV2NonFirst";
             return false;
         }
         return true;

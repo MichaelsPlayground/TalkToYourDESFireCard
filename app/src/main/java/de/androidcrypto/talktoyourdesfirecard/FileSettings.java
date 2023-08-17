@@ -79,12 +79,18 @@ public class FileSettings {
     private boolean isUnexpectedResponseLength = false;
     private String unexpectedResponseLengthPositionName = "";
 
-    public static final String STANDARD_FILE_TYPE = "Standard";
-    public static final String BACKUP_FILE_TYPE = "Backup";
-    public static final String VALUE_FILE_TYPE = "Value";
-    public static final String LINEAR_RECORD_FILE_TYPE = "Linear record";
-    public static final String CYCLIC_RECORD_FILE_TYPE = "Cyclic record";
-    public static final String TRANSACTION_MAC_FILE_TYPE = "Transaction MAC";
+    public static final int STANDARD_FILE_TYPE = 0;
+    public static final int BACKUP_FILE_TYPE = 1;
+    public static final int VALUE_FILE_TYPE = 2;
+    public static final int LINEAR_RECORD_FILE_TYPE = 3;
+    public static final int CYCLIC_RECORD_FILE_TYPE = 4;
+    public static final int TRANSACTION_MAC_FILE_TYPE = 5;
+    public static final String STANDARD_FILE_TYPE_NAME = "Standard";
+    public static final String BACKUP_FILE_TYPE_NAME = "Backup";
+    public static final String VALUE_FILE_TYPE_NAME = "Value";
+    public static final String LINEAR_RECORD_FILE_TYPE_NAME = "Linear record";
+    public static final String CYCLIC_RECORD_FILE_TYPE_NAME = "Cyclic record";
+    public static final String TRANSACTION_MAC_FILE_TYPE_NAME = "Transaction MAC";
     public static final String COMMUNICATION_SETTING_NAME_PLAIN = "Plain";
     public static final String COMMUNICATION_SETTING_NAME_CMACED = "CMACed";
     public static final String COMMUNICATION_SETTING_NAME_ENCRYPTED = "Encrypted";
@@ -225,12 +231,12 @@ public class FileSettings {
 
     private String getFileTypeName(byte fileType) {
         switch (fileType) {
-            case (byte) 0x00: return STANDARD_FILE_TYPE;
-            case (byte) 0x01: return BACKUP_FILE_TYPE;
-            case (byte) 0x02: return VALUE_FILE_TYPE;
-            case (byte) 0x03: return LINEAR_RECORD_FILE_TYPE;
-            case (byte) 0x04: return CYCLIC_RECORD_FILE_TYPE;
-            case (byte) 0x05: return TRANSACTION_MAC_FILE_TYPE;
+            case (byte) 0x00: return STANDARD_FILE_TYPE_NAME;
+            case (byte) 0x01: return BACKUP_FILE_TYPE_NAME;
+            case (byte) 0x02: return VALUE_FILE_TYPE_NAME;
+            case (byte) 0x03: return LINEAR_RECORD_FILE_TYPE_NAME;
+            case (byte) 0x04: return CYCLIC_RECORD_FILE_TYPE_NAME;
+            case (byte) 0x05: return TRANSACTION_MAC_FILE_TYPE_NAME;
             default: return "Unknown";
         }
     }
