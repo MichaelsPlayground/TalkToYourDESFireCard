@@ -231,7 +231,7 @@ public class DesfireEv3 {
         if (!checkApplicationIdentifier(applicationIdentifier)) return false; // logFile and errorCode are updated
         if ((numberOfApplicationKeys < 1) || (numberOfApplicationKeys > 14)) {
             log(methodName, "numberOfApplicationKeys is not in range 1..14, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "numberOfApplicationKeys is not in range 1..14";
             return false;
         }
@@ -257,6 +257,8 @@ public class DesfireEv3 {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage());
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -293,19 +295,19 @@ public class DesfireEv3 {
         if (!checkApplicationIdentifier(applicationIdentifier)) return false; // logFile and errorCode are updated
         if ((isoApplicationIdentifier == null) || (isoApplicationIdentifier.length != 2)) {
             log(methodName, "isoApplicationIdentifier is NULL or not of length 2, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "isoApplicationIdentifier is NULL or not of length 2";
             return false;
         }
         if ((applicationDfName == null) || (applicationDfName.length < 1) || (applicationDfName.length > 16)) {
             log(methodName, "applicationDfName is NULL or not of length range 1..16, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "applicationDfName is NULL or not length range 1..16";
             return false;
         }
         if ((numberOfApplicationKeys < 1) || (numberOfApplicationKeys > 14)) {
             log(methodName, "numberOfApplicationKeys is not in range 1..14, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "numberOfApplicationKeys is not in range 1..14";
             return false;
         }
@@ -332,7 +334,8 @@ public class DesfireEv3 {
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -371,7 +374,8 @@ public class DesfireEv3 {
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -413,7 +417,8 @@ public class DesfireEv3 {
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -455,12 +460,9 @@ public class DesfireEv3 {
         // sanity checks
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if (!checkAccessRights(accessRights)) return false; // logFile and errorCode are updated
-        if (fileSize < 1) {
-            log(methodName, "fileSize is < 1, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
-            errorCodeReason = "fileSize is < 1";
-            return false;
-        }
+        if (!checkFileSize0(fileSize)) return false; // logFile and errorCode are updated
+
+
         /*
         if ((fileSize < 1) || (fileSize > MAXIMUM_FILE_SIZE)) {
             log(methodName, "fileSize is not in range 1..MAXIMUM_FILE_SIZE, aborted");
@@ -496,7 +498,8 @@ public class DesfireEv3 {
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -577,7 +580,8 @@ public class DesfireEv3 {
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -635,7 +639,7 @@ public class DesfireEv3 {
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if (!Utils.isValidUrl(urlToWrite)) {
             log(methodName, "invalid urlToWrite, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "invalid urlToWrite";
             return false;
         }
@@ -651,7 +655,7 @@ public class DesfireEv3 {
         System.arraycopy(ndefMessageBytesHeadless, 0, data, 2, ndefMessageBytesHeadless.length);
         if (data.length > MAXIMUM_FILE_SIZE) {
             log(methodName, "NDEF message exceeds MAXIMUM_FILE_SIZE, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "NDEF message exceeds MAXIMUM_FILE_SIZE";
             return false;
         }
@@ -746,7 +750,7 @@ public class DesfireEv3 {
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if ((data == null) || (data.length < 1) || (data.length > MAXIMUM_FILE_SIZE)) {
             log(methodName, "data length not in range 1..MAXIMUM_FILE_SIZE, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "data length not in range 1..MAXIMUM_FILE_SIZE";
             return false;
         }
@@ -805,7 +809,8 @@ public class DesfireEv3 {
                 completeSuccess = false;
                 Log.e(TAG, methodName + " could not successfully write, aborted");
                 log(methodName, "could not successfully write, aborted");
-                System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+                errorCode = RESPONSE_FAILURE.clone();
+                errorCodeReason = "could not successfully write";
                 return false;
             }
         }
@@ -833,7 +838,7 @@ public class DesfireEv3 {
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if ((data == null) || (data.length < 1) || (data.length > MAXIMUM_FILE_SIZE)) {
             log(methodName, "data length not in range 1..MAXIMUM_FILE_SIZE, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "data length not in range 1..MAXIMUM_FILE_SIZE";
             return false;
         }
@@ -860,7 +865,8 @@ public class DesfireEv3 {
                 completeSuccess = false;
                 Log.e(TAG, methodName + " could not successfully write, aborted");
                 log(methodName, "could not successfully write, aborted");
-                System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+                errorCode = RESPONSE_FAILURE.clone();
+                errorCodeReason = "could not successfully write";
                 return false;
             }
         }
@@ -894,15 +900,11 @@ public class DesfireEv3 {
         if ((data == null) || (data.length > 40)) {
             Log.e(TAG, methodName + " data is NULL or length is > 40, aborted");
             log(methodName, "data is NULL or length is > 40, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "data is NULL or length is > 40";
             return false;
         }
-        if (offset < 0) {
-            Log.e(TAG, methodName + " offset is < 0, aborted");
-            log(methodName, "offset is < 0, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
-            return false;
-        }
+        if (!checkOffsetMinus(offset)) return false;
         // getFileSettings for file type and length information
         FileSettings fileSettings;
         try {
@@ -919,12 +921,14 @@ public class DesfireEv3 {
             Log.e(TAG, methodName + " data length is > fileSize, aborted");
             log(methodName, "length is > fileSize, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "length is > fileSize";
             return false;
         }
         if (!checkFileTypeStandard(fileNumber)) {
             Log.e(TAG, methodName + " fileType is not Standard file, aborted");
             log(methodName, "fileType is not Standard file, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "fileType is not Standard file";
             return false; // logFile and errorCode are updated
         }
         if (!checkIsoDep()) return false; // logFile and errorCode are updated
@@ -944,7 +948,8 @@ public class DesfireEv3 {
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -972,15 +977,11 @@ public class DesfireEv3 {
         if ((data == null) || (data.length > MAXIMUM_WRITE_MESSAGE_LENGTH)) {
             Log.e(TAG, methodName + " data is NULL or length is > " + MAXIMUM_WRITE_MESSAGE_LENGTH + ", aborted");
             log(methodName, "data is NULL or length is > " + MAXIMUM_WRITE_MESSAGE_LENGTH + ", aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "data is NULL or length is > " + MAXIMUM_WRITE_MESSAGE_LENGTH;
             return false;
         }
-        if (offset < 0) {
-            Log.e(TAG, methodName + " offset is < 0, aborted");
-            log(methodName, "offset is < 0, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
-            return false;
-        }
+        if (!checkOffsetMinus(offset)) return false;
         // getFileSettings for file type and size information
         FileSettings fileSettings;
         try {
@@ -997,12 +998,14 @@ public class DesfireEv3 {
             Log.e(TAG, methodName + " data length is > fileSize, aborted");
             log(methodName, "length is > fileSize, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "length is > fileSize";
             return false;
         }
         if (!checkFileTypeStandard(fileNumber)) {
             Log.e(TAG, methodName + " fileType is not Standard file, aborted");
             log(methodName, "fileType is not Standard file, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "fileType is not Standard file";
             return false; // logFile and errorCode are updated
         }
         if (!checkAuthentication()) return false; // logFile and errorCode are updated
@@ -1119,7 +1122,8 @@ public class DesfireEv3 {
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -1163,15 +1167,11 @@ public class DesfireEv3 {
         if ((dataToWrite == null) || (dataToWrite.length > 40)) {
             Log.e(TAG, methodName + " data is NULL or length is > 40, aborted");
             log(methodName, "data is NULL or length is > 40, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "data is NULL or length is > 40";
             return false;
         }
-        if (offsetInt < 0) {
-            Log.e(TAG, methodName + " offset is < 0, aborted");
-            log(methodName, "offset is < 0, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
-            return false;
-        }
+        if (checkOffsetMinus(offsetInt)) return false;
         // getFileSettings for file type and size information
         FileSettings fileSettings;
         try {
@@ -1188,12 +1188,14 @@ public class DesfireEv3 {
             Log.e(TAG, methodName + " data length is > fileSize, aborted");
             log(methodName, "length is > fileSize, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "length is > fileSize";
             return false;
         }
         if (!checkFileTypeStandard(fileNumber)) {
             Log.e(TAG, methodName + " fileType is not Standard file, aborted");
             log(methodName, "fileType is not Standard file, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "fileType is not Standard file";
             return false; // logFile and errorCode are updated
         }
         if (!checkAuthentication()) return false; // logFile and errorCode are updated
@@ -1334,7 +1336,8 @@ public class DesfireEv3 {
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -1417,12 +1420,7 @@ public class DesfireEv3 {
 
         // sanity checks
         if (!checkAuthentication()) return null; // logFile and errorCode are updated
-        if (offset < 0) {
-            Log.e(TAG, methodName + " offset is < 0, aborted");
-            log(methodName, "offset is < 0, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
-            return null;
-        }
+        if (!checkOffsetMinus(offset)) return null;
         // getFileSettings for file type and length information
         FileSettings fileSettings;
         try {
@@ -1439,18 +1437,21 @@ public class DesfireEv3 {
             Log.e(TAG, methodName + " length is > fileSize, aborted");
             log(methodName, "length is > fileSize, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "length is > fileSize";
             return null;
         }
         if ((offset + length) > fileSize) {
             Log.e(TAG, methodName + " (offset + length) is > fileSize, aborted");
             log(methodName, "(offset + length) is > fileSize, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "(offset + length) is > fileSize";
             return null;
         }
         if (!checkFileTypeStandard(fileNumber)) {
             Log.e(TAG, methodName + " fileType is not Standard file, aborted");
             log(methodName, "fileType is not Standard file, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "ileType is not Standard file";
             return null;
         }
         /*
@@ -1535,7 +1536,7 @@ public class DesfireEv3 {
 
     /**
      * Read data from a Standard file, beginning at offset position and length of data.
-     * As the amount of data that can be send from PICC to reader is limited the PCC will chunk the
+     * As the amount of data that can be send from PICC to reader is limited and the PICC will chunk the
      * data if exceeding this limit. The method automatically detects this behaviour and send the
      * necessary commands to get all data.
      * DO NOT CALL this method from outside this class but use one of the ReadFromStandardFile callers
@@ -1554,12 +1555,7 @@ public class DesfireEv3 {
         log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + " size: " + length);
         // sanity checks
         if (!checkFileNumber(fileNumber)) return null; // logFile and errorCode are updated
-        if (offset < 0) {
-            Log.e(TAG, methodName + " offset is < 0, aborted");
-            log(methodName, "offset is < 0, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
-            return null;
-        }
+        if (!checkOffsetMinus(offset)) return null;
         // getFileSettings for file type and length information
         FileSettings fileSettings;
         try {
@@ -1576,18 +1572,21 @@ public class DesfireEv3 {
             Log.e(TAG, methodName + " length is > fileSize, aborted");
             log(methodName, "length is > fileSize, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "length is > fileSize";
             return null;
         }
         if ((offset + length) > fileSize) {
             Log.e(TAG, methodName + " (offset + length) is > fileSize, aborted");
             log(methodName, "(offset + length) is > fileSize, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "(offset + length) is > fileSize";
             return null;
         }
         if (!checkFileTypeStandard(fileNumber)) {
             Log.e(TAG, methodName + " fileType is not Standard file, aborted");
             log(methodName, "fileType is not Standard file, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "fileType is not Standard file";
             return null;
         }
         if (!checkIsoDep()) return null; // logFile and errorCode are updated
@@ -1614,17 +1613,23 @@ public class DesfireEv3 {
         return getData(response);
     }
 
-    // todo clean the readFromStandardFileRawFull
+    /**
+     * Read data from a Standard file, beginning at offset position and length of data.
+     * As the amount of data that can be send from PICC to reader is limited and the PICC will chunk the
+     * data if exceeding this limit. The method denies if this limit is reached.
+     * DO NOT CALL this method from outside this class but use one of the ReadFromStandardFile callers
+     * as it uses the pre-read fileSettings
+     * @param fileNumber | in range 0..31
+     * @param offset     | offset in the file
+     * @param length     | length of data > 1
+     * @return the read data or NULL
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
 
     public byte[] readFromStandardFileRawFull(byte fileNumber, int offset, int length) {
-        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 55 - 58
-        // Cmd.ReadData in AES Secure Messaging using CommMode.Full
-        // this is based on the read of a data file on a DESFire Light card
 
-        // status WORKING
-
-        // the absolute maximum of data that can be read on a DESFire EV3 in one run is 239 bytes but this is limited to
-        // 128 bytes. If you want to read more use the chunking method readFromStandardFile()
+        // the absolute maximum of data that can be read on a DESFire EV3 in one run is 239 bytes but this is limited
+        // here to 128 bytes. If you want to read more use the chunking method readFromStandardFile()
 
         String logData = "";
         final String methodName = "readFromStandardFileRawFull";
@@ -1632,16 +1637,12 @@ public class DesfireEv3 {
         log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + " size: " + length);
         // sanity checks
         if (!checkAuthentication()) return null; // logFile and errorCode are updated
-        if (offset < 0) {
-            Log.e(TAG, methodName + " offset is < 0, aborted");
-            log(methodName, "offset is < 0, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
-            return null;
-        }
+        if (!checkOffsetMinus(offset)) return null;
         if (length > MAXIMUM_READ_MESSAGE_LENGTH) {
             Log.e(TAG, methodName + " length is > MAXIMUM_READ_MESSAGE_LENGTH, aborted");
             log(methodName, "length is > MAXIMUM_READ_MESSAGE_LENGTH, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "length is > MAXIMUM_READ_MESSAGE_LENGTH";
             return null;
         }
         // getFileSettings for file type and length information
@@ -1660,18 +1661,21 @@ public class DesfireEv3 {
             Log.e(TAG, methodName + " length is > fileSize, aborted");
             log(methodName, "length is > fileSize, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "length is > fileSize";
             return null;
         }
         if ((offset + length) > fileSize) {
             Log.e(TAG, methodName + " (offset + length) is > fileSize, aborted");
             log(methodName, "(offset + length) is > fileSize, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "(offset + length) is > fileSize";
             return null;
         }
         if (!checkFileTypeStandard(fileNumber)) {
             Log.e(TAG, methodName + " fileType is not Standard file, aborted");
             log(methodName, "fileType is not Standard file, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "fileType is not Standard file";
             return null;
         }
         /*
@@ -1686,6 +1690,7 @@ public class DesfireEv3 {
          */
         if (!checkIsoDep()) return null; // logFile and errorCode are updated
 
+        // command header
         byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset); // LSB order
         byte[] lengthBytes = Utils.intTo3ByteArrayInversed(length); // LSB order
         ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
@@ -1726,23 +1731,17 @@ public class DesfireEv3 {
         byte[] fullEncryptedData;
         byte[] encryptedData;
         byte[] responseMACTruncatedReceived;
-        response = sendRequest(READ_STANDARD_FILE_SECURE_COMMAND, readDataCommand);
-        /*
         try {
             apdu = wrapMessage(READ_STANDARD_FILE_SECURE_COMMAND, readDataCommand);
-            log(methodName, printData("apdu", apdu));
-            response = isoDep.transceive(apdu);
-            response = sendRequest(READ_STANDARD_FILE_SECURE_COMMAND, readDataCommand);
-            log(methodName, printData("response", response));
-            //Log.d(TAG, methodName + printData(" response", response));
-
+            response = sendData(apdu);
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return null;
         }
-         */
+
         byte[] responseBytes = returnStatusBytes(response);
         System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
@@ -1784,27 +1783,16 @@ public class DesfireEv3 {
         byte[] readData = Arrays.copyOfRange(decryptedData, 0, length);
         log(methodName, printData("readData", readData));
 
-        // verifying the received MAC
-        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
-        responseMacBaos.write((byte) 0x00); // response code 00 means success
-        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
-        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        responseMacBaos.write(encryptedData, 0, encryptedData.length);
-        byte[] macInput2 = responseMacBaos.toByteArray();
-        log(methodName, printData("macInput", macInput2));
-        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
-        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
-        log(methodName, printData("responseMACCalculated", responseMACCalculated));
-        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
-        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
-        // compare the responseMAC's
-        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
-            Log.d(TAG, "responseMAC SUCCESS");
-            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+
+        if (verifyResponseMac(responseMACTruncatedReceived, encryptedData)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
             return readData;
         } else {
-            Log.d(TAG, "responseMAC FAILURE");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
             return null;
         }
     }
@@ -1838,7 +1826,8 @@ public class DesfireEv3 {
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -1869,16 +1858,8 @@ public class DesfireEv3 {
         log(methodName, "started", true);
         errorCode = new byte[2];
         // sanity checks
-        if ((selectedApplicationId == null) || (selectedApplicationId.length != 3)) {
-            Log.e(TAG, methodName + " select an application first, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return null;
-        }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return null;
-        }
+        if (!checkApplicationIdentifier(selectedApplicationId)) return null;
+        if (!checkIsoDep()) return null;
         byte[] apdu;
         byte[] response;
         try {
@@ -1889,19 +1870,22 @@ public class DesfireEv3 {
         } catch (Exception e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return null;
         }
         System.arraycopy(returnStatusBytes(response), 0, errorCode, 0, 2);
         byte[] responseData = Arrays.copyOfRange(response, 0, response.length - 2);
         if (checkResponse(response)) {
             Log.d(TAG, "response SUCCESS");
-            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = "SUCCESS";
             APPLICATION_ALL_FILE_IDS = responseData.clone();
             return responseData;
         } else {
             Log.d(TAG, "response FAILURE");
             //System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            errorCodeReason = "response FAILURE";
             return null;
         }
     }
@@ -1919,27 +1903,20 @@ public class DesfireEv3 {
         log(methodName, "started", true);
         errorCode = new byte[2];
         // sanity checks
-        if ((selectedApplicationId == null) || (selectedApplicationId.length != 3)) {
-            Log.e(TAG, methodName + " select an application first, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return null;
-        }
+        if (!checkApplicationIdentifier(selectedApplicationId)) return null;
         if (APPLICATION_ALL_FILE_IDS == null) {
             Log.e(TAG, methodName + " select an application first, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "no application selected before";
             return null;
         }
         if (APPLICATION_ALL_FILE_IDS.length == 0) {
             Log.e(TAG, methodName + " there are no files available, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "there are no files available";
             return null;
         }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return null;
-        }
-
+        if (!checkIsoDep()) return null;
         int numberOfFileIds = APPLICATION_ALL_FILE_IDS.length;
         APPLICATION_ALL_FILE_SETTINGS = new FileSettings[MAXIMUM_NUMBER_OF_FILES];
         for (int i = 0; i < numberOfFileIds; i++) {
@@ -1971,16 +1948,8 @@ public class DesfireEv3 {
         final String methodName = "getFileSettings";
         log(methodName, "started", true);
         // sanity checks
-        if (fileNumber < 0) {
-            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return null;
-        }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return null;
-        }
+        if (checkFileNumber(fileNumber)) return null;
+        if (!checkIsoDep()) return null;
         Log.d(TAG, methodName + " for fileNumber " + fileNumber);
         byte[] getFileSettingsParameters = new byte[1];
         getFileSettingsParameters[0] = fileNumber;
@@ -1996,7 +1965,8 @@ public class DesfireEv3 {
         } catch (Exception e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return null;
         }
         System.arraycopy(returnStatusBytes(response), 0, errorCode, 0, 2);
@@ -2285,7 +2255,7 @@ PERMISSION_DENIED
             response = sendData(apdu);
         } catch (IOException e) {
             errorCode = RESPONSE_FAILURE.clone();
-            errorCodeReason = "IOException: " + e.getMessage();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         if (!checkResponse(response)) {
@@ -2595,7 +2565,7 @@ fileSize: 128
             response = sendData(apdu);
         } catch (IOException e) {
             errorCode = RESPONSE_FAILURE.clone();
-            errorCodeReason = "IOException: " + e.getMessage();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         if (!checkResponse(response)) {
@@ -2800,7 +2770,7 @@ fileSize: 128
             response = sendData(apdu);
         } catch (IOException e) {
             errorCode = RESPONSE_FAILURE.clone();
-            errorCodeReason = "IOException: " + e.getMessage();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         if (!checkResponse(response)) {
@@ -2856,11 +2826,13 @@ fileSize: 128
         // compare the responseMAC's
         if (Arrays.equals(responseMACTruncatedCalculated, responseMAC)) {
             Log.d(TAG, "responseMAC SUCCESS");
-            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = "SUCCESS";
             return true;
         } else {
             Log.d(TAG, "responseMAC FAILURE");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            errorCode = RESPONSE_FAILURE;
+            errorCodeReason = "responseMAC FAILURE";
             return false;
         }
     }
@@ -2920,26 +2892,9 @@ fileSize: 128
         log(methodName, printData("key", key) + " keyNumber: " + keyNumber, true);
         errorCode = new byte[2];
         // sanity checks
-        if (keyNumber < 0) {
-            Log.e(TAG, methodName + " keyNumber is < 0, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return false;
-        }
-        if (keyNumber > 14) {
-            Log.e(TAG, methodName + " keyNumber is > 14, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return false;
-        }
-        if ((key == null) || (key.length != 16)) {
-            Log.e(TAG, methodName + " data length is not 16, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return false;
-        }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return false;
-        }
+        if (!checkKeyNumber(keyNumber)) return false;
+        if (!checkKey(key)) return false;
+        if (!checkIsoDep()) return false;
         if (debug) log(methodName, "step 01 get encrypted rndB from card");
         log(methodName, "This method is using the AUTHENTICATE_AES_EV2_FIRST_COMMAND so it will work with AES-based application only");
         // authenticate 1st part
@@ -2962,7 +2917,8 @@ fileSize: 128
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "IOException: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -3020,7 +2976,8 @@ fileSize: 128
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "IOException: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         responseBytes = returnStatusBytes(response);
@@ -3148,27 +3105,9 @@ fileSize: 128
             System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
             return false;
         }
-
-        if (keyNumber < 0) {
-            Log.e(TAG, methodName + " keyNumber is < 0, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return false;
-        }
-        if (keyNumber > 14) {
-            Log.e(TAG, methodName + " keyNumber is > 14, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return false;
-        }
-        if ((key == null) || (key.length != 16)) {
-            Log.e(TAG, methodName + " data length is not 16, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return false;
-        }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return false;
-        }
+        if (!checkKeyNumber(keyNumber)) return false;
+        if(!checkKey(key)) return false;
+        if (!checkIsoDep()) return false;
         invalidateAllData();
         if (debug) log(methodName, "step 01 get encrypted rndB from card");
         if (debug) log(methodName, "This method is using the AUTHENTICATE_AES_EV2_NON_FIRST_COMMAND so it will work with AES-based application only");
@@ -3190,7 +3129,8 @@ fileSize: 128
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "IOException: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -3247,7 +3187,8 @@ fileSize: 128
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "IOException: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         responseBytes = returnStatusBytes(response);
@@ -3592,6 +3533,36 @@ fileSize: 128
     }
 
     /**
+     * checks that the tapped tag is of type DESFire EV1
+     * As some commands do work on a DESFire EV1 tag only we need to check for that tag type
+     * @return true on success
+     */
+    public boolean checkForDESFireEv1XX() {
+        // todo work on this, hardware version may be wrong !
+        VersionInfo versionInfo = getVersionInformation();
+        if (versionInfo == null) return false;
+        Log.d(TAG, versionInfo.dump());
+        int hardwareType = versionInfo.getHardwareType(); // 1 = DESFire, 4 = NTAG family 4xx
+        int hardwareVersion = versionInfo.getHardwareVersionMajor(); // 51 = DESFire EV3, 48 = NTAG 424 DNA
+        return ((hardwareType == 1) && (hardwareVersion == 01));
+    }
+
+    /**
+     * checks that the tapped tag is of type DESFire EV2
+     * As some commands do work on a DESFire EV2 tag only we need to check for that tag type
+     * @return true on success
+     */
+    public boolean checkForDESFireEv2XX() {
+        // todo work on this, hardware version may be wrong !
+        VersionInfo versionInfo = getVersionInformation();
+        if (versionInfo == null) return false;
+        Log.d(TAG, versionInfo.dump());
+        int hardwareType = versionInfo.getHardwareType(); // 1 = DESFire, 4 = NTAG family 4xx
+        int hardwareVersion = versionInfo.getHardwareVersionMajor(); // 51 = DESFire EV3, 48 = NTAG 424 DNA
+        return ((hardwareType == 1) && (hardwareVersion == 18));
+    }
+
+    /**
      * checks that the tapped tag is of type DESFire EV3
      * As some commands do work on a DESFire EV3 tag only we need to check for that tag type
      * (e.g. enabling of the SUN/SDM feature)
@@ -3671,7 +3642,8 @@ fileSize: 128
         } catch (IOException e) {
             Log.e(TAG, "transceive failed, IOException:\n" + e.getMessage());
             log("sendRequest", "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return RESPONSE_FAILURE.clone();
         }
     }
@@ -3688,12 +3660,14 @@ fileSize: 128
         try {
             recvBuffer = isoDep.transceive(apdu);
         } catch (TagLostException e) {
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = "TagLostException: " + e.getMessage();
             Log.e(TAG, e.getMessage());
             e.printStackTrace();
             return null;
         } catch (IOException e) {
-            errorCodeReason = "IOException: " + e.getMessage();
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             Log.e(TAG, e.getMessage());
             e.printStackTrace();
             return null;
@@ -3799,7 +3773,7 @@ fileSize: 128
     private boolean checkApplicationIdentifier(byte[] applicationIdentifier) {
         if ((applicationIdentifier == null) || (applicationIdentifier.length != 3)) {
             log("checkApplicationIdentifier", "applicationIdentifier is NULL or not of length 3, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "applicationIdentifier is NULL or not of length 3";
             return false;
         }
@@ -3809,8 +3783,29 @@ fileSize: 128
     private boolean checkFileNumber(byte fileNumber) {
         if ((fileNumber < 0) || (fileNumber > 31)) {
             log("checkFileNumber", "fileNumber is not in range 0..31, aborted");
-            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "applicationIdentifier is NULL or not of length 3";
+            return false;
+        }
+        return true;
+    }
+
+    private boolean checkFileSize0(int fileSize) {
+        if (fileSize < 1) {
+            log("checkFileSize0", "fileSize is < 1, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "fileSize is < 1";
+            return false;
+        }
+        return true;
+    }
+
+    private boolean checkOffsetMinus(int offset) {
+        if (offset < 0) {
+            Log.e(TAG, "checkOffsetMinus" + " offset is < 0, aborted");
+            log("checkOffsetMinus", "offset is < 0, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "offset is < 0";
             return false;
         }
         return true;
@@ -3824,6 +3819,7 @@ fileSize: 128
           int fileSize = fileSettings.getFileSizeInt(); // if the file is not existing we get an NPE
         } catch (NullPointerException e) {
             Log.d(TAG, "fileNumber " + fileNumber + " is not existing");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "fileNumber " + fileNumber + " is not existing";
             return false;
         }
@@ -3896,7 +3892,36 @@ fileSize: 128
         if ((accessRights == null) || (accessRights.length != 2)) {
             log("checkAccessRights", "accessRights are NULL or not of length 2, aborted");
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "accessRights are NULL or not of length 2";
+            return false;
+        }
+        return true;
+    }
+
+    private boolean checkKeyNumber(int keyNumber) {
+        String methodName = "checkKeyNumber";
+        if (keyNumber < 0) {
+            Log.e(TAG, methodName + " keyNumber is < 0, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyNumber is < 0";
+            return false;
+        }
+        if (keyNumber > 14) {
+            Log.e(TAG, methodName + " keyNumber is > 14, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "keyNumber is > 14";
+            return false;
+        }
+        return true;
+    }
+
+    private boolean checkKey(byte[] key) {
+        String methodName = "checkKey";
+        if ((key == null) || (key.length != 16)) {
+            Log.e(TAG, methodName + " key length is not 16, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "key length is not 16";
             return false;
         }
         return true;
@@ -3906,6 +3931,7 @@ fileSize: 128
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
             log("checkAuthentication", "missing authentication with authenticateEV2First or authenticateEV2NonFirst, aborted");
             System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE_MISSING_AUTHENTICATION.clone();
             errorCodeReason = "missing authentication with authenticateEV2First or authenticateEV2NonFirst";
             return false;
         }
@@ -3915,7 +3941,7 @@ fileSize: 128
     private boolean checkIsoDep() {
         if ((isoDep == null) || (!isoDep.isConnected())) {
             log("checkIsoDep", "lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = "lost connection to the card";
             return false;
         }

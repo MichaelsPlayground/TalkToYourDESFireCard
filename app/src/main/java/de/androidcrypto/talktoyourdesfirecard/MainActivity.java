@@ -7048,6 +7048,16 @@ posMacInpOffset:  75
             }
         });
 
+        MenuItem mSetupTestEnvironment = menu.findItem(R.id.action_setup_test_environment);
+        mSetupTestEnvironment.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                Intent intent = new Intent(MainActivity.this, SetupTestEnvironmentActivity.class);
+                startActivity(intent);
+                return false;
+            }
+        });
+
         MenuItem mApplications = menu.findItem(R.id.action_applications);
         mApplications.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override
