@@ -694,7 +694,7 @@ public class DesfireAuthenticateEv2 {
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted CmdData )
         ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(WRITE_STANDARD_FILE_SECURE_COMMAND); // 0xAD
+        baosMacInput.write(WRITE_STANDARD_FILE_SECURE_COMMAND); // 0x8D
         baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
         baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         baosMacInput.write(cmdHeader, 0, cmdHeader.length);

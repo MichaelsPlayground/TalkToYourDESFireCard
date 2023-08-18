@@ -653,7 +653,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 clearOutputFields();
                 String logString = "select an application EV2";
                 writeToUiAppend(output, logString);
-                byte[] applicationIdentifier = Utils.hexStringToByteArray(applicationId.getText().toString());
+
+                // todo ### workaround for Ev3 class
+                byte[] applicationIdentifier = APPLICATION_IDENTIFIER_AES.clone();
+
+                //byte[] applicationIdentifier = Utils.hexStringToByteArray(applicationId.getText().toString());
+
                 if (applicationIdentifier == null) {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you entered a wrong application ID", COLOR_RED);
                     return;
@@ -754,7 +759,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 writeToUiAppend(output, logString);
 
                 // this is the combined command for select, fileIds and allFileSettings
-                byte[] applicationIdentifier = Utils.hexStringToByteArray(applicationId.getText().toString());
+
+                // todo ### workaround for Ev3 class
+                byte[] applicationIdentifier = APPLICATION_IDENTIFIER_AES.clone();
+
+                //byte[] applicationIdentifier = Utils.hexStringToByteArray(applicationId.getText().toString());
                 if (applicationIdentifier == null) {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you entered a wrong application ID", COLOR_RED);
                     return;
@@ -1575,7 +1584,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 writeToUiAppend(output, logString);
 
                 // todo skipped, using a fixed fileNumber
-                selectedFileId = String.valueOf(desfireAuthenticateEv2.STANDARD_FILE_ENCRYPTED_NUMBER); // 2
+
+                // todo ### workaround for testing EV3 class
+                selectedFileId = "13";
+
+                //selectedFileId = String.valueOf(desfireAuthenticateEv2.STANDARD_FILE_ENCRYPTED_NUMBER); // 2
                 fileSelected.setText(selectedFileId);
                 int SELECTED_FILE_SIZE_FIXED = 32;
 
@@ -1944,6 +1957,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 selectedFileId = String.valueOf(13); // 06
                 fileSelected.setText(selectedFileId);
                 int fileSizeInt = 256; // fixed
+                //int fileSizeInt = 40;
 
                 // check that a file was selected before
                 if (TextUtils.isEmpty(selectedFileId)) {
@@ -1964,6 +1978,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
 
                 byte[] fullDataToWrite = Utils.generateTestData(fileSizeInt);
+                //System.arraycopy(dataToWrite.getBytes(StandardCharsets.UTF_8), 0, fullDataToWrite, 0, dataToWrite.getBytes(StandardCharsets.UTF_8).length);
 
                 byte fileIdByte = Byte.parseByte(selectedFileId);
 
@@ -1977,6 +1992,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 byte[] responseData = new byte[2];
                 boolean success = desfireEv3.writeToStandardFile(fileIdByte, fullDataToWrite);
+                //boolean success = desfireEv3.writeToStandardFileRawFull(fileIdByte, fullDataToWrite);
+
+                //boolean success = desfireEv3.writeStandardFileEv2(fileIdByte, 33, fullDataToWrite);
+                //boolean success2 = desfireEv3.writeToStandardFileRawFull(fileIdByte, fullDataToWrite);
+
+
                 responseData = desfireEv3.getErrorCode();
 
                 if (success) {
@@ -6390,10 +6411,10 @@ posMacInpOffset:  75
         responseData = desfireEv3.getErrorCode();
         if (success) {
             Log.d(TAG, methodName + " SUCCESS");
-            SES_AUTH_ENC_KEY = desfireAuthenticateEv2.getSesAuthENCKey();
-            SES_AUTH_MAC_KEY = desfireAuthenticateEv2.getSesAuthMACKey();
-            TRANSACTION_IDENTIFIER = desfireAuthenticateEv2.getTransactionIdentifier();
-            CMD_COUNTER = desfireAuthenticateEv2.getCmdCounter();
+            SES_AUTH_ENC_KEY = desfireEv3.getSesAuthENCKey();
+            SES_AUTH_MAC_KEY = desfireEv3.getSesAuthMACKey();
+            TRANSACTION_IDENTIFIER = desfireEv3.getTransactionIdentifier();
+            CMD_COUNTER = desfireEv3.getCmdCounter();
             writeToUiAppend(textView, printData("SES_AUTH_ENC_KEY", SES_AUTH_ENC_KEY));
             writeToUiAppend(textView, printData("SES_AUTH_MAC_KEY", SES_AUTH_MAC_KEY));
             writeToUiAppend(textView, printData("TRANSACTION_IDENTIFIER", TRANSACTION_IDENTIFIER));
