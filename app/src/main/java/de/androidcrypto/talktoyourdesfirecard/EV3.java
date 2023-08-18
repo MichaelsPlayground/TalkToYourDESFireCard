@@ -45,9 +45,10 @@ public class EV3 {
             case (byte) 0xF0: return "F0 File not found error";
             case (byte) 0xF1: return "F1 file integrity error";
             // self defined error codes
+            case (byte) 0xFB: return "FB missing getFileSettings error"; // error from DesfireEv3 AuthenticateEv2 class, not from PICC
             case (byte) 0xFC: return "FC wrong parameter error"; // error from DesfireEv3 AuthenticateEv2 class, not from PICC
-            case (byte) 0xFD: return "FD missing getFileSettings error"; // error from DesfireEv3 AuthenticateEv2 class, not from PICC
-            case (byte) 0xFE: return "FE missing authentication error"; // error from Desfire Ev3 AuthenticateEv2 class, not from PICC
+
+            case (byte) 0xFD: return "FD missing authentication error"; // error from Desfire Ev3 AuthenticateEv2 class, not from PICC
             case (byte) 0xFF: return "FF undefined error";
         }
         return "undefined error code";
