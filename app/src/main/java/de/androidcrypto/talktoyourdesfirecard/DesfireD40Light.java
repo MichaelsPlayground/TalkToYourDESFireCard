@@ -145,7 +145,7 @@ public class DesfireD40Light {
         }
 
         // the second step is to authentication with Master Application key
-        log(methodName, "trying to authenticate with MASTER_APPLICATION_KEY_NUMBER 01 DES DEFAULT");
+        log(methodName, "trying to authenticate with MASTER_APPLICATION_KEY_NUMBER 00 DES DEFAULT");
         success = authenticateD40(MASTER_APPLICATION_KEY_NUMBER, MASTER_APPLICATION_KEY_DES_DEFAULT);
         if (!success) {
             log(methodName,"authenticate failed, aborted");

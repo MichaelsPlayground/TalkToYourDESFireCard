@@ -4454,7 +4454,7 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
          * Standard file: file size 32 bytes
          * Backup file:   file size 32 bytes
          * Value file:    minimum value limit 0
-         *                minimum value limit 10000
+         *                maximum value limit 10000
          *                initial value 0
          *                limited credit operation DISABLED
          * Linear record file: record size 32 bytes

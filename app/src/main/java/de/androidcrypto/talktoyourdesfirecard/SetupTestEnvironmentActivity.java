@@ -1,5 +1,8 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
+import static de.androidcrypto.talktoyourdesfirecard.MainActivity.APPLICATION_KEY_MASTER_AES_DEFAULT;
+import static de.androidcrypto.talktoyourdesfirecard.MainActivity.APPLICATION_KEY_MASTER_NUMBER;
+
 import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
@@ -59,6 +62,7 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
     private NfcAdapter mNfcAdapter;
     private IsoDep isoDep;
     private byte[] tagIdByte;
+    private DesfireD40Light desfireD40;
     private DesfireEv3 desfireEv3;
     private FileSettings fileSettings;
     private boolean isDesfireEv3 = false;
@@ -89,123 +93,163 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
         });
     }
 
-    private void runPrepareSdm() {
+    private void runSetupTestEnvironment() {
         clearOutputFields();
-        String logString = "runPrepareSdm";
+        String logString = "runSetupTestEnvironment";
         writeToUiAppend(output, logString);
         /**
-         * the method will do these 5 steps to prepare the tag for SDM
-         * 1) create a new application ("NDEF application")
-         * 2) select the new application
-         * 3) create a new Standard File 01
-         * 4) write the NDEF Container to the file 01
-         * 5) create a new Standard File 02
-         * 6) write an URL as Link NDEF Record/Message to file 02
+         * the method will do these 8 steps to prepare the tag for test usage
+         * 1) select Master Application ("000000")
+         * 2) authenticate with MASTER_APPLICATION_KEY_DES_DEFAULT ("0000000000000000")
+         * 3) format PICC
+         * 4) create a new application ("A1A2A3")
+         * 5) select the new application ("A1A2A3")
+         * 6) create a new file set Plain (Standard, Backup, Value, Linear Record and Cyclic Record files)
+         * 7) create a new file set MACed (Standard, Backup, Value, Linear Record and Cyclic Record files)
+         * 8) create a new file set Full (Standard, Backup, Value, Linear Record and Cyclic Record files)
          */
 
         boolean success;
         byte[] errorCode;
         String errorCodeReason = "";
         writeToUiAppend(output, "");
-        String stepString = "1 create a new application (\"NDEF application\")";
-        writeToUiAppend(output, stepString);
-        success = desfireEv3.createApplicationAesIso(DesfireEv3.NDEF_APPLICATION_IDENTIFIER, DesfireEv3.NDEF_ISO_APPLICATION_IDENTIFIER,
-                DesfireEv3.NDEF_APPLICATION_DF_NAME, 5);
-        errorCode = desfireEv3.getErrorCode();
-        errorCodeReason = desfireEv3.getErrorCodeReason();
+
+        // the 'formatPicc' methods runs the 3 tasks in once
+
+
+  /*
+        writeToUiAppend("step 1: select Master Application with ID 0x000000");
+        writeToUiAppend("step 2: authenticate with default DES Master Application Key");
+        writeToUiAppend("step 3: format the PICC");
+        success = desfireD40.formatPicc();
+        errorCode = desfireD40.getErrorCode();
         if (success) {
-            writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
+            writeToUiAppendBorderColor("format of the PICC SUCCESS", COLOR_GREEN);
         } else {
-            if (Arrays.equals(errorCode, DesfireEv3.RESPONSE_DUPLICATE_ERROR)) {
-                writeToUiAppendBorderColor(stepString + " FAILURE because application already exits", COLOR_GREEN);
-            } else {
-                writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
-                return;
-            }
+            writeToUiAppendBorderColor("format of the PICC FAILURE with error code: "
+                    + EV3.getErrorCode(errorCode) + ", aborted", COLOR_RED);
+            return;
         }
 
-        writeToUiAppend(output, "");
-        stepString = "2 select the new application";
-        writeToUiAppend(output, stepString);
-        success = desfireEv3.selectApplicationByAid(DesfireEv3.NDEF_APPLICATION_IDENTIFIER);
+   */
+        // todo remove, just for testing
+        success = desfireEv3.selectApplicationByAid(Constants.MASTER_APPLICATION_IDENTIFIER);
+
+        writeToUiAppend("step 4: create a new application (\"A1A2A3\")");
+        success = desfireEv3.createApplicationAes(Constants.APPLICATION_IDENTIFIER_AES, Constants.APPLICATION_NUMBER_OF_KEYS_DEFAULT);
         errorCode = desfireEv3.getErrorCode();
         errorCodeReason = desfireEv3.getErrorCodeReason();
         if (success) {
-            writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
+            writeToUiAppendBorderColor("create a new application SUCCESS", COLOR_GREEN);
         } else {
-            writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
+            writeToUiAppendBorderColor("create a new application FAILURE with error code: "
+                    + EV3.getErrorCode(errorCode) + " = "
+                    + errorCodeReason + ", aborted", COLOR_RED);
+            return;
+        }
+
+        writeToUiAppend("step 5: select the new application (\"A1A2A3\")");
+        success = desfireEv3.selectApplicationByAid(Constants.APPLICATION_IDENTIFIER_AES);
+        errorCode = desfireEv3.getErrorCode();
+        errorCodeReason = desfireEv3.getErrorCodeReason();
+        if (success) {
+            writeToUiAppendBorderColor("select the new application SUCCESS", COLOR_GREEN);
+        } else {
+            writeToUiAppendBorderColor("select the new application FAILURE with error code: "
+                    + EV3.getErrorCode(errorCode) + " = "
+                    + errorCodeReason + ", aborted", COLOR_RED);
+            return;
+        }
+
+        writeToUiAppend("step 6: create a new file set Plain (Standard, Backup, Value, Linear Record and Cyclic Record files)");
+        success = createFileSetPlain();
+        errorCode = desfireEv3.getErrorCode();
+        errorCodeReason = desfireEv3.getErrorCodeReason();
+        if (success) {
+            writeToUiAppendBorderColor("create a new file set Plain SUCCESS", COLOR_GREEN);
+        } else {
+            writeToUiAppendBorderColor("create a new file set Plain FAILURE with error code: "
+                    + EV3.getErrorCode(errorCode) + " = "
+                    + errorCodeReason + ", aborted", COLOR_RED);
+            return;
+        }
+
+        writeToUiAppend("step 7: create a new file set MACed (Standard, Backup, Value, Linear Record and Cyclic Record files)");
+        success = createFileSetMACed();
+        errorCode = desfireEv3.getErrorCode();
+        errorCodeReason = desfireEv3.getErrorCodeReason();
+        if (success) {
+            writeToUiAppendBorderColor("create a new file set MACed SUCCESS", COLOR_GREEN);
+        } else {
+            writeToUiAppendBorderColor("create a new file set MACed FAILURE with error code: "
+                    + EV3.getErrorCode(errorCode) + " = "
+                    + errorCodeReason + ", aborted", COLOR_RED);
+            return;
+        }
+
+        writeToUiAppend("step 8: create a new file set Full (Standard, Backup, Value, Linear Record and Cyclic Record files)");
+        success = createFileSetFull();
+        errorCode = desfireEv3.getErrorCode();
+        errorCodeReason = desfireEv3.getErrorCodeReason();
+        if (success) {
+            writeToUiAppendBorderColor("create a new file set Full SUCCESS", COLOR_GREEN);
+        } else {
+            writeToUiAppendBorderColor("create a new file set Full FAILURE with error code: "
+                    + EV3.getErrorCode(errorCode) + " = "
+                    + errorCodeReason + ", aborted", COLOR_RED);
             return;
         }
 
         writeToUiAppend(output, "");
-        stepString = "3 create a new Standard File 01";
-        writeToUiAppend(output, stepString);
-        success = desfireEv3.createStandardFileIso(DesfireEv3.NDEF_FILE_01_NUMBER, DesfireEv3.NDEF_FILE_01_ISO_NAME,
-                DesfireEv3.CommunicationSettings.Plain, DesfireEv3.NDEF_FILE_01_ACCESS_RIGHTS, DesfireEv3.NDEF_FILE_01_SIZE, false);
-        errorCode = desfireEv3.getErrorCode();
-        errorCodeReason = desfireEv3.getErrorCodeReason();
-        if (success) {
-            writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
-        } else {
-            if (Arrays.equals(errorCode, DesfireEv3.RESPONSE_DUPLICATE_ERROR)) {
-                writeToUiAppendBorderColor(stepString + " FAILURE because file already exits", COLOR_GREEN);
-            } else {
-                writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
-                return;
-            }
-        }
-
-        writeToUiAppend(output, "");
-        stepString = "4 write the NDEF Container to the file 01";
-        writeToUiAppend(output, stepString);
-        success = desfireEv3.writeToStandardFileNdefContainerPlain(DesfireEv3.NDEF_FILE_01_NUMBER);
-        if (success) {
-            writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
-        } else {
-            writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
-            return;
-        }
-
-        writeToUiAppend(output, "");
-        stepString = "5 create a new Standard File 02";
-        writeToUiAppend(output, stepString);
-        success = desfireEv3.createStandardFileIso(DesfireEv3.NDEF_FILE_02_NUMBER, DesfireEv3.NDEF_FILE_02_ISO_NAME,
-                DesfireEv3.CommunicationSettings.Plain, DesfireEv3.NDEF_FILE_02_ACCESS_RIGHTS, DesfireEv3.NDEF_FILE_02_SIZE, true);
-        errorCode = desfireEv3.getErrorCode();
-        errorCodeReason = desfireEv3.getErrorCodeReason();
-        if (success) {
-            writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
-        } else {
-            if (Arrays.equals(errorCode, DesfireEv3.RESPONSE_DUPLICATE_ERROR)) {
-                writeToUiAppendBorderColor(stepString + " FAILURE because file already exits", COLOR_GREEN);
-            } else {
-                writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
-                return;
-            }
-        }
-
-        writeToUiAppend(output, "");
-        stepString = "6 write an URL as Link NDEF Record/Message to file 02";
-        writeToUiAppend(output, stepString);
-        String urlToWrite = NdefForSdm.SAMPLE_URL;
-        writeToUiAppend("Base url: " + urlToWrite);
-        success = desfireEv3.writeToStandardFileUrlPlain(DesfireEv3.NDEF_FILE_02_NUMBER, urlToWrite);
-        if (success) {
-            writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
-        } else {
-            writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
-            return;
-        }
-
-
-
-        writeToUiAppend(output, "");
-        stepString = "";
-
-        writeToUiAppend(output, desfireEv3.getLogData());
-
         vibrateShort();
+    }
 
+    private boolean createFileSetPlain() {
+        // create 5 files with communication settings PLAIN
+        Log.d(TAG, "createFileSetPlain"); // DesfireEv3.DesfireFileType.Standard, DesfireEv3.DesfireFileType.Backup, DesfireEv3.DesfireFileType.Value, DesfireEv3.DesfireFileType.LinearRecord, DesfireEv3.DesfireFileType.CyclicRecord
+        boolean createStandardFile = desfireEv3.createStandardFile(Constants.STANDARD_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
+        boolean createBackupFile = desfireEv3.createBackupFile(Constants.BACKUP_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256);
+        boolean createValueFile = desfireEv3.createValueFile(Constants.VALUE_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT,0,10000, 0,false);
+        boolean createLinearRecordFile = desfireEv3.createLinearRecordFile(Constants.LINEAR_RECORD_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
+        boolean createCyclicRecordFile = desfireEv3.createCyclicRecordFile(Constants.CYCLIC_RECORD_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
+        Log.d(TAG, "createStandardFile result: " + createStandardFile);
+        Log.d(TAG, "createBackupFile result: " + createBackupFile);
+        Log.d(TAG, "createValueFile result: " + createValueFile);
+        Log.d(TAG, "createLinearRecordFile result: " + createLinearRecordFile);
+        Log.d(TAG, "createCyclicRecordFile result: " + createCyclicRecordFile);
+        return true; // returns true independent of results
+    }
+
+    private boolean createFileSetMACed() {
+        // create 5 files with communication settings MACed
+        Log.d(TAG, "createFileSetMACed"); // DesfireEv3.DesfireFileType.Standard, DesfireEv3.DesfireFileType.Backup, DesfireEv3.DesfireFileType.Value, DesfireEv3.DesfireFileType.LinearRecord, DesfireEv3.DesfireFileType.CyclicRecord
+        boolean createStandardFile = desfireEv3.createStandardFile(Constants.STANDARD_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
+        boolean createBackupFile = desfireEv3.createBackupFile(Constants.BACKUP_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256);
+        boolean createValueFile = desfireEv3.createValueFile(Constants.VALUE_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT,0,10000, 0,false);
+        boolean createLinearRecordFile = desfireEv3.createLinearRecordFile(Constants.LINEAR_RECORD_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
+        boolean createCyclicRecordFile = desfireEv3.createCyclicRecordFile(Constants.CYCLIC_RECORD_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
+        Log.d(TAG, "createStandardFile result: " + createStandardFile);
+        Log.d(TAG, "createBackupFile result: " + createBackupFile);
+        Log.d(TAG, "createValueFile result: " + createValueFile);
+        Log.d(TAG, "createLinearRecordFile result: " + createLinearRecordFile);
+        Log.d(TAG, "createCyclicRecordFile result: " + createCyclicRecordFile);
+        return true; // returns true independent of results
+    }
+
+    private boolean createFileSetFull() {
+        // create 5 files with communication settings Full
+        Log.d(TAG, "createFileSetEncrypted"); // DesfireEv3.DesfireFileType.Standard, DesfireEv3.DesfireFileType.Backup, DesfireEv3.DesfireFileType.Value, DesfireEv3.DesfireFileType.LinearRecord, DesfireEv3.DesfireFileType.CyclicRecord
+        boolean createStandardFile = desfireEv3.createStandardFile(Constants.STANDARD_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
+        boolean createBackupFile = desfireEv3.createBackupFile(Constants.BACKUP_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256);
+        boolean createValueFile = desfireEv3.createValueFile(Constants.VALUE_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT,0,10000, 0,false);
+        boolean createLinearRecordFile = desfireEv3.createLinearRecordFile(Constants.LINEAR_RECORD_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
+        boolean createCyclicRecordFile = desfireEv3.createCyclicRecordFile(Constants.CYCLIC_RECORD_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
+        Log.d(TAG, "createStandardFile result: " + createStandardFile);
+        Log.d(TAG, "createBackupFile result: " + createBackupFile);
+        Log.d(TAG, "createValueFile result: " + createValueFile);
+        Log.d(TAG, "createLinearRecordFile result: " + createLinearRecordFile);
+        Log.d(TAG, "createCyclicRecordFile result: " + createCyclicRecordFile);
+        return true; // returns true independent of results
     }
 
     /**
@@ -236,13 +280,17 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
                     isoDep.close();
                     return;
                 }
+                desfireD40 = new DesfireD40Light(isoDep);
                 desfireEv3 = new DesfireEv3(isoDep); // true means all data is logged
 
+                // todo check just for DESFire
+                /*
                 isDesfireEv3 = desfireEv3.checkForDESFireEv3();
                 if (!isDesfireEv3) {
                     writeToUiAppendBorderColor("The tag is not a DESFire EV3 tag, stopping any further activities", COLOR_RED);
                     return;
                 }
+                 */
 
                 // get tag ID
                 tagIdByte = tag.getId();
@@ -250,7 +298,7 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
                 Log.d(TAG, "tag id: " + Utils.bytesToHex(tagIdByte));
                 writeToUiAppendBorderColor("The app and DESFire EV3 tag are ready to use", COLOR_GREEN);
 
-                //runPrepareSdm();
+                runSetupTestEnvironment();
 
             }
         } catch (IOException e) {

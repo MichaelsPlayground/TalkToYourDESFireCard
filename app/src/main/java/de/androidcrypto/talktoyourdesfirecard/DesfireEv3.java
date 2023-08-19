@@ -106,6 +106,17 @@ public class DesfireEv3 {
      * external constants for NDEF application and files
      */
 
+    public enum DesfireFileType {
+        Standard, Backup, Value, LinearRecord, CyclicRecord
+    }
+
+    public static final byte STANDARD_FILE_TYPE = (byte) 0x00;
+    public static final byte BACKUP_FILE_TYPE = (byte) 0x01;
+    public static final byte VALUE_FILE_TYPE = (byte) 0x02;
+    public static final byte LINEAR_RECORD_FILE_TYPE = (byte) 0x03;
+    public static final byte CYCLIC_RECORD_FILE_TYPE = (byte) 0x04;
+    public static final byte TRANSACTION_MAC_FILE_TYPE = (byte) 0x05;
+    
     public static final byte[] NDEF_APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("010000"); // this is the AID for NDEF application
     public static final byte[] NDEF_ISO_APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("10E1"); // this is the ISO AID for NDEF application
     public static final byte[] NDEF_APPLICATION_DF_NAME = Utils.hexStringToByteArray("D2760000850101"); // this is the Data File name for NDEF application
@@ -437,7 +448,7 @@ public class DesfireEv3 {
      */
 
     /**
-     * create a Standard file in selected application using file Number and ISO fileId
+     * create a Standard file in selected application using file Number
      * @param fileNumber            | in range 0..31
      * @param communicationSettings | Plain, MACed or Full Note: Please do not use MACed as there are no methods in this class to handle that communication type
      * @param accessRights          | Read & Write access key, CAR ke, Read key, Write key
@@ -593,6 +604,27 @@ public class DesfireEv3 {
             log(methodName, "FAILURE with " + printData("errorCode", errorCode));
             return false;
         }
+    }
+
+    /**
+     * stubs
+     */
+
+    // todo create file stubs
+
+    public boolean createBackupFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize) {
+        return false;
+    }
+
+    public boolean createValueFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int minimumValue, int maximumValue, int initialValue, boolean limitedCreditOperation) {
+        return false;
+    }
+
+    public boolean createLinearRecordFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int recordSize, int maximumNumberOfRecords) {
+        return false;
+    }
+    public boolean createCyclicRecordFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int recordSize, int maximumNumberOfRecords) {
+        return false;
     }
 
     /**
