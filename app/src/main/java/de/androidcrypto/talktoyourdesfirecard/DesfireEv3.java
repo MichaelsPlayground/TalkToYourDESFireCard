@@ -162,7 +162,7 @@ public class DesfireEv3 {
      * class internal constants and limitations
      */
     boolean printToLog = true; // logging data in internal log string
-    private static final byte[] MASTER_APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("000000"); // AID '00 00 00'
+    public static final byte[] MASTER_APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("000000"); // AID '00 00 00'
     private final byte APPLICATION_MASTER_KEY_SETTINGS = (byte) 0x0F; // 'amks' all default values
     private final byte APPLICATION_CRYPTO_DES = 0x00; // add this to number of keys for DES
     //private final byte APPLICATION_CRYPTO_3KTDES = (byte) 0x40; // add this to number of keys for 3KTDES

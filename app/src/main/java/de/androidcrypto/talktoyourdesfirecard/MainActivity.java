@@ -609,10 +609,20 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 String logString = "select an application";
                 writeToUiAppend(output, logString);
 
-                // todo work on this, MifareDesfireEv3ExamplesDes Main lines 439 ff
-                List<byte[]> applicationIdList = desfireEv3.getApplicationIdsList();
+                // select Master Application first
+                boolean success = desfireEv3.selectApplicationByAid(DesfireEv3.MASTER_APPLICATION_IDENTIFIER);
                 byte[] errorCodeDf = desfireEv3.getErrorCode();
                 String errorCodeReason = desfireEv3.getErrorCodeReason();
+                if (!success) {
+                    writeToUiAppend(output, "cannot select Master Application, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(errorCodeDf), COLOR_RED);
+                    return;
+                }
+
+                // todo work on this, MifareDesfireEv3ExamplesDes Main lines 439 ff
+                List<byte[]> applicationIdList = desfireEv3.getApplicationIdsList();
+                errorCodeDf = desfireEv3.getErrorCode();
+                errorCodeReason = desfireEv3.getErrorCodeReason();
                 if ((applicationIdList == null) || (applicationIdList.size() == 0)) {
                     writeToUiAppend(output, "there are no application IDs on the  PICC");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(errorCodeDf), COLOR_RED);
