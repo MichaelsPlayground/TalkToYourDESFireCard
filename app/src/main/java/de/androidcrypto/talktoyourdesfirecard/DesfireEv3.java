@@ -2071,11 +2071,11 @@ public class DesfireEv3 {
     }
 
     /**
-     * get the file numbers of all files within an application
+     * get the file settings of all files within an application
      * Note: depending on the application master key settings this requires an preceding authentication
      * with the application master key
      *
-     * @return an array of bytes with all available fileIds
+     * @return an array with all available file settings
      */
     public FileSettings[] getAllFileSettings() {
         final String methodName = "getAllFileSettings";
@@ -2102,6 +2102,9 @@ public class DesfireEv3 {
         for (int i = 0; i < numberOfFileIds; i++) {
             byte fileId = APPLICATION_ALL_FILE_IDS[i];
             byte[] fileSettingsByte = getFileSettings(fileId);
+            Log.d(TAG, "i: " + i + printData(" fileSettingsByte", fileSettingsByte));
+            Log.d(TAG, printData("errorCode", errorCode));
+            Log.d(TAG, "errorCodeReason: " + errorCodeReason);
             if (fileSettingsByte != null) {
                 FileSettings fileSettings = new FileSettings(fileId, fileSettingsByte);
                 if (fileSettings != null) {
@@ -2110,6 +2113,17 @@ public class DesfireEv3 {
             }
         }
         log(methodName, "ended");
+
+        Log.d(TAG, "allFileSettings");
+        for (int i = 0; i < APPLICATION_ALL_FILE_SETTINGS.length; i++) {
+            FileSettings fs = APPLICATION_ALL_FILE_SETTINGS[i];
+            if (fs == null) {
+                Log.d(TAG, "i: " + i + ":" + "null");
+            } else {
+                Log.d(TAG, "i: " + i + ":" + APPLICATION_ALL_FILE_SETTINGS[i].dump());
+            }
+        }
+
         return APPLICATION_ALL_FILE_SETTINGS;
     }
 
@@ -2128,27 +2142,13 @@ public class DesfireEv3 {
         final String methodName = "getFileSettings";
         log(methodName, "started", true);
         // sanity checks
-        if (checkFileNumber(fileNumber)) return null;
+        if (!checkFileNumber(fileNumber)) return null;
         if (!checkIsoDep()) return null;
-        Log.d(TAG, methodName + " for fileNumber " + fileNumber);
         byte[] getFileSettingsParameters = new byte[1];
         getFileSettingsParameters[0] = fileNumber;
         byte[] apdu;
         byte[] response;
-        try {
-            apdu = wrapMessage(GET_FILE_SETTINGS_COMMAND, getFileSettingsParameters);
-            log(methodName, printData("apdu", apdu));
-            // method: getFileSettingsEv2: apdu length: 7 data: 90f50000010200
-            // sample                                           90F50000010300
-            response = isoDep.transceive(apdu);
-            log(methodName, printData("response", response));
-        } catch (Exception e) {
-            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
-            log(methodName, "transceive failed: " + e.getMessage(), false);
-            errorCode = RESPONSE_FAILURE.clone();
-            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
-            return null;
-        }
+        response = sendRequest(GET_FILE_SETTINGS_COMMAND, getFileSettingsParameters);
         System.arraycopy(returnStatusBytes(response), 0, errorCode, 0, 2);
         byte[] responseData = Arrays.copyOfRange(response, 0, response.length - 2);
         if (checkResponse(response)) {
@@ -3974,7 +3974,7 @@ fileSize: 128
         if ((fileNumber < 0) || (fileNumber > 31)) {
             log("checkFileNumber", "fileNumber is not in range 0..31, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
-            errorCodeReason = "applicationIdentifier is NULL or not of length 3";
+            errorCodeReason = "fileNumber is not in range 0..31";
             return false;
         }
         return true;
@@ -4286,5 +4286,13 @@ fileSize: 128
 
     public byte[] getTransactionIdentifier() {
         return TransactionIdentifier;
+    }
+
+    public static byte[] getApplicationAllFileIds() {
+        return APPLICATION_ALL_FILE_IDS;
+    }
+
+    public static FileSettings[] getApplicationAllFileSettings() {
+        return APPLICATION_ALL_FILE_SETTINGS;
     }
 }

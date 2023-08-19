@@ -162,7 +162,7 @@
                 app:dividerInsetStart="8dp" />
 
             <LinearLayout
-                android:id="@+id/llMenue1"
+                android:id="@+id/llSection1"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:layout_marginStart="8dp"
@@ -171,7 +171,7 @@
                 android:visibility="visible">
 
                 <TextView
-                    android:id="@+id/tvMenue1"
+                    android:id="@+id/tvSection1"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:padding="10dp"
@@ -201,15 +201,71 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
+                        android:backgroundTint="#F85252"
                         android:text="select file" />
 
                     <Button
-                        android:id="@+id/btnCreateApplicationAes"
+                        android:id="@+id/btnYYCreateApplicationAes"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="cr AES" />
+                        android:text="yy" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/llStandardFile"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:orientation="vertical"
+                android:visibility="visible">
+
+                <TextView
+                    android:id="@+id/tvSection2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="10dp"
+                    android:text="Standard file actions"
+                    android:textAlignment="center"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_marginTop="16dp"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnStandardFileRead"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="#F85252"
+                        android:text="read" />
+
+                    <Button
+                        android:id="@+id/btnStandardFileWrite"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="#F85252"
+                        android:text="write" />
+
+                    <Button
+                        android:id="@+id/btnStandardFileSettings"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="settings" />
 
                 </LinearLayout>
 
@@ -330,13 +386,12 @@
                     android:orientation="horizontal">
 
                     <Button
-                        android:id="@+id/btnSelectApplication"
+                        android:id="@+id/btnYYSelectApplication"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
-                        android:backgroundTint="#F85252"
-                        android:text="select" />
+                        android:text="yy" />
 
                     <Button
                         android:id="@+id/btnCreateApplication"
@@ -425,12 +480,12 @@
                     android:orientation="horizontal">
 
                     <Button
-                        android:id="@+id/btnSelectFile"
+                        android:id="@+id/btnYYSelectFile"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
-                        android:text="select" />
+                        android:text="yy" />
 
                     <Button
                         android:id="@+id/btnListFiles"
@@ -1503,7 +1558,7 @@
                 app:dividerInsetStart="8dp" />
 
             <LinearLayout
-                android:id="@+id/llStandardFile"
+                android:id="@+id/llStandardFile2"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:layout_marginStart="8dp"
@@ -2086,7 +2141,7 @@
             </LinearLayout>
 
             <LinearLayout
-                android:id="@+id/llStandardFileEnc"
+                android:id="@+id/llStandardFileEnc2"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:layout_marginStart="8dp"

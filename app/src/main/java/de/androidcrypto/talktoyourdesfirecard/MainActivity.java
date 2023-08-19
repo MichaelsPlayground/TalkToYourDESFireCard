@@ -31,6 +31,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CompoundButton;
+import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -64,26 +65,47 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private com.google.android.material.textfield.TextInputEditText output, errorCode;
     private com.google.android.material.textfield.TextInputLayout errorCodeLayout;
 
+    private byte[] selectedApplicationId = null;
+
+
+
+    /**
+     * section for basics workflow
+     */
+
+    private LinearLayout llSectionMenue1;
+    private Button applicationSelect, fileSelect;
+
+    /**
+     * section for Standard files
+     */
+
+    private LinearLayout llSectionStandardFiles;
+    private Button fileStandardRead, fileStandardWrite;
+
+
+    // old ones
+
     /**
      * section for application handling
      */
 
-    private com.google.android.material.textfield.TextInputEditText numberOfKeys, applicationId, applicationSelected;
-    private Button applicationList, applicationCreate, applicationSelect;
-
-    // experimental:
-
-    private byte[] selectedApplicationId = null;
     private Button applicationCreateAes;
+
+    private com.google.android.material.textfield.TextInputEditText numberOfKeys, applicationId, applicationSelected;
+    private Button applicationList, applicationCreate;
+
     /**
      * section for files
      */
 
-    private Button fileList, fileSelect, getFileSettings, changeFileSettings;
+    private Button fileList, getFileSettings, changeFileSettings;
     private com.google.android.material.textfield.TextInputEditText fileSelected;
     private String selectedFileId = "";
     private int selectedFileSize;
     private FileSettings selectedFileSettings;
+
+
 
     /**
      * section for EV2 authentication and communication
@@ -141,7 +163,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for standard file handling
      */
 
-    private Button fileStandardCreate, fileStandardWrite, fileStandardRead;
+    private Button fileStandardCreate;
     private com.google.android.material.textfield.TextInputEditText fileStandardFileId, fileStandardSize, fileStandardData;
     RadioButton rbFileFreeAccess, rbFileKeySecuredAccess;
 
@@ -333,10 +355,26 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         errorCode = findViewById(R.id.etErrorCode);
         errorCodeLayout = findViewById(R.id.etErrorCodeLayout);
 
-        // application handling
-        applicationCreate = findViewById(R.id.btnCreateApplication);
+        // basic workflow
         applicationSelect = findViewById(R.id.btnSelectApplication);
         applicationSelected = findViewById(R.id.etSelectedApplicationId);
+        fileSelect = findViewById(R.id.btnSelectFile);
+        fileSelected = findViewById(R.id.etSelectedFileId);
+
+        // standard file workflow
+        llSectionStandardFiles = findViewById(R.id.llStandardFile);
+        fileStandardRead = findViewById(R.id.btnStandardFileRead);
+        fileStandardWrite = findViewById(R.id.btnStandardFileWrite);
+        //fileStandardSettings = findViewById(R.id.btnStandardFileSettings);
+
+        fileStandardWrite.setEnabled(false);
+        //llSectionStandardFiles.setEnabled(false);
+        //enableLinearLayout(R.id.llStandardFile, false);
+
+        // application handling
+        applicationCreate = findViewById(R.id.btnCreateApplication);
+
+
         numberOfKeys = findViewById(R.id.etNumberOfKeys);
         applicationId = findViewById(R.id.etApplicationId);
 
@@ -347,10 +385,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         // file handling
 
         fileList = findViewById(R.id.btnListFiles); // this is misused for getSesAuthEncKey
-        fileSelect = findViewById(R.id.btnSelectFile);
+
         getFileSettings = findViewById(R.id.btnGetFileSettings);
         changeFileSettings = findViewById(R.id.btnChangeFileSettings);
-        fileSelected = findViewById(R.id.etSelectedFileId);
+
         rbFileFreeAccess = findViewById(R.id.rbFileAccessTypeFreeAccess);
         rbFileKeySecuredAccess = findViewById(R.id.rbFileAccessTypeKeySecuredAccess);
 
@@ -446,8 +484,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
         // standard files
         fileStandardCreate = findViewById(R.id.btnCreateStandardFile);
-        fileStandardRead = findViewById(R.id.btnReadStandardFile);
-        fileStandardWrite = findViewById(R.id.btnWriteStandardFile);
+
         fileStandardFileId = findViewById(R.id.etFileStandardFileId);
         fileStandardSize = findViewById(R.id.etFileStandardSize);
         fileStandardData = findViewById(R.id.etFileStandardData);
@@ -3037,15 +3074,74 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
                     return;
                 }
-                // at this point we should read the available file ids from the card
-                //byte fileIdByte = Byte.parseByte(fileStandardFileId.getText().toString());
-                // as well we should read the file settings of the selected file to know about e.g. the file type and file size
-                selectedFileId = fileStandardFileId.getText().toString();
-                selectedFileSize = MAXIMUM_FILE_SIZE; // this value should be read from file settings
-                fileSelected.setText(fileStandardFileId.getText().toString());
-                writeToUiAppend(output, "you selected the fileID " + selectedFileId);
-                writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " file selection SUCCESS", COLOR_GREEN);
-                vibrateShort();
+
+                // on application selection the file ids where read from the application, together with the file settings
+
+                byte[] allFileIds = desfireEv3.getAllFileIds();
+                FileSettings[] allFileSettings = desfireEv3.getAllFileSettings();
+                if ((allFileIds == null) || (allFileIds.length == 0)) {
+                    writeToUiAppend(output, "no file IDs found, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                if ((allFileSettings == null) || (allFileSettings.length == 0)) {
+                    writeToUiAppend(output, "no file settings found, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+
+                // debug
+                Log.d(TAG, "allFileIds");
+                for (int i = 0; i < allFileIds.length; i++) {
+                    Log.d(TAG, "i: " + i + ":" + allFileIds[i]);
+                }
+                Log.d(TAG, "allFileSettings");
+                for (int i = 0; i < allFileSettings.length; i++) {
+                    FileSettings fs = allFileSettings[i];
+                    if (fs == null) {
+                        Log.d(TAG, "i: " + i + ":" + "null");
+                    } else {
+                        Log.d(TAG, "i: " + i + ":" + allFileSettings[i].dump());
+                    }
+                }
+
+                String[] fileList = new String[allFileIds.length];
+                for (int i = 0; i < allFileIds.length; i++) {
+                    // get the file type for each entry
+                    byte fileId = allFileIds[i];
+                    FileSettings fileSettings = allFileSettings[fileId];
+                    Log.e(TAG, fileSettings.dump());
+                    String fileTypeName = "unknown";
+                    fileTypeName = fileSettings.getFileTypeName();
+                    String communicationMode = fileSettings.getCommunicationSettingsName();
+                    fileList[i] = String.valueOf(fileId) + " (" + fileTypeName + "|" + communicationMode + ")";
+                }
+
+                // setup the alert builder
+                AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
+                builder.setTitle("Choose a file");
+
+                builder.setItems(fileList, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        writeToUiAppend(output, "you  selected nr " + which + " = " + fileList[which]);
+                        selectedFileId = String.valueOf(allFileIds[which]);
+                        // here we are reading the fileSettings
+                        String outputString = fileList[which] + " ";
+                        byte fileIdByte = Byte.parseByte(selectedFileId);
+                        selectedFileSettings = allFileSettings[fileIdByte];
+                        outputString += "(" + selectedFileSettings.getFileTypeName();
+                        selectedFileSize = selectedFileSettings.getFileSizeInt();
+                        outputString += " size: " + selectedFileSize + ")";
+                        writeToUiAppend(output, outputString);
+                        fileSelected.setText(fileList[which]);
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "file selected", COLOR_GREEN);
+                        vibrateShort();
+                    }
+                });
+                // create and show the alert dialog
+                AlertDialog dialog = builder.create();
+                dialog.show();
             }
         });
 
@@ -7024,6 +7120,14 @@ posMacInpOffset:  75
             outputStreamWriter.close();
         } catch (IOException e) {
             System.out.println("Exception File write failed: " + e.toString());
+        }
+    }
+
+    private void enableLinearLayout(int linearLayoutInt, boolean setEnabled) {
+        LinearLayout linearLayout = findViewById(linearLayoutInt);
+        for ( int i = 0; i < linearLayout.getChildCount();  i++ ){
+            View view = linearLayout.getChildAt(i);
+            view.setEnabled(setEnabled);
         }
     }
 
