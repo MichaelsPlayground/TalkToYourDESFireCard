@@ -611,34 +611,53 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 // todo work on this, MifareDesfireEv3ExamplesDes Main lines 439 ff
                 List<byte[]> applicationIdList = desfireEv3.getApplicationIdsList();
-                String[] applicationList;
-
-
-                byte[] applicationIdentifier = Utils.hexStringToByteArray(applicationId.getText().toString());
-                if (applicationIdentifier == null) {
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you entered a wrong application ID", COLOR_RED);
+                byte[] errorCodeDf = desfireEv3.getErrorCode();
+                String errorCodeReason = desfireEv3.getErrorCodeReason();
+                if ((applicationIdList == null) || (applicationIdList.size() == 0)) {
+                    writeToUiAppend(output, "there are no application IDs on the  PICC");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(errorCodeDf), COLOR_RED);
                     return;
                 }
-                //Utils.reverseByteArrayInPlace(applicationIdentifier); // change to LSB = change the order
-                if (applicationIdentifier.length != 3) {
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you did not enter a 6 hex string application ID", COLOR_RED);
-                    return;
+
+                String[] applicationList = new String[applicationIdList.size()];
+                for (int i = 0; i < applicationIdList.size(); i++) {
+                    byte[] aid = applicationIdList.get(i);
+                    Utils.reverseByteArrayInPlace(aid);
+                    applicationList[i] = Utils.bytesToHexNpe(aid);
                 }
-                writeToUiAppend(output, logString + " with id: " + applicationId.getText().toString());
-                byte[] responseData = new byte[2];
-                boolean success = desfireAuthenticateLegacy.selectApplication(applicationIdentifier);
-                responseData = desfireAuthenticateLegacy.getErrorCode();
-                if (success) {
-                    // manually copy the aid
-                    selectedApplicationId = applicationIdentifier.clone();
-                    applicationSelected.setText(bytesToHexNpeUpperCase(selectedApplicationId));
-                    writeToUiAppend(output, logString + " SUCCESS");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    vibrateShort();
-                } else {
-                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
-                }
+
+                // setup the alert builder
+                AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
+                builder.setTitle("Choose an application");
+
+                // add a list
+                //String[] animals = {"horse", "cow", "camel", "sheep", "goat"};
+                //builder.setItems(animals, new DialogInterface.OnClickListener() {
+                builder.setItems(applicationList, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        writeToUiAppend(output, "you  selected nr " + which + " = " + applicationList[which]);
+                        selectedApplicationId = Utils.hexStringToByteArray(applicationList[which]);
+                        // now we run the command to select the application
+                        byte[] responseData = new byte[2];
+                        byte[] aid = selectedApplicationId.clone();
+                        Utils.reverseByteArrayInPlace(aid);
+                        boolean result = desfireEv3.selectApplicationByAid(aid);
+                        writeToUiAppend(output, "result of selectApplicationDes: " + result);
+                        //writeToUiAppend(errorCode, "selectApplicationDes: " + Ev3.getErrorCode(responseData));
+/*
+                        int colorFromErrorCode = Ev3.getColorFromErrorCode(responseData);
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "selectApplicationDes: " + Ev3.getErrorCode(responseData), colorFromErrorCode);
+                        applicationSelected.setText(applicationList[which]);
+                        invalidateEncryptionKeys();
+
+ */
+                    }
+                });
+                // create and show the alert dialog
+                AlertDialog dialog = builder.create();
+                dialog.show();
+
 
             }
         });

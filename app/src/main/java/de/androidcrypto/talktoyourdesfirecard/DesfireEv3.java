@@ -145,6 +145,7 @@ public class DesfireEv3 {
     private final byte CREATE_APPLICATION_COMMAND = (byte) 0xCA;
     private final byte SELECT_APPLICATION_COMMAND = (byte) 0x5A;
     private final byte DELETE_APPLICATION_COMMAND = (byte) 0xDA;
+    private final byte GET_APPLICATION_IDS_COMMAND = (byte) 0x6A;
     private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
     private final byte CREATE_BACKUP_FILE_COMMAND = (byte) 0xCB;
     private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
@@ -161,7 +162,7 @@ public class DesfireEv3 {
      * class internal constants and limitations
      */
     boolean printToLog = true; // logging data in internal log string
-
+    private static final byte[] MASTER_APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("000000"); // AID '00 00 00'
     private final byte APPLICATION_MASTER_KEY_SETTINGS = (byte) 0x0F; // 'amks' all default values
     private final byte APPLICATION_CRYPTO_DES = 0x00; // add this to number of keys for DES
     //private final byte APPLICATION_CRYPTO_3KTDES = (byte) 0x40; // add this to number of keys for 3KTDES
@@ -453,83 +454,25 @@ public class DesfireEv3 {
         errorCode = new byte[2];
 
         // sanity checks
+        if (!checkIsMasterApplication()) return null; // select Master Application first
         if (!checkIsoDep()) return null;
 
-/*
-// get application ids
+        // get application ids
         List<byte[]> applicationIdList = new ArrayList<>();
-        byte getApplicationIdsCommand = (byte) 0x6a;
-        byte[] getApplicationIdsResponse = new byte[0];
-        try {
-            getApplicationIdsResponse = isoDep.transceive(wrapMessage(getApplicationIdsCommand, null));
-        } catch (Exception e) {
-            //throw new RuntimeException(e);
-            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
+        byte[] response;
+        response = sendRequest(GET_APPLICATION_IDS_COMMAND);
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (!checkResponse(response)) {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
             return null;
         }
-        writeToUiAppend(logTextView, printData("getApplicationIdsResponse", getApplicationIdsResponse));
-        // getApplicationIdsResponse length: 2 data: 9100 = no applications on card
-        // getApplicationIdsResponse length: 5 data: a1a2a3 9100
-        // there might be more application on the card that fit into one frame:
-        // getApplicationIdsResponse length: 5 data: a1a2a3 91AF
-        // AF at the end is indicating more data
-
-        // check that result if 0x9100 (success) or 0x91AF (success but more data)
-        if ((!checkResponse(getApplicationIdsResponse)) && (!checkResponseMoreData(getApplicationIdsResponse))) {
-            // something got wrong (e.g. missing authentication ?)
-            writeToUiAppend(logTextView, "there was an unexpected response");
-            return null;
-        }
-        // if the read result is success 9100 we return the data received so far
-        if (checkResponse(getApplicationIdsResponse)) {
-            System.arraycopy(returnStatusBytes(getApplicationIdsResponse), 0, response, 0, 2);
-            byte[] applicationListBytes = Arrays.copyOf(getApplicationIdsResponse, getApplicationIdsResponse.length - 2);
-            applicationIdList = divideArray(applicationListBytes, 3);
-            return applicationIdList;
-        }
-        if (checkResponseMoreData(getApplicationIdsResponse)) {
-            writeToUiAppend(logTextView, "getApplicationIdsList: we are asked to grab more data from the card");
-            byte[] applicationListBytes = Arrays.copyOf(getApplicationIdsResponse, getApplicationIdsResponse.length - 2);
-            applicationIdList = divideArray(applicationListBytes, 3);
-            byte getMoreDataCommand = (byte) 0xaf;
-            boolean readMoreData = true;
-            try {
-                while (readMoreData) {
-                    try {
-                        getApplicationIdsResponse = isoDep.transceive(wrapMessage(getMoreDataCommand, null));
-                    } catch (Exception e) {
-                        //throw new RuntimeException(e);
-                        writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
-                        return null;
-                    }
-                    writeToUiAppend(logTextView, printData("getApplicationIdsResponse", getApplicationIdsResponse));
-                    if (checkResponse(getApplicationIdsResponse)) {
-                        // now we have received all data
-                        List<byte[]> applicationIdListTemp = new ArrayList<>();
-                        System.arraycopy(returnStatusBytes(getApplicationIdsResponse), 0, response, 0, 2);
-                        applicationListBytes = Arrays.copyOf(getApplicationIdsResponse, getApplicationIdsResponse.length - 2);
-                        applicationIdListTemp = divideArray(applicationListBytes, 3);
-                        readMoreData = false; // end the loop
-                        applicationIdList.addAll(applicationIdListTemp);
-                        return applicationIdList;
-                    }
-                    if (checkResponseMoreData(getApplicationIdsResponse)) {
-                        // some more data will follow, store temp data
-                        List<byte[]> applicationIdListTemp = new ArrayList<>();
-                        applicationListBytes = Arrays.copyOf(getApplicationIdsResponse, getApplicationIdsResponse.length - 2);
-                        applicationIdListTemp = divideArray(applicationListBytes, 3);
-                        applicationIdList.addAll(applicationIdListTemp);
-                        readMoreData = true;
-                    }
-                } // while (readMoreData) {
-            } catch (Exception e) {
-                writeToUiAppend(logTextView, "Exception failure: " + e.getMessage());
-                byte[] responseManual = new byte[]{(byte) 0x91, (byte) 0xFF};
-                System.arraycopy(responseManual, 0, response, 0, 2);
-            } // try
- */
-
-        return null;
+        errorCode = RESPONSE_OK.clone();
+        errorCodeReason = "SUCCESS";
+        byte[] applicationListBytes = getData(response);
+        applicationIdList = divideArray(applicationListBytes, 3);
+        return applicationIdList;
     };
 
 
@@ -4006,6 +3949,16 @@ fileSize: 128
      * check some know method parameters
      */
 
+    private boolean checkIsMasterApplication() {
+        if (!Arrays.equals(selectedApplicationId, MASTER_APPLICATION_IDENTIFIER)) {
+            log("checkIsMasterApplication", "selectedApplicationId is not Master Application Identifier, aborted");
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "selectedApplicationId is not Master Application Identifier";
+            return false;
+        }
+        return true;
+    }
+
     private boolean checkApplicationIdentifier(byte[] applicationIdentifier) {
         if ((applicationIdentifier == null) || (applicationIdentifier.length != 3)) {
             log("checkApplicationIdentifier", "applicationIdentifier is NULL or not of length 3, aborted");
@@ -4241,6 +4194,24 @@ fileSize: 128
         Log.d(TAG, "fullPaddedData.length: " + fullPaddedData.length);
         Log.d(TAG, "mult16               : " + mult16);
         return Arrays.copyOfRange(fullPaddedData, 0, (mult16 * 16));
+    }
+
+    /**
+     * splits a byte array in chunks
+     *
+     * @param source
+     * @param chunksize
+     * @return a List<byte[]> with sets of chunksize
+     */
+    private static List<byte[]> divideArray(byte[] source, int chunksize) {
+        List<byte[]> result = new ArrayList<byte[]>();
+        int start = 0;
+        while (start < source.length) {
+            int end = Math.min(source.length, start + chunksize);
+            result.add(Arrays.copyOfRange(source, start, end));
+            start += chunksize;
+        }
+        return result;
     }
 
     private void invalidateAllData() {
