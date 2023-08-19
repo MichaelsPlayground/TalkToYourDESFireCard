@@ -146,6 +146,7 @@ public class DesfireEv3 {
     private final byte SELECT_APPLICATION_COMMAND = (byte) 0x5A;
     private final byte DELETE_APPLICATION_COMMAND = (byte) 0xDA;
     private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
+    private final byte CREATE_BACKUP_FILE_COMMAND = (byte) 0xCB;
     private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
     private final byte READ_STANDARD_FILE_COMMAND = (byte) 0xBD;
     private final byte READ_STANDARD_FILE_SECURE_COMMAND = (byte) 0xAD;
@@ -407,7 +408,7 @@ public class DesfireEv3 {
     }
 
     /**
-     * Deletes the selected application without any further confirmation
+     * deletes the selected application without any further confirmation
      * Note: this command requires a preceding authentication with Application Master key
      * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
@@ -445,6 +446,93 @@ public class DesfireEv3 {
         }
     }
 
+    public List<byte[]> getApplicationIdsList() {
+        final String methodName = "getApplicationIdsList";
+        logData = "";
+        log(methodName, "started", true);
+        errorCode = new byte[2];
+
+        // sanity checks
+        if (!checkIsoDep()) return null;
+
+/*
+// get application ids
+        List<byte[]> applicationIdList = new ArrayList<>();
+        byte getApplicationIdsCommand = (byte) 0x6a;
+        byte[] getApplicationIdsResponse = new byte[0];
+        try {
+            getApplicationIdsResponse = isoDep.transceive(wrapMessage(getApplicationIdsCommand, null));
+        } catch (Exception e) {
+            //throw new RuntimeException(e);
+            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
+            return null;
+        }
+        writeToUiAppend(logTextView, printData("getApplicationIdsResponse", getApplicationIdsResponse));
+        // getApplicationIdsResponse length: 2 data: 9100 = no applications on card
+        // getApplicationIdsResponse length: 5 data: a1a2a3 9100
+        // there might be more application on the card that fit into one frame:
+        // getApplicationIdsResponse length: 5 data: a1a2a3 91AF
+        // AF at the end is indicating more data
+
+        // check that result if 0x9100 (success) or 0x91AF (success but more data)
+        if ((!checkResponse(getApplicationIdsResponse)) && (!checkResponseMoreData(getApplicationIdsResponse))) {
+            // something got wrong (e.g. missing authentication ?)
+            writeToUiAppend(logTextView, "there was an unexpected response");
+            return null;
+        }
+        // if the read result is success 9100 we return the data received so far
+        if (checkResponse(getApplicationIdsResponse)) {
+            System.arraycopy(returnStatusBytes(getApplicationIdsResponse), 0, response, 0, 2);
+            byte[] applicationListBytes = Arrays.copyOf(getApplicationIdsResponse, getApplicationIdsResponse.length - 2);
+            applicationIdList = divideArray(applicationListBytes, 3);
+            return applicationIdList;
+        }
+        if (checkResponseMoreData(getApplicationIdsResponse)) {
+            writeToUiAppend(logTextView, "getApplicationIdsList: we are asked to grab more data from the card");
+            byte[] applicationListBytes = Arrays.copyOf(getApplicationIdsResponse, getApplicationIdsResponse.length - 2);
+            applicationIdList = divideArray(applicationListBytes, 3);
+            byte getMoreDataCommand = (byte) 0xaf;
+            boolean readMoreData = true;
+            try {
+                while (readMoreData) {
+                    try {
+                        getApplicationIdsResponse = isoDep.transceive(wrapMessage(getMoreDataCommand, null));
+                    } catch (Exception e) {
+                        //throw new RuntimeException(e);
+                        writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
+                        return null;
+                    }
+                    writeToUiAppend(logTextView, printData("getApplicationIdsResponse", getApplicationIdsResponse));
+                    if (checkResponse(getApplicationIdsResponse)) {
+                        // now we have received all data
+                        List<byte[]> applicationIdListTemp = new ArrayList<>();
+                        System.arraycopy(returnStatusBytes(getApplicationIdsResponse), 0, response, 0, 2);
+                        applicationListBytes = Arrays.copyOf(getApplicationIdsResponse, getApplicationIdsResponse.length - 2);
+                        applicationIdListTemp = divideArray(applicationListBytes, 3);
+                        readMoreData = false; // end the loop
+                        applicationIdList.addAll(applicationIdListTemp);
+                        return applicationIdList;
+                    }
+                    if (checkResponseMoreData(getApplicationIdsResponse)) {
+                        // some more data will follow, store temp data
+                        List<byte[]> applicationIdListTemp = new ArrayList<>();
+                        applicationListBytes = Arrays.copyOf(getApplicationIdsResponse, getApplicationIdsResponse.length - 2);
+                        applicationIdListTemp = divideArray(applicationListBytes, 3);
+                        applicationIdList.addAll(applicationIdListTemp);
+                        readMoreData = true;
+                    }
+                } // while (readMoreData) {
+            } catch (Exception e) {
+                writeToUiAppend(logTextView, "Exception failure: " + e.getMessage());
+                byte[] responseManual = new byte[]{(byte) 0x91, (byte) 0xFF};
+                System.arraycopy(responseManual, 0, response, 0, 2);
+            } // try
+ */
+
+        return null;
+    };
+
+
     /**
      * section for standard file handling
      */
@@ -460,7 +548,7 @@ public class DesfireEv3 {
      * Note: check errorCode and errorCodeReason in case of failure
      */
 
-    public boolean createStandardFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize, boolean preEnableSdm) {
+    public boolean createStandardFileOld(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize, boolean preEnableSdm) {
         final String methodName = "createStandardFile";
         logData = "";
         log(methodName, "started", true);
@@ -524,6 +612,35 @@ public class DesfireEv3 {
             log(methodName, "FAILURE with " + printData("errorCode", errorCode));
             return false;
         }
+    }
+
+    /**
+     * create a Standard file in selected application using file Number
+     * @param fileNumber            | in range 0..31
+     * @param communicationSettings | Plain, MACed or Full Note: Please do not use MACed as there are no methods in this class to handle that communication type
+     * @param accessRights          | Read & Write access key, CAR ke, Read key, Write key
+     * @param fileSize              | maximum of 256 bytes
+     * @param preEnableSdm          | set to true if you (later) want to enable SDM. If you don't set this on file creation it cannot get enabled later
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+
+    public boolean createStandardFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize, boolean preEnableSdm) {
+        return createDataFile(fileNumber, communicationSettings, accessRights, true, fileSize, preEnableSdm);
+    }
+
+    /**
+     * create a Backup file in selected application using file Number
+     * @param fileNumber            | in range 0..31
+     * @param communicationSettings | Plain, MACed or Full Note: Please do not use MACed as there are no methods in this class to handle that communication type
+     * @param accessRights          | Read & Write access key, CAR ke, Read key, Write key
+     * @param fileSize              | maximum of 256 bytes
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+
+    public boolean createBackupFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize) {
+        return createDataFile(fileNumber, communicationSettings, accessRights, false, fileSize, false);
     }
 
     /**
@@ -609,14 +726,92 @@ public class DesfireEv3 {
     }
 
     /**
+     * create a Data file in selected application using file Number, this should be called from createStandardFile or createBackupFile
+     * @param fileNumber            | in range 0..31
+     * @param communicationSettings | Plain, MACed or Full Note: Please do not use MACed as there are no methods in this class to handle that communication type
+     * @param accessRights          | Read & Write access key, CAR ke, Read key, Write key
+     * @param isStandardFile        | true when creating a Standard file, false will create a Backup file
+     * @param fileSize              | maximum of 256 bytes
+     * @param preEnableSdm          | set to true if you (later) want to enable SDM. If you don't set this on file creation it cannot get enabled later. Valid only on Standard files !
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+
+    private boolean createDataFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, boolean isStandardFile, int fileSize, boolean preEnableSdm) {
+        final String methodName = "createStandardFile";
+        logData = "";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "communicationSettings: " + communicationSettings.toString());
+        log(methodName, printData("accessRights", accessRights));
+        log(methodName, "isStandardFile: " + isStandardFile);
+        log(methodName, "fileSize: " + fileSize);
+        log(methodName, "preEnableSdm: " + preEnableSdm);
+        errorCode = new byte[2];
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
+        if (!checkAccessRights(accessRights)) return false; // logFile and errorCode are updated
+        if (!checkFileSize0(fileSize)) return false; // logFile and errorCode are updated
+        /*
+        if ((fileSize < 1) || (fileSize > MAXIMUM_FILE_SIZE)) {
+            log(methodName, "fileSize is not in range 1..MAXIMUM_FILE_SIZE, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "fileSize is not in range 1..MAXIMUM_FILE_SIZE";
+            return false;
+        }
+         */
+        if (!isStandardFile) preEnableSdm = false; // SDM feature is available in Standard files only
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+
+        byte commSettings = (byte) 0;
+        if (communicationSettings == CommunicationSettings.Plain) commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        if (communicationSettings == CommunicationSettings.MACed) commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
+        if (communicationSettings == CommunicationSettings.Full) commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
+        // add 0x40 for pre-enabled SDM
+        if (preEnableSdm) {
+            commSettings = (byte) (commSettings | (byte) 0x40);
+        }
+
+        byte[] fileSizeByte = Utils.intTo3ByteArrayInversed(fileSize);
+        // build the command string
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(commSettings);
+        baos.write(accessRights, 0, accessRights.length);
+        baos.write(fileSizeByte, 0, fileSizeByte.length);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+        try {
+            if (isStandardFile) {
+                apdu = wrapMessage(CREATE_STANDARD_FILE_COMMAND, commandParameter);
+            } else {
+                apdu = wrapMessage(CREATE_BACKUP_FILE_COMMAND, commandParameter);
+            }
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            log(methodName, "SUCCESS");
+            return true;
+        } else {
+            log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            return false;
+        }
+    }
+
+    /**
      * stubs
      */
 
     // todo create file stubs
-
-    public boolean createBackupFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize) {
-        return false;
-    }
 
     public boolean createValueFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int minimumValue, int maximumValue, int initialValue, boolean limitedCreditOperation) {
         return false;

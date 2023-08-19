@@ -31,6 +31,11 @@
         app:showAsAction="never"/>
 
     <item
+        android:id="@+id/action_main_activity_ev2"
+        android:title="old Main EV2 activity"
+        app:showAsAction="never"/>
+
+    <item
         android:id="@+id/action_applications"
         android:title="Applications"
         app:showAsAction="never"/>

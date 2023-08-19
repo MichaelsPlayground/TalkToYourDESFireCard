@@ -51,18 +51,22 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.List;
 
 import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
-import de.androidcrypto.talktoyourdesfirecard.nfcjlib.TripleDES;
 import de.androidcrypto.talktoyourdesfirecard.nfcjlib.CRC32;
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.TripleDES;
 
-public class MainActivity extends AppCompatActivity implements NfcAdapter.ReaderCallback {
+// this is the old activity that mostly uses DesfireAuthenticateEv2 methods
+// this is here for documentation purposes only
+public class MainActivityEv2 extends AppCompatActivity implements NfcAdapter.ReaderCallback {
 
-    private static final String TAG = MainActivity.class.getName();
+    private static final String TAG = MainActivityEv2.class.getName();
 
     private com.google.android.material.textfield.TextInputEditText output, errorCode;
-    private com.google.android.material.textfield.TextInputLayout errorCodeLayout;
+    private TextInputLayout errorCodeLayout;
+
+
+    //private FileSettings selectedFileSettings;
 
     /**
      * section for application handling
@@ -324,7 +328,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_main_ev2);
 
         Toolbar myToolbar = (Toolbar) findViewById(R.id.main_toolbar);
         setSupportActionBar(myToolbar);
@@ -608,12 +612,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 clearOutputFields();
                 String logString = "select an application";
                 writeToUiAppend(output, logString);
-
-                // todo work on this, MifareDesfireEv3ExamplesDes Main lines 439 ff
-                List<byte[]> applicationIdList = desfireEv3.getApplicationIdsList();
-                String[] applicationList;
-
-
                 byte[] applicationIdentifier = Utils.hexStringToByteArray(applicationId.getText().toString());
                 if (applicationIdentifier == null) {
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you entered a wrong application ID", COLOR_RED);
@@ -4137,7 +4135,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 };
                 final String selectedFolderString = "You are going to format the PICC " + "\n\n" +
                         "Do you want to proceed ?";
-                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivityEv2.this);
 
                 builder.setMessage(selectedFolderString).setPositiveButton(android.R.string.yes, dialogClickListener)
                         .setNegativeButton(android.R.string.no, dialogClickListener)
@@ -7016,7 +7014,7 @@ posMacInpOffset:  75
         mPrepareSun.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override
             public boolean onMenuItemClick(MenuItem item) {
-                Intent intent = new Intent(MainActivity.this, PrepareSdmActivity.class);
+                Intent intent = new Intent(MainActivityEv2.this, PrepareSdmActivity.class);
                 startActivity(intent);
                 return false;
             }
@@ -7026,7 +7024,7 @@ posMacInpOffset:  75
         mActivateSun.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override
             public boolean onMenuItemClick(MenuItem item) {
-                Intent intent = new Intent(MainActivity.this, ActivateSdmActivity.class);
+                Intent intent = new Intent(MainActivityEv2.this, ActivateSdmActivity.class);
                 startActivity(intent);
                 return false;
             }
@@ -7036,7 +7034,7 @@ posMacInpOffset:  75
         mReadNdefContent.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override
             public boolean onMenuItemClick(MenuItem item) {
-                Intent intent = new Intent(MainActivity.this, ReadNdefContentActivity.class);
+                Intent intent = new Intent(MainActivityEv2.this, ReadNdefContentActivity.class);
                 startActivity(intent);
                 return false;
             }
@@ -7046,7 +7044,7 @@ posMacInpOffset:  75
         mFormatPicc.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override
             public boolean onMenuItemClick(MenuItem item) {
-                Intent intent = new Intent(MainActivity.this, FormatPiccActivity.class);
+                Intent intent = new Intent(MainActivityEv2.this, FormatPiccActivity.class);
                 startActivity(intent);
                 return false;
             }
@@ -7056,17 +7054,7 @@ posMacInpOffset:  75
         mSetupTestEnvironment.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override
             public boolean onMenuItemClick(MenuItem item) {
-                Intent intent = new Intent(MainActivity.this, SetupTestEnvironmentActivity.class);
-                startActivity(intent);
-                return false;
-            }
-        });
-
-        MenuItem mMainActivityEv2 = menu.findItem(R.id.action_main_activity_ev2);
-        mMainActivityEv2.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
-            @Override
-            public boolean onMenuItemClick(MenuItem item) {
-                Intent intent = new Intent(MainActivity.this, MainActivityEv2.class);
+                Intent intent = new Intent(MainActivityEv2.this, SetupTestEnvironmentActivity.class);
                 startActivity(intent);
                 return false;
             }

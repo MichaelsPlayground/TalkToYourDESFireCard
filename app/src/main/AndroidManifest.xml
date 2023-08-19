@@ -31,6 +31,9 @@
             android:name=".SetupTestEnvironmentActivity"
             android:exported="false" />
         <activity
+            android:name=".MainActivityEv2"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
