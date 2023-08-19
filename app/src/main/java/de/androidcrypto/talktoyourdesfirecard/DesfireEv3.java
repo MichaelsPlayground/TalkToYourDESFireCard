@@ -84,6 +84,8 @@ import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
  *
  */
 
+// todo do not run tasks after authentication (e.g. deleteFile won't run as the PICC is in authenticated state)
+
 public class DesfireEv3 {
 
     private static final String TAG = DesfireEv3.class.getName();
@@ -1847,7 +1849,14 @@ public class DesfireEv3 {
         errorCode = new byte[2];
         // sanity checks
         if (!checkApplicationIdentifier(selectedApplicationId)) return false; // logFile and errorCode are updated
-        //if (!checkAuthentication()) return false; // logFile and errorCode are updated
+        if (checkAuthentication()) {
+            // as the command won't run in authenticated state the  method denies to work further
+            Log.e(TAG, methodName + " cannot run this command after authentication, aborted");
+            log(methodName, "cannot run this command after authentication, aborted");
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "cannot run this command after authentication";
+            return false; // logFile and errorCode are updated
+        }
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if (!checkIsoDep()) return false; // logFile and errorCode are updated
         byte[] apdu;

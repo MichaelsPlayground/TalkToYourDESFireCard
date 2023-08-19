@@ -15,7 +15,7 @@ public class Constants {
      */
 
     public static final byte[] MASTER_APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("000000"); // AID '00 00 00'
-    public static final byte[] APPLICATION_IDENTIFIER_AES = Utils.hexStringToByteArray("F1A2A3"); // AID 'A1 A2 A3'
+    public static final byte[] APPLICATION_IDENTIFIER_AES = Utils.hexStringToByteArray("A1A2A3"); // AID 'A1 A2 A3'
 
     /**
      * files
