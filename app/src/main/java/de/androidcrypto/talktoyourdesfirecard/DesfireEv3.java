@@ -401,6 +401,7 @@ public class DesfireEv3 {
             selectedApplicationId = applicationIdentifier.clone();
             APPLICATION_ALL_FILE_IDS = getAllFileIds();
             APPLICATION_ALL_FILE_SETTINGS = getAllFileSettings();
+            errorCode = RESPONSE_OK.clone();
             return true;
         } else {
             log(methodName, "FAILURE with " + printData("errorCode", errorCode));

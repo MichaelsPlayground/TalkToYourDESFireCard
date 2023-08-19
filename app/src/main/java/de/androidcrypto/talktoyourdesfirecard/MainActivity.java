@@ -619,7 +619,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
 
-                // todo work on this, MifareDesfireEv3ExamplesDes Main lines 439 ff
                 List<byte[]> applicationIdList = desfireEv3.getApplicationIdsList();
                 errorCodeDf = desfireEv3.getErrorCode();
                 errorCodeReason = desfireEv3.getErrorCodeReason();
@@ -632,17 +631,14 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 String[] applicationList = new String[applicationIdList.size()];
                 for (int i = 0; i < applicationIdList.size(); i++) {
                     byte[] aid = applicationIdList.get(i);
-                    Utils.reverseByteArrayInPlace(aid);
-                    applicationList[i] = Utils.bytesToHexNpe(aid);
+                    //Utils.reverseByteArrayInPlace(aid);
+                    applicationList[i] = Utils.bytesToHexNpeUpperCase(aid);
                 }
 
                 // setup the alert builder
                 AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
                 builder.setTitle("Choose an application");
 
-                // add a list
-                //String[] animals = {"horse", "cow", "camel", "sheep", "goat"};
-                //builder.setItems(animals, new DialogInterface.OnClickListener() {
                 builder.setItems(applicationList, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
@@ -651,17 +647,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         // now we run the command to select the application
                         byte[] responseData = new byte[2];
                         byte[] aid = selectedApplicationId.clone();
-                        Utils.reverseByteArrayInPlace(aid);
+                        //Utils.reverseByteArrayInPlace(aid);
                         boolean result = desfireEv3.selectApplicationByAid(aid);
-                        writeToUiAppend(output, "result of selectApplicationDes: " + result);
-                        //writeToUiAppend(errorCode, "selectApplicationDes: " + Ev3.getErrorCode(responseData));
-/*
-                        int colorFromErrorCode = Ev3.getColorFromErrorCode(responseData);
-                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "selectApplicationDes: " + Ev3.getErrorCode(responseData), colorFromErrorCode);
+                        responseData = desfireEv3.getErrorCode();
+                        writeToUiAppend(output, "result of selectApplication: " + result);
+                        int colorFromErrorCode = EV3.getColorFromErrorCode(responseData);
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "selectApplication: " + EV3.getErrorCode(responseData), colorFromErrorCode);
                         applicationSelected.setText(applicationList[which]);
+                        selectedApplicationId = Utils.hexStringToByteArray(applicationList[which]);
                         invalidateEncryptionKeys();
-
- */
                     }
                 });
                 // create and show the alert dialog

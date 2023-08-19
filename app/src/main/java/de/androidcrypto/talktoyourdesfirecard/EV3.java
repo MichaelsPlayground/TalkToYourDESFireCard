@@ -1,5 +1,7 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
+import android.graphics.Color;
+
 public class EV3 {
 
     public static String getErrorCode(byte oneByteResponse) {
@@ -52,5 +54,25 @@ public class EV3 {
             case (byte) 0xFF: return "FF undefined error";
         }
         return "undefined error code";
+    }
+
+    public static int getColorFromErrorCode(byte[] twoByteResponse) {
+        int colorRed = Color.rgb(255,0,0); // red
+        int colorGreen = Color.rgb(0,255,0); // green
+        if (twoByteResponse == null) {
+            return colorRed;
+        }
+        if (twoByteResponse.length != 2) {
+            return colorRed;
+        }
+        byte sw1 = twoByteResponse[0];
+        if (sw1 != (byte) 0x91) {
+            return colorRed;
+        }
+        if (twoByteResponse[1] == (byte) 0x00) {
+            return colorGreen;
+        } else {
+            return colorRed;
+        }
     }
 }
