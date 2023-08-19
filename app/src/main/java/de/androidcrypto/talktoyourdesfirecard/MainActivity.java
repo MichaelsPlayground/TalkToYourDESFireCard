@@ -104,7 +104,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private String selectedFileId = "";
     private int selectedFileSize;
     private FileSettings selectedFileSettings;
-
+    private byte selectedFileType;
 
 
     /**
@@ -366,8 +366,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileStandardRead = findViewById(R.id.btnStandardFileRead);
         fileStandardWrite = findViewById(R.id.btnStandardFileWrite);
         //fileStandardSettings = findViewById(R.id.btnStandardFileSettings);
-
-        fileStandardWrite.setEnabled(false);
+        llSectionStandardFiles.setVisibility(View.GONE);
+        //fileStandardWrite.setEnabled(false);
         //llSectionStandardFiles.setEnabled(false);
         //enableLinearLayout(R.id.llStandardFile, false);
 
@@ -645,6 +645,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 clearOutputFields();
                 String logString = "select an application";
                 writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
 
                 // select Master Application first
                 boolean success = desfireEv3.selectApplicationByAid(DesfireEv3.MASTER_APPLICATION_IDENTIFIER);
@@ -698,8 +699,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 // create and show the alert dialog
                 AlertDialog dialog = builder.create();
                 dialog.show();
-
-
             }
         });
 
@@ -3069,6 +3068,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 clearOutputFields();
                 String logString = "select a file";
                 writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+
                 if (selectedApplicationId == null) {
                     writeToUiAppend(output, "You need to select an application first, aborted");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
@@ -3136,6 +3137,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         writeToUiAppend(output, outputString);
                         fileSelected.setText(fileList[which]);
                         writeToUiAppendBorderColor(errorCode, errorCodeLayout, "file selected", COLOR_GREEN);
+                        selectedFileType = selectedFileSettings.getFileType();
+                        if (selectedFileType == FileSettings.STANDARD_FILE_TYPE) {
+                            llSectionStandardFiles.setVisibility(View.VISIBLE);
+                        }
                         vibrateShort();
                     }
                 });
@@ -3151,6 +3156,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 clearOutputFields();
                 String logString = "read from a standard file";
                 writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+
                 // check that a file was selected before
                 if (TextUtils.isEmpty(selectedFileId)) {
                     writeToUiAppend(output, "You need to select a file first, aborted");
@@ -3158,8 +3165,22 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
                 byte fileIdByte = Byte.parseByte(selectedFileId);
+
+                int fileSizeInt = 256; // todo fixed
+fileSizeInt = 0;
+                // pre-check if fileNumber is existing
+                boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
+                if (!isFileExisting) {
+                    writeToUiAppend(output, logString + " The file does not exist, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
+                    return;
+                }
+
                 byte[] responseData = new byte[2];
-                byte[] result = readFromAStandardFilePlainCommunicationDes(output, fileIdByte, selectedFileSize, responseData);
+                byte[] result = desfireEv3.readFromStandardFileRawFull(fileIdByte, 1, 128);
+
+                result = desfireEv3.readFromAStandardFile(fileIdByte, 0, fileSizeInt);
+                responseData = desfireEv3.getErrorCode();
                 if (result == null) {
                     // something gone wrong
                     writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
@@ -3170,6 +3191,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
                     }
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
                     return;
                 } else {
                     writeToUiAppend(output, logString + " ID: " + fileIdByte + printData(" data", result));
@@ -3186,6 +3208,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 clearOutputFields();
                 String logString = "write to a standard file";
                 writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
                 // check that a file was selected before
                 if (TextUtils.isEmpty(selectedFileId)) {
                     writeToUiAppend(output, "You need to select a file first, aborted");
@@ -3226,6 +3249,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 clearOutputFields();
                 String logString = "get file settings";
                 writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
                 // check that a file was selected before
                 if (TextUtils.isEmpty(selectedFileId)) {
                     writeToUiAppend(output, "You need to select a file first, aborted");
@@ -6931,11 +6955,30 @@ posMacInpOffset:  75
     }
 
     /**
+     * checks
+     */
+
+    /**
+     * checks if the DesfireEv3 class is initialized by tapping a tag
+     * @return
+     */
+
+    private boolean isDesfireEv3Available() {
+        if (desfireEv3 != null) {
+            return true;
+        } else {
+            writeToUiAppend(output, "please tap a DESFire tag to the reader, aborted");
+            writeToUiAppendBorderColor(errorCode, errorCodeLayout, "FAILURE - DesfireEv3 class not initialzed", COLOR_RED);
+            return false;
+        }
+    }
+
+    /**
      * section for layout handling
      */
     private void allLayoutsInvisible() {
         //llApplicationHandling.setVisibility(View.GONE);
-        //llStandardFile.setVisibility(View.GONE);
+        llSectionStandardFiles.setVisibility(View.GONE);
     }
 
     /**
@@ -7025,6 +7068,7 @@ posMacInpOffset:  75
     private void invalidateAllSelections() {
         selectedApplicationId = null;
         selectedFileId = "";
+        selectedFileType = -1;
         runOnUiThread(() -> {
             applicationSelected.setText("");
             fileSelected.setText("");
@@ -7032,10 +7076,14 @@ posMacInpOffset:  75
         KEY_NUMBER_USED_FOR_AUTHENTICATION = -1;
         SESSION_KEY_DES = null;
         SESSION_KEY_TDES = null;
+        SES_AUTH_ENC_KEY = null;
+        SES_AUTH_MAC_KEY = null;
     }
 
     private void invalidateEncryptionKeys() {
         KEY_NUMBER_USED_FOR_AUTHENTICATION = -1;
+        SES_AUTH_ENC_KEY = null;
+        SES_AUTH_MAC_KEY = null;
         SESSION_KEY_DES = null;
         SESSION_KEY_TDES = null;
     }

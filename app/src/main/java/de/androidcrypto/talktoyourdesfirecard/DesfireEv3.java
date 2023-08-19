@@ -1570,7 +1570,8 @@ public class DesfireEv3 {
          */
     }
 
-
+    // todo work on length = 0 = read complete file and set offset to 0 or
+    //  length to fileSize-offset to read all remaining data ?
     /**
      * The method reads a byte array from a Standard file. The communication mode is read out from
      * 'getFileSettings command'. If the comm mode is 'Plain' it runs the Plain path, otherwise it

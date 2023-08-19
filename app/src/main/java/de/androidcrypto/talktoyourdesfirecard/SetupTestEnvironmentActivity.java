@@ -116,8 +116,6 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
 
         // the 'formatPicc' methods runs the 3 tasks in once
 
-
-  /*
         writeToUiAppend("step 1: select Master Application with ID 0x000000");
         writeToUiAppend("step 2: authenticate with default DES Master Application Key");
         writeToUiAppend("step 3: format the PICC");
@@ -131,10 +129,11 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
             return;
         }
 
-   */
-        // todo remove, just for testing
-        success = desfireEv3.selectApplicationByAid(Constants.MASTER_APPLICATION_IDENTIFIER);
 
+        // todo remove, just for testing
+        //success = desfireEv3.selectApplicationByAid(Constants.MASTER_APPLICATION_IDENTIFIER);
+
+        // If there are any failures on creating the activity isn't ending because the application or file can exist
         writeToUiAppend("step 4: create a new application (\"A1A2A3\")");
         success = desfireEv3.createApplicationAes(Constants.APPLICATION_IDENTIFIER_AES, Constants.APPLICATION_NUMBER_OF_KEYS_DEFAULT);
         errorCode = desfireEv3.getErrorCode();
@@ -145,7 +144,7 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
             writeToUiAppendBorderColor("create a new application FAILURE with error code: "
                     + EV3.getErrorCode(errorCode) + " = "
                     + errorCodeReason + ", aborted", COLOR_RED);
-            return;
+            //return;
         }
 
         writeToUiAppend("step 5: select the new application (\"A1A2A3\")");
@@ -158,7 +157,7 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
             writeToUiAppendBorderColor("select the new application FAILURE with error code: "
                     + EV3.getErrorCode(errorCode) + " = "
                     + errorCodeReason + ", aborted", COLOR_RED);
-            return;
+            //return;
         }
 
         writeToUiAppend("step 6: create a new file set Plain (Standard, Backup, Value, Linear Record and Cyclic Record files)");
@@ -171,7 +170,7 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
             writeToUiAppendBorderColor("create a new file set Plain FAILURE with error code: "
                     + EV3.getErrorCode(errorCode) + " = "
                     + errorCodeReason + ", aborted", COLOR_RED);
-            return;
+            //return;
         }
 
         writeToUiAppend("step 7: create a new file set MACed (Standard, Backup, Value, Linear Record and Cyclic Record files)");
@@ -184,7 +183,7 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
             writeToUiAppendBorderColor("create a new file set MACed FAILURE with error code: "
                     + EV3.getErrorCode(errorCode) + " = "
                     + errorCodeReason + ", aborted", COLOR_RED);
-            return;
+            //return;
         }
 
         writeToUiAppend("step 8: create a new file set Full (Standard, Backup, Value, Linear Record and Cyclic Record files)");
@@ -197,7 +196,7 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
             writeToUiAppendBorderColor("create a new file set Full FAILURE with error code: "
                     + EV3.getErrorCode(errorCode) + " = "
                     + errorCodeReason + ", aborted", COLOR_RED);
-            return;
+            //return;
         }
 
         writeToUiAppend(output, "");
@@ -208,7 +207,7 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
         // create 5 files with communication settings PLAIN
         Log.d(TAG, "createFileSetPlain"); // DesfireEv3.DesfireFileType.Standard, DesfireEv3.DesfireFileType.Backup, DesfireEv3.DesfireFileType.Value, DesfireEv3.DesfireFileType.LinearRecord, DesfireEv3.DesfireFileType.CyclicRecord
         boolean createStandardFile = desfireEv3.createStandardFile(Constants.STANDARD_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
-        boolean createBackupFile = desfireEv3.createBackupFile(Constants.BACKUP_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256);
+        boolean createBackupFile = desfireEv3.createBackupFile(Constants.BACKUP_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32);
         boolean createValueFile = desfireEv3.createValueFile(Constants.VALUE_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT,0,10000, 0,false);
         boolean createLinearRecordFile = desfireEv3.createLinearRecordFile(Constants.LINEAR_RECORD_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
         boolean createCyclicRecordFile = desfireEv3.createCyclicRecordFile(Constants.CYCLIC_RECORD_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
@@ -224,7 +223,7 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
         // create 5 files with communication settings MACed
         Log.d(TAG, "createFileSetMACed"); // DesfireEv3.DesfireFileType.Standard, DesfireEv3.DesfireFileType.Backup, DesfireEv3.DesfireFileType.Value, DesfireEv3.DesfireFileType.LinearRecord, DesfireEv3.DesfireFileType.CyclicRecord
         boolean createStandardFile = desfireEv3.createStandardFile(Constants.STANDARD_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
-        boolean createBackupFile = desfireEv3.createBackupFile(Constants.BACKUP_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256);
+        boolean createBackupFile = desfireEv3.createBackupFile(Constants.BACKUP_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32);
         boolean createValueFile = desfireEv3.createValueFile(Constants.VALUE_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT,0,10000, 0,false);
         boolean createLinearRecordFile = desfireEv3.createLinearRecordFile(Constants.LINEAR_RECORD_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
         boolean createCyclicRecordFile = desfireEv3.createCyclicRecordFile(Constants.CYCLIC_RECORD_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
@@ -240,7 +239,7 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
         // create 5 files with communication settings Full
         Log.d(TAG, "createFileSetEncrypted"); // DesfireEv3.DesfireFileType.Standard, DesfireEv3.DesfireFileType.Backup, DesfireEv3.DesfireFileType.Value, DesfireEv3.DesfireFileType.LinearRecord, DesfireEv3.DesfireFileType.CyclicRecord
         boolean createStandardFile = desfireEv3.createStandardFile(Constants.STANDARD_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
-        boolean createBackupFile = desfireEv3.createBackupFile(Constants.BACKUP_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256);
+        boolean createBackupFile = desfireEv3.createBackupFile(Constants.BACKUP_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32);
         boolean createValueFile = desfireEv3.createValueFile(Constants.VALUE_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT,0,10000, 0,false);
         boolean createLinearRecordFile = desfireEv3.createLinearRecordFile(Constants.LINEAR_RECORD_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
         boolean createCyclicRecordFile = desfireEv3.createCyclicRecordFile(Constants.CYCLIC_RECORD_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
