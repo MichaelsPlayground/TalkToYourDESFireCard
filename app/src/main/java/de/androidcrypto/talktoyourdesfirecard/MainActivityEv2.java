@@ -1899,7 +1899,7 @@ public class MainActivityEv2 extends AppCompatActivity implements NfcAdapter.Rea
                 }
 
                 byte[] responseData = new byte[2];
-                boolean success = desfireEv3.writeToStandardFilePlain(fileIdByte, fullDataToWrite);
+                boolean success = desfireEv3.writeToADataFile(fileIdByte, fullDataToWrite);
                 responseData = desfireEv3.getErrorCode();
 
                 if (success) {
@@ -2046,7 +2046,7 @@ public class MainActivityEv2 extends AppCompatActivity implements NfcAdapter.Rea
                 }
 
                 byte[] responseData = new byte[2];
-                boolean success = desfireEv3.writeToAStandardFile(fileIdByte, fullDataToWrite);
+                boolean success = desfireEv3.writeToADataFile(fileIdByte, fullDataToWrite);
                 //boolean success = desfireEv3.writeToStandardFileRawFull(fileIdByte, fullDataToWrite);
 
                 //boolean success = desfireEv3.writeStandardFileEv2(fileIdByte, 33, fullDataToWrite);

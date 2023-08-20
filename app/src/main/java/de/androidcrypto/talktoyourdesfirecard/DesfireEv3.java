@@ -8,6 +8,7 @@ import android.nfc.NdefRecord;
 import android.nfc.TagLostException;
 import android.nfc.tech.IsoDep;
 import android.util.Log;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
@@ -156,6 +157,9 @@ public class DesfireEv3 {
     private final byte READ_DATA_FILE_COMMAND = (byte) 0xBD;
     private final byte WRITE_DATA_FILE_SECURE_COMMAND = (byte) 0x8D;
     private final byte READ_DATA_FILE_SECURE_COMMAND = (byte) 0xAD;
+    private final byte COMMIT_TRANSACTION_COMMAND = (byte) 0xC7;
+
+
     private final byte DELETE_FILE_COMMAND = (byte) 0xDF;
     private final byte GET_FILE_IDS_COMMAND = (byte) 0x6F;
     private final byte GET_FILE_SETTINGS_COMMAND = (byte) 0xF5;
@@ -839,6 +843,24 @@ public class DesfireEv3 {
         return writeToADataFileRawPlain(fileNumber, 0, data);
     }
 
+
+    /**
+     * writeToADataFile(byte fileNumber, byte[] data) - this is just a helper for
+     * writeToADataFile(byte fileNumber, int offset, byte[] data)
+     * @param fileNumber
+     * @param data
+     * @return
+     */
+
+    public boolean writeToADataFile(byte fileNumber, byte[] data) {
+        String logData = "";
+        final String methodName = "writeToADataFile";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, printData("data", data));
+        return writeToADataFile(fileNumber, 0, data);
+    }
+
     /**
      * The method writes a byte array to a Standard or Backup file. The communication mode is read out from
      * 'getFileSettings command'. If the comm mode is 'Plain' it runs the Plain path, otherwise it
@@ -848,25 +870,29 @@ public class DesfireEv3 {
      * If the data length exceeds the MAXIMUM_WRITE_MESSAGE_LENGTH the data will be written in chunks.
      * If the data length exceeds MAXIMUM_FILE_LENGTH the methods returns a FAILURE
      * @param fileNumber | in range 0..31 AND file is a Standard or Backup file
+     * @param offset     | position to write the data, starting with 0
      * @param data
      * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
      */
-    public boolean writeToADataFile(byte fileNumber, byte[] data) {
+
+    public boolean writeToADataFile(byte fileNumber, int offset, byte[] data) {
         String logData = "";
         final String methodName = "writeToADataFile";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "offset: " + offset);
         log(methodName, printData("data", data));
-        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
+        if (!checkFileNumber(fileNumber)) return false;
+        if (!checkOffsetMinus(offset)) return false;
         if ((data == null) || (data.length < 1) || (data.length > MAXIMUM_FILE_SIZE)) {
             log(methodName, "data length not in range 1..MAXIMUM_FILE_SIZE, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "data length not in range 1..MAXIMUM_FILE_SIZE";
             return false;
         }
-        if (!checkIsoDep()) return false; // logFile and errorCode are updated
-        if (!checkFileNumberExisting(fileNumber)) return false; // logFile and errorCode are updated
+        if (!checkIsoDep()) return false;
+        if (!checkFileNumberExisting(fileNumber)) return false;
         // checking fileSettings for Communication.mode
         boolean isPlainMode = false;
         boolean isMacedMode = false;
@@ -894,27 +920,39 @@ public class DesfireEv3 {
         } else {
             log(methodName, "CommunicationMode is Full enciphered");
         }
+        // handling the situation where offset + data length > fileSize
+        // priority is the offset, so data that is larger than remaining fileSize is truncated
+        int dataLength = data.length;
+        int fileSizeInt = fileSettings.getFileSizeInt();
+        if ((offset + dataLength) > fileSizeInt) {
+            data = Arrays.copyOf(data, (fileSizeInt - offset));
+            dataLength = data.length;
+            Log.d(TAG, "data is truncated due to offset and fileSize");
+            Log.d(TAG, printData("new data", data));
+        }
+
         // The chunking is done to avoid framing as the maximum command APDU length is limited to 66
         // bytes including all overhead and attached MAC
-        int dataLength = data.length;
+
         int numberOfWrites = dataLength / MAXIMUM_WRITE_MESSAGE_LENGTH;
         int numberOfWritesMod = Utils.mod(dataLength, MAXIMUM_WRITE_MESSAGE_LENGTH);
         if (numberOfWritesMod > 0) numberOfWrites++; // one extra write for the remainder
         Log.d(TAG, "data length: " + dataLength + " numberOfWrites: " + numberOfWrites);
         boolean completeSuccess = true;
-        int offset = 0;
         int numberOfDataToWrite = MAXIMUM_WRITE_MESSAGE_LENGTH; // we are starting with a maximum length
+        int offsetChunk = 0;
         for (int i = 0; i < numberOfWrites; i++) {
-            if (offset + numberOfDataToWrite > dataLength) {
-                numberOfDataToWrite = dataLength - offset;
+            if (offsetChunk + numberOfDataToWrite > dataLength) {
+                numberOfDataToWrite = dataLength - offsetChunk;
             }
-            byte[] dataToWrite = Arrays.copyOfRange(data, offset, (offset + numberOfDataToWrite));
+            byte[] dataToWrite = Arrays.copyOfRange(data, offsetChunk, (offsetChunk + numberOfDataToWrite));
             boolean success;
             if (isPlainMode) {
                 success = writeToADataFileRawPlain(fileNumber, offset, dataToWrite);
             } else {
                 success = writeToADataFileRawFull(fileNumber, offset, dataToWrite);
             }
+            offsetChunk = offsetChunk + numberOfDataToWrite;
             offset = offset + numberOfDataToWrite;
             if (!success) {
                 completeSuccess = false;
@@ -948,7 +986,7 @@ public class DesfireEv3 {
         String logData = "";
         final String methodName = "writeToADataFileRawPlain";
         log(methodName, "started", true);
-        log(methodName, "fileNumber: " + fileNumber + Utils.printData(" data", data) + " offset: " + offset);
+        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + Utils.printData(" data", data) );
 
         // sanity checks
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
@@ -981,9 +1019,9 @@ public class DesfireEv3 {
         }
         if ((fileSettings.getFileType() == FileSettings.STANDARD_FILE_TYPE) ||
                 (fileSettings.getFileType() == FileSettings.BACKUP_FILE_TYPE)) {
-            log(methodName, "fileNumber to read is a " + fileSettings.getFileTypeName() + ", proceed");
+            log(methodName, "fileNumber to write is a " + fileSettings.getFileTypeName() + ", proceed");
         } else {
-            log(methodName, "fileNumber to read is a " + fileSettings.getFileTypeName() + ", aborted");
+            log(methodName, "fileNumber to write is a " + fileSettings.getFileTypeName() + ", aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "fileType is not Standard or Backup file";
             return false;
@@ -1009,7 +1047,6 @@ public class DesfireEv3 {
             errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
-        Log.e(TAG, printData("response", response));
         byte[] responseBytes = returnStatusBytes(response);
         System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
@@ -1025,7 +1062,7 @@ public class DesfireEv3 {
         String logData = "";
         final String methodName = "writeToADataFileRawFull";
         log(methodName, "started", true);
-        log(methodName, "fileNumber: " + fileNumber + Utils.printData(" data", data) + " offset: " + offset);
+        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + Utils.printData(" data", data) );
         // sanity checks
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if ((data == null) || (data.length > MAXIMUM_WRITE_MESSAGE_LENGTH)) {
@@ -2191,7 +2228,6 @@ public class DesfireEv3 {
         byte[] readData = Arrays.copyOfRange(decryptedData, 0, length);
         log(methodName, printData("readData", readData));
 
-
         if (verifyResponseMac(responseMACTruncatedReceived, encryptedData)) {
             log(methodName, methodName + " SUCCESS");
             errorCode = RESPONSE_OK.clone();
@@ -2204,6 +2240,180 @@ public class DesfireEv3 {
             return null;
         }
     }
+
+    /**
+     * section for committing a transaction
+     */
+
+    public boolean commitTransactionPlain() {
+        // status: not working after authentication with authenticateEv2First/NonFirst
+        String logData = "";
+        final String methodName = "commitTransactionPlain";
+        log(methodName, "started", true);
+        // sanity checks
+        if (!checkIsoDep()) return false;
+        byte[] apdu;
+        byte[] response;
+        try {
+            apdu = wrapMessage(COMMIT_TRANSACTION_COMMAND, null);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        System.arraycopy(returnStatusBytes(response), 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public boolean commitTransactionFull() {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 61 - 65
+        // Cmd.Commit in AES Secure Messaging using CommMode.MAC
+        // this is based on the write of a record file on a DESFire Light card
+        // additionally see MIFARE DESFire Light contactless application IC MF2DLHX0.pdf pages 106 - 107
+        // Note: this is working ONLY when a Transaction MAC file is NOT present in the application
+        // If a TMAC file is present use the commitTMACTransactionEv2 method !
+
+        String logData = "";
+        final String methodName = "commitTransactionFull";
+        log(methodName, "started", true);
+        // sanity checks
+        if (!checkAuthentication()) return false;
+        if (!checkIsoDep()) return false;
+
+        // here we are using just the commit command without preceding commitReaderId command
+        // Constructing the full CommitTransaction Command APDU
+        byte COMMIT_TRANSACTION_OPTION = (byte) 0x00; // 01 meaning TMC and TMV to be returned in the R-APDU
+        byte[] startingIv = new byte[16];
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader (=Option) )
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(COMMIT_TRANSACTION_COMMAND); // 0xC7
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(COMMIT_TRANSACTION_OPTION);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // construction the commitTransactionData
+        ByteArrayOutputStream baosCommitTransactionCommand = new ByteArrayOutputStream();
+        baosCommitTransactionCommand.write(COMMIT_TRANSACTION_OPTION);
+        baosCommitTransactionCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] commitTransactionCommand = baosCommitTransactionCommand.toByteArray();
+        log(methodName, printData("commitTransactionCommand", commitTransactionCommand));
+        byte[] apdu = new byte[0];
+        byte[] response = new byte[0];
+        byte[] fullResponseData;
+        try {
+            apdu = wrapMessage(COMMIT_TRANSACTION_COMMAND, commitTransactionCommand);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now verifying the received data");
+            fullResponseData = Arrays.copyOf(response, response.length - 2);
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
+        // the full response depends on an enabled TransactionMAC file option:
+        // TransactionMAC counter || TransactionMAC value || response MAC
+        // if not enabled just the response MAC is returned
+
+        // this does NOT work when a TransactionMAC file is present:
+        // commitTransactionEv2 error code: 9D Permission denied error
+
+        log(methodName, printData("fullResponseData", fullResponseData));
+        byte[] responseMACTruncatedReceived = new byte[8];
+        byte[] responseTmcv = new byte[0];
+        int fullResponseDataLength = fullResponseData.length;
+        if (fullResponseDataLength > 8) {
+            log(methodName, "the fullResponseData has a length of " + fullResponseDataLength + " bytes, so the TMC and TMV are included");
+            responseTmcv = Arrays.copyOfRange(fullResponseData, 0, (fullResponseDataLength - 8));
+            responseMACTruncatedReceived = Arrays.copyOfRange(fullResponseData, (fullResponseDataLength - 8), fullResponseDataLength);
+            log(methodName, printData("responseTmcv", responseTmcv));
+        } else {
+            responseMACTruncatedReceived = fullResponseData.clone();
+        }
+
+        if (verifyResponseMac(responseMACTruncatedReceived, null)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return true;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return false;
+        }
+
+
+
+        /*
+        // verifying the received MAC
+        // MAC_Input (RC || CmdCounter || TI || Response Data)
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        responseMacBaos.write(responseTmcv, 0, responseTmcv.length);
+        byte[] macInput2 = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput", macInput2));
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return true;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return false;
+        }
+
+         */
+    }
+
+
+
+    /**
+     * section for files in general
+     */
 
     /**
      * Deletes (better deactivates) a file in the selected application permanently. The space for
@@ -2253,10 +2463,6 @@ public class DesfireEv3 {
             return false;
         }
     }
-
-    /**
-     * section for files in general
-     */
 
     /**
      * get the file numbers of all files within an application
@@ -2346,7 +2552,7 @@ public class DesfireEv3 {
             }
         }
         log(methodName, "ended");
-
+        /* debug
         Log.d(TAG, "allFileSettings");
         for (int i = 0; i < APPLICATION_ALL_FILE_SETTINGS.length; i++) {
             FileSettings fs = APPLICATION_ALL_FILE_SETTINGS[i];
@@ -2356,7 +2562,7 @@ public class DesfireEv3 {
                 Log.d(TAG, "i: " + i + ":" + APPLICATION_ALL_FILE_SETTINGS[i].dump());
             }
         }
-
+         */
         return APPLICATION_ALL_FILE_SETTINGS;
     }
 

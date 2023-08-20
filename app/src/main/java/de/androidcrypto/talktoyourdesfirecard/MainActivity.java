@@ -77,18 +77,29 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button applicationSelect, fileSelect;
 
     /**
-     * section for Standard files
+     * section for Data file - can be Standard or Backup files
      */
 
-    private LinearLayout llSectionStandardFiles;
-    private Button fileStandardRead, fileStandardWrite;
+    private LinearLayout llSectionDataFiles;
+    private Button fileDataRead, fileDataWrite;
 
     /**
-     * section for Backup files
+     * section for Value files
+     */
+    
+    private LinearLayout llSectionValueFiles;
+
+
+    /**
+     * section for authentication
+     * note: the character at the end 'D' or 'C' is meaning 'default' or 'changed'
      */
 
-    private LinearLayout llSectionBackupFiles;
-    private Button fileBackupRead, fileBackupWrite;
+    private LinearLayout llSectionAuthentication;
+    private Button authM0D, authM0C; // Master Application key
+    private Button authA0D, authA0C, authA1D, authA1C, authA2D, authA2C, authA3D, authA3C, authA4D, authA4C; // application keys  
+    
+
 
     // old ones
 
@@ -367,17 +378,35 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileSelect = findViewById(R.id.btnSelectFile);
         fileSelected = findViewById(R.id.etSelectedFileId);
 
-        // standard file workflow
-        llSectionStandardFiles = findViewById(R.id.llStandardFile);
-        fileStandardRead = findViewById(R.id.btnStandardFileRead);
-        fileStandardWrite = findViewById(R.id.btnStandardFileWrite);
-        llSectionStandardFiles.setVisibility(View.GONE);
+        // data file workflow - can be Standard or Backup files
+        llSectionDataFiles = findViewById(R.id.llDataFile);
+        fileDataRead = findViewById(R.id.btnDataFileRead);
+        fileDataWrite = findViewById(R.id.btnDataFileWrite);
+        llSectionDataFiles.setVisibility(View.GONE);
 
-        // backup file workflow
-        llSectionBackupFiles = findViewById(R.id.llBackupFile);
-        fileBackupRead = findViewById(R.id.btnBackupFileRead);
-        fileBackupWrite = findViewById(R.id.btnBackupFileWrite);
-        llSectionBackupFiles.setVisibility(View.GONE);
+        // value file workflow
+
+        
+        
+        // authenticate workflow
+        llSectionAuthentication = findViewById(R.id.llAuthentication);
+        authM0D = findViewById(R.id.btnAuthM0D);
+        authM0C = findViewById(R.id.btnAuthM0C);
+        authA0D = findViewById(R.id.btnAuthA0D);
+        authA1D = findViewById(R.id.btnAuthA1D);
+        authA2D = findViewById(R.id.btnAuthA2D);
+        authA3D = findViewById(R.id.btnAuthA3D);
+        authA4D = findViewById(R.id.btnAuthA4D);
+        authA0C = findViewById(R.id.btnAuthA0C);
+        authA1C = findViewById(R.id.btnAuthA1C);
+        authA2C = findViewById(R.id.btnAuthA2C);
+        authA3C = findViewById(R.id.btnAuthA3C);
+        authA4C = findViewById(R.id.btnAuthA4C);
+
+
+
+
+
 
         // application handling
         applicationCreate = findViewById(R.id.btnCreateApplication);
@@ -634,6 +663,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
 
+                /*
                 // debug
                 Log.d(TAG, "allFileIds");
                 for (int i = 0; i < allFileIds.length; i++) {
@@ -648,13 +678,14 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         Log.d(TAG, "i: " + i + ":" + allFileSettings[i].dump());
                     }
                 }
+                 */
 
                 String[] fileList = new String[allFileIds.length];
                 for (int i = 0; i < allFileIds.length; i++) {
                     // get the file type for each entry
                     byte fileId = allFileIds[i];
                     FileSettings fileSettings = allFileSettings[fileId];
-                    Log.e(TAG, fileSettings.dump());
+                    //Log.d(TAG, fileSettings.dump());
                     String fileTypeName = "unknown";
                     fileTypeName = fileSettings.getFileTypeName();
                     String communicationMode = fileSettings.getCommunicationSettingsName();
@@ -682,10 +713,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         writeToUiAppendBorderColor(errorCode, errorCodeLayout, "file selected", COLOR_GREEN);
                         selectedFileType = selectedFileSettings.getFileType();
                         if (selectedFileType == FileSettings.STANDARD_FILE_TYPE) {
-                            llSectionStandardFiles.setVisibility(View.VISIBLE);
+                            llSectionDataFiles.setVisibility(View.VISIBLE);
                         }
                         if (selectedFileType == FileSettings.BACKUP_FILE_TYPE) {
-                            llSectionBackupFiles.setVisibility(View.VISIBLE);
+                            llSectionDataFiles.setVisibility(View.VISIBLE);
                         }
                         vibrateShort();
                     }
@@ -697,14 +728,14 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         });
 
         /**
-         * standard file actions
+         * data file actions - could be a Standard or Backup file
          */
 
-        fileStandardRead.setOnClickListener(new View.OnClickListener() {
+        fileDataRead.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 clearOutputFields();
-                String logString = "read from a standard file";
+                String logString = "read from a data file";
                 writeToUiAppend(output, logString);
                 if (!isDesfireEv3Available()) return;
 
@@ -726,9 +757,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
 
                 byte[] responseData = new byte[2];
-                byte[] result = desfireEv3.readFromStandardFileRawFull(fileIdByte, 1, 128);
-
-                result = desfireEv3.readFromADataFile(fileIdByte, 0, fileSizeInt);
+                byte[] result = desfireEv3.readFromADataFile(fileIdByte, 0, fileSizeInt);
                 responseData = desfireEv3.getErrorCode();
                 if (result == null) {
                     // something gone wrong
@@ -751,11 +780,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
-        fileStandardWrite.setOnClickListener(new View.OnClickListener() {
+        fileDataWrite.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 clearOutputFields();
-                String logString = "write to a standard file";
+                String logString = "write to a data file";
                 writeToUiAppend(output, logString);
                 if (!isDesfireEv3Available()) return;
 
@@ -791,14 +820,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
 
                 byte[] responseData = new byte[2];
-                boolean success = desfireEv3.writeToADataFile(fileIdByte, fullDataToWrite);
+                boolean success = desfireEv3.writeToADataFile(fileIdByte, 0, fullDataToWrite);
                 responseData = desfireEv3.getErrorCode();
-                Log.e(TAG, printData("responseData", responseData));
 
                 if (success) {
                     writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    vibrateShort();
                 } else {
                     writeToUiAppend(output, logString+ " fileNumber " + fileIdByte + " FAILURE with error " + EV3.getErrorCode(responseData));
                     if (checkAuthenticationError(responseData)) {
@@ -806,14 +833,143 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     }
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                     writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
+                if (selectedFileSettings.getFileType() == FileSettings.STANDARD_FILE_TYPE) {
+                    vibrateShort();
+                } else {
+                    // it is a Backup file where we need to submit a commit command to confirm the write
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Backup file, run COMMIT");
+                    success = desfireEv3.commitTransactionPlain();
+                    //success = desfireEv3.commitTransactionFull();
+                    responseData = desfireEv3.getErrorCode();
+                    if (success) {
+                        writeToUiAppend(output, "data is written to Backup file number " + fileIdByte);
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
+                        vibrateShort();
+                    } else {
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit" + " FAILURE with error code: " + EV3.getErrorCode(responseData), COLOR_RED);
+                        writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                        return;
+                    }
                 }
             }
         });
 
 
+        /**
+         * section for authentication using authenticationEv2First in DESFire EV3 class
+         */
 
+        authA0D.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "authenticate EV2 First with DEFAULT AES key number 0x00 = application master key";
+                writeToUiAppend(output, logString);
+                // the method runs all outputs
+                boolean success = authAesEv3(Constants.APPLICATION_KEY_MASTER_NUMBER, Constants.APPLICATION_KEY_MASTER_AES_DEFAULT);
+            }
+        });
 
+        authA0C.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "authenticate EV2 First with CHANGED AES key number 0x00 = application master key";
+                writeToUiAppend(output, logString);
+                // the method runs all outputs
+                boolean success = authAesEv3(Constants.APPLICATION_KEY_MASTER_NUMBER, Constants.APPLICATION_KEY_MASTER_AES);
+            }
+        });
 
+        authA1D.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "authenticate EV2 First with DEFAULT AES key number 0x01 = read & write access key";
+                writeToUiAppend(output, logString);
+                // the method runs all outputs
+                boolean success = authAesEv3(Constants.APPLICATION_KEY_RW_NUMBER, Constants.APPLICATION_KEY_RW_AES_DEFAULT);
+            }
+        });
+
+        authA1C.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "authenticate EV2 First with CHANGED AES key number 0x01 = read & write access key";
+                writeToUiAppend(output, logString);
+                // the method runs all outputs
+                boolean success = authAesEv3(Constants.APPLICATION_KEY_RW_NUMBER, Constants.APPLICATION_KEY_RW_AES);
+            }
+        });
+
+        authA2D.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "authenticate EV2 First with DEFAULT AES key number 0x02 = change rights access key";
+                writeToUiAppend(output, logString);
+                // the method runs all outputs
+                boolean success = authAesEv3(Constants.APPLICATION_KEY_CAR_NUMBER, Constants.APPLICATION_KEY_CAR_AES_DEFAULT);
+            }
+        });
+
+        authA2C.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "authenticate EV2 First with CHANGED AES key number 0x02 = change rights access key";
+                writeToUiAppend(output, logString);
+                // the method runs all outputs
+                boolean success = authAesEv3(Constants.APPLICATION_KEY_CAR_NUMBER, Constants.APPLICATION_KEY_CAR_AES);
+            }
+        });
+
+        authA3D.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "authenticate EV2 First with DEFAULT AES key number 0x03 = read access key";
+                writeToUiAppend(output, logString);
+                // the method runs all outputs
+                boolean success = authAesEv3(Constants.APPLICATION_KEY_R_NUMBER, Constants.APPLICATION_KEY_R_AES_DEFAULT);
+            }
+        });
+
+        authA3C.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "authenticate EV2 First with CHANGED AES key number 0x03 = read access key";
+                writeToUiAppend(output, logString);
+                // the method runs all outputs
+                boolean success = authAesEv3(Constants.APPLICATION_KEY_R_NUMBER, Constants.APPLICATION_KEY_R_AES);
+            }
+        });
+
+        authA4D.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "authenticate EV2 First with DEFAULT AES key number 0x04 = write access key";
+                writeToUiAppend(output, logString);
+                // the method runs all outputs
+                boolean success = authAesEv3(Constants.APPLICATION_KEY_W_NUMBER, Constants.APPLICATION_KEY_W_AES_DEFAULT);
+            }
+        });
+
+        authA4C.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "authenticate EV2 First with CHANGED AES key number 0x04 = write access key";
+                writeToUiAppend(output, logString);
+                // the method runs all outputs
+                boolean success = authAesEv3(Constants.APPLICATION_KEY_W_NUMBER, Constants.APPLICATION_KEY_W_AES);
+            }
+        });
 
 
         /**
@@ -2027,7 +2183,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
 
-                boolean success = authAesEv3(output, APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+                boolean success = authAesEv3(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
@@ -2049,7 +2205,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
 
-                boolean success = authAesEv3(output, APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_AES_DEFAULT);
+                boolean success = authAesEv3(APPLICATION_KEY_RW_NUMBER, APPLICATION_KEY_RW_AES_DEFAULT);
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
@@ -3295,120 +3451,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
 
         /**
-         * section for Backup files
+         * section for Value files
          */
 
-        fileBackupRead.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                clearOutputFields();
-                String logString = "read from a backup file";
-                writeToUiAppend(output, logString);
-                if (!isDesfireEv3Available()) return;
 
-                // check that a file was selected before
-                if (TextUtils.isEmpty(selectedFileId)) {
-                    writeToUiAppend(output, "You need to select a file first, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
-                    return;
-                }
-                byte fileIdByte = Byte.parseByte(selectedFileId);
-
-                int fileSizeInt = 32; // todo fixed
-
-                // pre-check if fileNumber is existing
-                boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
-                if (!isFileExisting) {
-                    writeToUiAppend(output, logString + " The file does not exist, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
-                    return;
-                }
-
-                byte[] responseData = new byte[2];
-
-                byte[] result = desfireEv3.readFromADataFile(fileIdByte, 0, fileSizeInt);
-                responseData = desfireEv3.getErrorCode();
-                if (result == null) {
-                    // something gone wrong
-                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
-                    if (checkResponseMoreData(responseData)) {
-                        writeToUiAppend(output, "the file is too long to read, sorry");
-                    }
-                    if (checkAuthenticationError(responseData)) {
-                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
-                    }
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
-                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
-                    return;
-                } else {
-                    writeToUiAppend(output, logString + " ID: " + fileIdByte + printData(" data", result));
-                    writeToUiAppend(output, logString + " ID: " + fileIdByte + " data: " + new String(result, StandardCharsets.UTF_8));
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    vibrateShort();
-                }
-            }
-        });
-
-        fileBackupWrite.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                clearOutputFields();
-                String logString = "write to a backup file";
-                writeToUiAppend(output, logString);
-
-                if (!isDesfireEv3Available()) return;
-
-                // check that a file was selected before
-                if (TextUtils.isEmpty(selectedFileId)) {
-                    writeToUiAppend(output, "You need to select a file first, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
-                    return;
-                }
-                byte fileIdByte = Byte.parseByte(selectedFileId);
-
-                // we are going to write a timestamp to the file
-                String dataToWrite = Utils.getTimestamp();
-
-                //dataToWrite = "123 some data";
-
-                if (TextUtils.isEmpty(dataToWrite)) {
-                    //writeToUiAppend(errorCode, "please enter some data to write");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "please enter some data to write", COLOR_RED);
-                    return;
-                }
-
-                int fileSizeInt = 32;
-                byte[] fullDataToWrite = Utils.generateTestData(fileSizeInt);
-                //System.arraycopy(dataToWrite.getBytes(StandardCharsets.UTF_8), 0, fullDataToWrite, 0, dataToWrite.getBytes(StandardCharsets.UTF_8).length);
-
-                // pre-check if fileNumber is existing
-                boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
-                if (!isFileExisting) {
-                    writeToUiAppend(output, logString + " The file does not exist, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
-                    return;
-                }
-
-                byte[] responseData = new byte[2];
-                boolean success = desfireEv3.writeToADataFile(fileIdByte, fullDataToWrite);
-                responseData = desfireEv3.getErrorCode();
-                if (success) {
-                    writeToUiAppend(output, logString + " SUCCESS");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                } else {
-                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
-                    if (checkAuthenticationError(responseData)) {
-                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
-                    }
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
-                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
-                    return;
-                }
-
-                // now we need to send a 'commit' command to the PICC
-                // todo commit command
-            }
-        });
 
 
         getFileSettings.setOnClickListener(new View.OnClickListener() {
@@ -6762,9 +6808,29 @@ posMacInpOffset:  75
      * section for AES authentication with EV3
      */
 
-    private boolean authAesEv3(TextView textView, byte keyNumber, byte[] keyForAuthentication) {
+/*
+
+
+                boolean success = authAesEv3(output, APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }  else {
+
+                }
+ */
+
+    private boolean authAesEv3(byte keyNumber, byte[] keyForAuthentication) {
         final String methodName = "authAesEv3";
         Log.d(TAG, methodName);
+
+        writeToUiAppend(output, methodName);
+        if (selectedApplicationId == null) {
+            writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
+            return false;
+        }
+
         // sanity checks
         if ((keyNumber < 0) || keyNumber > 13) {
             Log.e(TAG, "the keyNumber is not in range 0..13, aborted");
@@ -6779,18 +6845,21 @@ posMacInpOffset:  75
         responseData = desfireEv3.getErrorCode();
         if (success) {
             Log.d(TAG, methodName + " SUCCESS");
+            writeToUiAppend(output, methodName + " SUCCESS");
             SES_AUTH_ENC_KEY = desfireEv3.getSesAuthENCKey();
             SES_AUTH_MAC_KEY = desfireEv3.getSesAuthMACKey();
             TRANSACTION_IDENTIFIER = desfireEv3.getTransactionIdentifier();
             CMD_COUNTER = desfireEv3.getCmdCounter();
-            writeToUiAppend(textView, printData("SES_AUTH_ENC_KEY", SES_AUTH_ENC_KEY));
-            writeToUiAppend(textView, printData("SES_AUTH_MAC_KEY", SES_AUTH_MAC_KEY));
-            writeToUiAppend(textView, printData("TRANSACTION_IDENTIFIER", TRANSACTION_IDENTIFIER));
-            writeToUiAppend(textView, "CMD_COUNTER: " + CMD_COUNTER);
+            writeToUiAppend(output, printData("SES_AUTH_ENC_KEY", SES_AUTH_ENC_KEY));
+            writeToUiAppend(output, printData("SES_AUTH_MAC_KEY", SES_AUTH_MAC_KEY));
+            writeToUiAppend(output, printData("TRANSACTION_IDENTIFIER", TRANSACTION_IDENTIFIER));
+            writeToUiAppend(output, "CMD_COUNTER: " + CMD_COUNTER);
+            writeToUiAppendBorderColor(errorCode, errorCodeLayout, methodName + " SUCCESS", COLOR_GREEN);
             vibrateShort();
             return true;
         } else {
-            writeToUiAppend(textView, methodName + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData));
+            writeToUiAppend(output, methodName + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData));
+            writeToUiAppendBorderColor(errorCode, errorCodeLayout, methodName + " FAILURE", COLOR_RED);
             return false;
         }
     }
@@ -7146,7 +7215,7 @@ posMacInpOffset:  75
      */
     private void allLayoutsInvisible() {
         //llApplicationHandling.setVisibility(View.GONE);
-        llSectionStandardFiles.setVisibility(View.GONE);
+        llSectionDataFiles.setVisibility(View.GONE);
     }
 
     /**
