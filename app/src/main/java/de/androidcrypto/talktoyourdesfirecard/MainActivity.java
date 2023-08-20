@@ -567,6 +567,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         numberOfKeys.setText(String.valueOf((int) APPLICATION_NUMBER_OF_KEYS));
         fileStandardFileId.setText(String.valueOf((int) STANDARD_FILE_FREE_ACCESS_ID)); // preset is FREE ACCESS
 
+        allLayoutsInvisible(); // except select application & file
+
         /**
          * select application and file
          */
@@ -718,6 +720,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         if (selectedFileType == FileSettings.BACKUP_FILE_TYPE) {
                             llSectionDataFiles.setVisibility(View.VISIBLE);
                         }
+                        llSectionAuthentication.setVisibility(View.VISIBLE);
                         vibrateShort();
                     }
                 });
@@ -7216,6 +7219,7 @@ posMacInpOffset:  75
     private void allLayoutsInvisible() {
         //llApplicationHandling.setVisibility(View.GONE);
         llSectionDataFiles.setVisibility(View.GONE);
+        llSectionAuthentication.setVisibility(View.GONE);
     }
 
     /**
