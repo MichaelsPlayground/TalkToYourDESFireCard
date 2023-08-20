@@ -103,6 +103,10 @@ public class DesfireEv3 {
     private int CmdCounter = 0; // filled / reset by authenticateAesEv2First
     private byte[] TransactionIdentifier; // reset by authenticateAesEv2First
     // note on TransactionIdentifier: LSB encoding
+
+    // AES legacy authentication, not for encryption
+    private boolean authenticateAesLegacySuccess = false;
+    private byte keyNumberUsedForLegacyAuthentication = -1;
     private byte[] errorCode = new byte[2];
     private String errorCodeReason = "";
 
@@ -142,6 +146,7 @@ public class DesfireEv3 {
 
     private final byte AUTHENTICATE_AES_EV2_FIRST_COMMAND = (byte) 0x71;
     private final byte AUTHENTICATE_AES_EV2_NON_FIRST_COMMAND = (byte) 0x77;
+    private final byte AUTHENTICATE_AES_COMMAND = (byte) 0xAA;
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
     private final byte GET_VERSION_INFO_COMMAND = (byte) 0x60;
     private final byte CREATE_APPLICATION_COMMAND = (byte) 0xCA;
@@ -1581,7 +1586,7 @@ public class DesfireEv3 {
         log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + " size: " + length);
 
         // sanity checks
-        if (!checkAuthentication()) return null; // logFile and errorCode are updated
+
         if (!checkOffsetMinus(offset)) return null;
         // getFileSettings for file type and length information
         FileSettings fileSettings;
@@ -1617,6 +1622,19 @@ public class DesfireEv3 {
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "fileType is not Standard or Backup file";
             return null;
+        }
+        // the check on authentication depends on the communication mode in file settings:
+        byte commMode = fileSettings.getCommunicationSettings();
+        if (commMode == (byte) 0x00) {
+            // Plain
+            if (!authenticateAesLegacySuccess) {
+                log(methodName, "missing legacy authentication, aborted");
+                errorCode = RESPONSE_FAILURE_MISSING_AUTHENTICATION.clone();
+                errorCodeReason = "missing legacy authentication";
+                return null;
+            };
+        } else {
+            if (!checkAuthentication()) return null;
         }
         if (!checkIsoDep()) return null; // logFile and errorCode are updated
     
@@ -1670,6 +1688,12 @@ public class DesfireEv3 {
                 return null;
             } {
                 // copy the dataToReadChunk in the complete data array
+                // in some circumstances some additional data like a CRC or MAC is appended - this needs to get stripped off
+                int realLength = (i * MAXIMUM_READ_MESSAGE_LENGTH) + dataToReadChunk.length;
+                if (realLength > dataToRead.length) {
+                    dataToReadChunk = Arrays.copyOfRange(dataToReadChunk, 0, dataToRead.length - (i * MAXIMUM_READ_MESSAGE_LENGTH));
+
+                }
                 System.arraycopy(dataToReadChunk, 0, dataToRead, (i * MAXIMUM_READ_MESSAGE_LENGTH), dataToReadChunk.length);
             }
             log(methodName, Utils.printData("dataToRead", dataToRead));
@@ -2342,6 +2366,8 @@ public class DesfireEv3 {
      * section for Value files
      */
 
+    // todo readFromAValueFile RawPlain and RawFull
+
     public int readFromAValueFile(byte fileNumber) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 67 - 70
         // Cmd.GetValue in AES Secure Messaging using CommMode.Full
@@ -2353,8 +2379,9 @@ public class DesfireEv3 {
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
         // sanity checks
-        if (!checkAuthentication()) return -1;
-        // getFileSettings for file type and length information
+        if (!checkFileNumber(fileNumber)) return -1;
+
+        // getFileSettings for file type communication mode and length information
         FileSettings fileSettings;
         try {
             fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
@@ -2370,6 +2397,19 @@ public class DesfireEv3 {
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "fileType is not Standard or Backup file";
             return -1;
+        }
+        // the check on authentication depends on the communication mode in file settings:
+        byte commMode = fileSettings.getCommunicationSettings();
+        if (commMode == (byte) 0x00) {
+            // Plain
+            if (!authenticateAesLegacySuccess) {
+                log(methodName, "missing legacy authentication, aborted");
+                errorCode = RESPONSE_FAILURE_MISSING_AUTHENTICATION.clone();
+                errorCodeReason = "missing legacy authentication";
+                return -1;
+            };
+        } else {
+            if (!checkAuthentication()) return -1;
         }
         if (!checkIsoDep()) return -1;
 
@@ -3929,9 +3969,11 @@ fileSize: 128
             TransactionIdentifier = ti.clone();
             authenticateEv2FirstSuccess = true;
             keyNumberUsedForAuthentication = keyNumber;
+            invalidateAllAesLegacyData();
         } else {
             log(methodName, "****   FAILURE   ****");
             invalidateAllData();
+            invalidateAllAesLegacyData();
         }
         if (debug) log(methodName, "*********************");
         return rndAEqual;
@@ -4126,11 +4168,163 @@ fileSize: 128
             //TransactionIdentifier = ti.clone(); // is not resetted in EV2NonFirst
             authenticateEv2NonFirstSuccess = true;
             keyNumberUsedForAuthentication = keyNumber;
+            invalidateAllAesLegacyData();
+        } else {
+            log(methodName, "****   FAILURE   ****");
+            invalidateAllData();
+            invalidateAllAesLegacyData();
+        }
+        if (debug) log(methodName, "*********************");
+        return rndAEqual;
+    }
+
+    /**
+     * authenticateAesLegacy uses the legacy authentication method with command 0xAA
+     * This method is good for authentication only - NOT FOR ENCRYPTION as no
+     * session key will be generated.
+     * @param keyNumber (00..13) but maximum is defined during application setup
+     * @param key   (AES key with length of 16 bytes)
+     * @return TRUE when authentication was successful
+     * <p>
+     *
+     * Note: the code was adopted from the nfcjlib written by Daniel Andrade
+     * source: https://github.com/andrade/nfcjlib
+     */
+
+    public boolean authenticateAesLegacy(byte keyNumber, byte[] key) {
+        boolean debug = false;
+        logData = "";
+        invalidateAllData();
+        invalidateAllAesLegacyData();
+        String methodName = "authenticateAesLegacy";
+        log(methodName, "keyNumber: " + keyNumber + printData(" key", key), true);
+        errorCode = new byte[2];
+        // sanity checks
+        if (!checkKeyNumber(keyNumber)) return false;
+        if (!checkKey(key)) return false;
+        if (!checkIsoDep()) return false;
+        if (debug) log(methodName, "step 01 get encrypted rndB from card");
+        // authenticate 1st part
+        byte[] apdu;
+        byte[] response = new byte[0];
+        try {
+            apdu = wrapMessage(AUTHENTICATE_AES_COMMAND, new byte[]{keyNumber});
+            if (debug) log(methodName, "get enc rndB " + printData("apdu", apdu));
+            response = sendData(apdu);
+            if (debug) log(methodName, "get enc rndB " + printData("response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "IOException: " + e.getMessage());
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        // we are expecting that the status code is 0xAF means more data need to get exchanged
+        if (!checkResponseMoreData(responseBytes)) {
+            log(methodName, "expected to get get 0xAF as error code but  found: " + printData("errorCode", responseBytes) + ", aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        // now we know that we can work with the response
+        byte[] rndB_enc = getData(response);
+        if (debug) log(methodName, printData("encryptedRndB", rndB_enc));
+
+        // start the decryption
+        //byte[] iv0 = new byte[8];
+        byte[] iv0 = new byte[16];
+        if (debug) log(methodName, "step 02 initial iv0 is 16 zero bytes " + printData("iv0", iv0));
+        if (debug) log(methodName, "step 03 decrypt the encryptedRndB using AES.decrypt with key " + printData("key", key) + printData(" iv0", iv0));
+        byte[] rndB = AES.decrypt(iv0, key, rndB_enc);
+        byte[] rndBSession = rndB.clone();
+        if (debug) log(methodName, printData("rndB", rndB));
+
+        if (debug) log(methodName, "step 04 rotate rndB to LEFT");
+        byte[] rndB_leftRotated = rotateLeft(rndB);
+        if (debug) log(methodName, printData("rndB_leftRotated", rndB_leftRotated));
+
+        // authenticate 2nd part
+        if (debug) log(methodName, "step 05 generate a random rndA");
+        byte[] rndA = new byte[16]; // this is an AES key
+        rndA = getRandomData(rndA);
+        if (debug) log(methodName, printData("rndA", rndA));
+        byte[] rndASession = rndA.clone();
+
+        if (debug) log(methodName, "step 06 concatenate rndA | rndB_leftRotated");
+        byte[] rndArndB_leftRotated = concatenate(rndA, rndB_leftRotated);
+        if (debug) log(methodName, printData("rndArndB_leftRotated", rndArndB_leftRotated));
+
+        // IV is now encrypted RndB received from the tag
+        if (debug) log(methodName, "step 07 iv1 is encryptedRndB received from the tag");
+        byte[] iv1 = rndB_enc.clone();
+        if (debug) log(methodName, printData("iv1", iv1));
+
+        // Encrypt RndAB_rot
+        if (debug) log(methodName, "step 08 encrypt rndArndB_leftRotated using AES.encrypt and iv1");
+        byte[] rndArndB_leftRotated_enc = AES.encrypt(iv1, key, rndArndB_leftRotated);
+        if (debug) log(methodName, printData("rndArndB_leftRotated_enc", rndArndB_leftRotated_enc));
+
+        // send encrypted data to PICC
+        if (debug) log(methodName, "step 09 send the encrypted data to the PICC");
+        try {
+            apdu = wrapMessage(MORE_DATA_COMMAND, rndArndB_leftRotated_enc);
+            if (debug) log(methodName, "send rndArndB_leftRotated_enc " + printData("apdu", apdu));
+            response = sendData(apdu);
+            if (debug) log(methodName, "send rndArndB_leftRotated_enc " + printData("response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "IOException: " + e.getMessage());
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        // we are expecting that the status code is 0x00 means the exchange was OK
+        if (!checkResponse(responseBytes)) {
+            log(methodName, "expected to get get 0x00 as error code but  found: " + printData("errorCode", responseBytes) + ", aborted");
+            //System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        // now we know that we can work with the response
+        if (debug) log(methodName, "step 10 received encrypted rndA LEFT rotated from PICC");
+        byte[] rndA_leftRotated_enc = getData(response);
+        if (debug) log(methodName, printData("rndA_leftRotated_enc", rndA_leftRotated_enc));
+
+        //IV is now the last 16 bytes of RndAB_rot_enc
+        if (debug) log(methodName, "step 11 iv2 is now the last 16 bytes of rndArndB_leftRotated_enc: " + printData("rndArndB_leftRotated_enc", rndArndB_leftRotated_enc));
+        int rndArndB_leftRotated_encLength = rndArndB_leftRotated_enc.length;
+        byte[] iv2 = Arrays.copyOfRange(rndArndB_leftRotated_enc,
+                rndArndB_leftRotated_encLength - 16, rndArndB_leftRotated_encLength);
+        if (debug) log(methodName, printData("iv2", iv2));
+
+        // Decrypt encrypted RndA_rot
+        if (debug) log(methodName, "step 12 decrypt rndA_leftRotated_enc with iv2 and key");
+        byte[] rndA_leftRotated = AES.decrypt(iv2, key, rndA_leftRotated_enc);
+        if (debug) log(methodName, printData("rndA_leftRotated", rndA_leftRotated));
+
+        if (debug) log(methodName, "step 13 rotate rndA_leftRotated to RIGHT");
+        byte[] rndA_received = rotateRight(rndA_leftRotated);
+        if (debug) log(methodName, printData("rndA_received", rndA_received));
+
+        boolean rndAEqual = Arrays.equals(rndA, rndA_received);
+
+        if (debug) log(methodName, printData("rndA received ", rndA_received));
+        if (debug) log(methodName, printData("rndA          ", rndA));
+        if (debug) log(methodName, "rndA and rndA received are equal: " + rndAEqual);
+        if (debug) log(methodName, printData("rndB          ", rndB));
+        log(methodName, "**** auth result ****");
+        if (rndAEqual) {
+            log(methodName, "*** AUTHENTICATED ***");
+            authenticateAesLegacySuccess = true;
+            keyNumberUsedForLegacyAuthentication = keyNumber;
+            invalidateAllData();
         } else {
             log(methodName, "****   FAILURE   ****");
             invalidateAllData();
         }
-        if (debug) log(methodName, "*********************");
+        log(methodName, "*********************");
         return rndAEqual;
     }
 
@@ -4931,6 +5125,11 @@ fileSize: 128
         SesAuthMACKey = null; // filled by authenticateAesEv2First
         //CmdCounter = 0; // filled / resetted by authenticateAesEv2First
         //TransactionIdentifier = null; // resetted by authenticateAesEv2First
+    }
+
+    private void invalidateAllAesLegacyData() {
+        authenticateAesLegacySuccess = false;
+        keyNumberUsedForLegacyAuthentication = -1;
     }
 
 

@@ -850,8 +850,20 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 } else {
                     // it is a Backup file where we need to submit a commit command to confirm the write
                     writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Backup file, run COMMIT");
-                    success = desfireEv3.commitTransactionPlain(); // this is not working
-                    //success = desfireEv3.commitTransactionFull();
+                    byte commMode = selectedFileSettings.getCommunicationSettings();
+                    if (commMode == (byte) 0x00) {
+                        // Plain
+                        success = desfireEv3.commitTransactionPlain();
+                    }
+                    if (commMode == (byte) 0x03) {
+                        // Full enciphered
+                        success = desfireEv3.commitTransactionFull();
+                    }
+                    if (commMode == (byte) 0x02) {
+                        // MACed
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The selected file has the Communication Mode MACed that is not supported, sorry", COLOR_RED);
+                        return;
+                    }
                     responseData = desfireEv3.getErrorCode();
                     if (success) {
                         writeToUiAppend(output, "data is written to Backup file number " + fileIdByte);
@@ -6985,16 +6997,81 @@ posMacInpOffset:  75
                 }
  */
 
+    /**
+     * Checks for the communication mode of the selected file number:
+     * case Plain: uses authenticateAesLegacy method (no encryption needed)
+     * case Full: uses authenticateEv2First method (generate SessionKeys for encryption and decryption)
+     * @param keyNumber | in range 0..13
+     * @param keyForAuthentication | AES-128 key, 16 bytes length
+     * @return
+     */
+
     private boolean authAesEv3(byte keyNumber, byte[] keyForAuthentication) {
         final String methodName = "authAesEv3";
         Log.d(TAG, methodName);
-
         writeToUiAppend(output, methodName);
         if (selectedApplicationId == null) {
             writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
             return false;
         }
+        // sanity checks
+        if ((keyNumber < 0) || keyNumber > 13) {
+            Log.e(TAG, "the keyNumber is not in range 0..13, aborted");
+            return false;
+        }
+        if ((keyForAuthentication == null) || (keyForAuthentication.length != 16)) {
+            Log.e(TAG, "the keyForAuthentication is NULL or not of length 16, aborted");
+            return false;
+        }
+        byte[] responseData = new byte[2];
+        boolean success = false;
+        byte commMode = selectedFileSettings.getCommunicationSettings();
+        if (commMode == (byte) 0x00) {
+            // Plain
+            success = desfireEv3.authenticateAesLegacy(keyNumber, keyForAuthentication);
+        }
+        if (commMode == (byte) 0x03) {
+            // Full enciphered
+            success = desfireEv3.authenticateAesEv2First(keyNumber, keyForAuthentication);
+        }
+        if (commMode == (byte) 0x02) {
+            // MACed
+            writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The selected file has the Communication Mode MACed that is not supported, sorry", COLOR_RED);
+            return false;
+        }
+        responseData = desfireEv3.getErrorCode();
+        if (success) {
+            Log.d(TAG, methodName + " SUCCESS");
+            writeToUiAppend(output, methodName + " SUCCESS");
+            /*
+            SES_AUTH_ENC_KEY = desfireEv3.getSesAuthENCKey();
+            SES_AUTH_MAC_KEY = desfireEv3.getSesAuthMACKey();
+            TRANSACTION_IDENTIFIER = desfireEv3.getTransactionIdentifier();
+            CMD_COUNTER = desfireEv3.getCmdCounter();
+            writeToUiAppend(output, printData("SES_AUTH_ENC_KEY", SES_AUTH_ENC_KEY));
+            writeToUiAppend(output, printData("SES_AUTH_MAC_KEY", SES_AUTH_MAC_KEY));
+            writeToUiAppend(output, printData("TRANSACTION_IDENTIFIER", TRANSACTION_IDENTIFIER));
+            writeToUiAppend(output, "CMD_COUNTER: " + CMD_COUNTER);
+            writeToUiAppendBorderColor(errorCode, errorCodeLayout, methodName + " SUCCESS", COLOR_GREEN);
+             */
+            vibrateShort();
+            return true;
+        } else {
+            writeToUiAppend(output, methodName + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData));
+            writeToUiAppendBorderColor(errorCode, errorCodeLayout, methodName + " FAILURE", COLOR_RED);
+            return false;
+        }
+    }
 
+    // is using authenticateEV2First always
+    private boolean authAesEv3Old(byte keyNumber, byte[] keyForAuthentication) {
+        final String methodName = "authAesEv3";
+        Log.d(TAG, methodName);
+        writeToUiAppend(output, methodName);
+        if (selectedApplicationId == null) {
+            writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
+            return false;
+        }
         // sanity checks
         if ((keyNumber < 0) || keyNumber > 13) {
             Log.e(TAG, "the keyNumber is not in range 0..13, aborted");
