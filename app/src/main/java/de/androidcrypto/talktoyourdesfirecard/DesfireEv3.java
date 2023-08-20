@@ -157,6 +157,15 @@ public class DesfireEv3 {
     private final byte READ_DATA_FILE_COMMAND = (byte) 0xBD;
     private final byte WRITE_DATA_FILE_SECURE_COMMAND = (byte) 0x8D;
     private final byte READ_DATA_FILE_SECURE_COMMAND = (byte) 0xAD;
+    private final byte CREATE_VALUE_FILE_COMMAND = (byte) 0xCC;
+
+    private final byte GET_VALUE_COMMAND = (byte) 0x6C;
+    private final byte CREDIT_VALUE_COMMAND = (byte) 0x0C;
+    private final byte DEBIT_VALUE_COMMAND = (byte) 0xDC;
+    private final byte CREATE_LINEAR_RECORD_FILE_COMMAND = (byte) 0xC1;
+    private final byte CREATE_CYCLIC_RECORD_FILE_COMMAND = (byte) 0xC0;
+    private static final byte READ_RECORD_FILE_SECURE_COMMAND = (byte) 0xAB;
+    private static final byte WRITE_RECORD_FILE_SECURE_COMMAND = (byte) 0x8B;
     private final byte COMMIT_TRANSACTION_COMMAND = (byte) 0xC7;
 
 
@@ -187,7 +196,7 @@ public class DesfireEv3 {
     private final int MAXIMUM_READ_MESSAGE_LENGTH = 40;
     private static final byte MAXIMUM_NUMBER_OF_KEYS = 5; // the maximum of keys per application is 14
     private final int MAXIMUM_NUMBER_OF_FILES = 32; // as per datasheet DESFire EV3 this is valid for EV1, EV2 and EV3
-
+    private static final int MAXIMUM_VALUES = 1000000;
 
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
     private final byte[] RESPONSE_ISO_OK = new byte[]{(byte) 0x90, (byte) 0x00};
@@ -486,7 +495,7 @@ public class DesfireEv3 {
 
 
     /**
-     * section for standard file handling
+     * section for data file handling
      */
 
     /**
@@ -690,7 +699,7 @@ public class DesfireEv3 {
      */
 
     private boolean createDataFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, boolean isStandardFile, int fileSize, boolean preEnableSdm) {
-        final String methodName = "createStandardFile";
+        final String methodName = "createDataFile";
         logData = "";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
@@ -759,15 +768,102 @@ public class DesfireEv3 {
         }
     }
 
+    public boolean createValueFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int minimumValue, int maximumValue, int initialValue, boolean limitedCreditOperation) {
+        final String methodName = "createValueFile";
+        logData = "";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "communicationSettings: " + communicationSettings.toString());
+        log(methodName, printData("accessRights", accessRights));
+        log(methodName, "minimumValue: " + minimumValue);
+        log(methodName, "maximumValue: " + maximumValue);
+        log(methodName, "initialValue: " + initialValue);
+        log(methodName, "limitedCreditOperation: " + limitedCreditOperation);
+        errorCode = new byte[2];
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false;
+        if (!checkAccessRights(accessRights)) return false;
+        if ((minimumValue < 0) || (minimumValue > MAXIMUM_VALUES)) {
+            log(methodName, "minimumValue is not in range 0.." + MAXIMUM_VALUES + ", aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "minimumValue is not in range 0.." + MAXIMUM_VALUES;
+            return false;
+        }
+        if ((maximumValue < 0) || (maximumValue > MAXIMUM_VALUES)) {
+            log(methodName, "maximumValue is not in range 0.." + MAXIMUM_VALUES + ", aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "maximumValue is not in range 0.." + MAXIMUM_VALUES;
+            return false;
+        }
+        if ((initialValue < 0) || (initialValue > MAXIMUM_VALUES)) {
+            log(methodName, "initialValue is not in range 0.." + MAXIMUM_VALUES + ", aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "initialValue is not in range 0.." + MAXIMUM_VALUES;
+            return false;
+        }
+        if (minimumValue >= maximumValue) {
+            log(methodName, "minimumValue is not < maximumValue, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "minimumValue is not < maximumValue";
+            return false;
+        }
+        if (!checkIsoDep()) return false;
+
+        byte commSettings = (byte) 0;
+        if (communicationSettings == CommunicationSettings.Plain) commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        if (communicationSettings == CommunicationSettings.MACed) commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
+        if (communicationSettings == CommunicationSettings.Full) commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
+
+        byte[] minimumValueByte = Utils.intTo4ByteArrayInversed(minimumValue);
+        byte[] maximumValueByte = Utils.intTo4ByteArrayInversed(maximumValue);
+        byte[] initialValueByte = Utils.intTo4ByteArrayInversed(initialValue);
+        byte limitedCreditOperationEnabledByte;
+        if (limitedCreditOperation) {
+            limitedCreditOperationEnabledByte = (byte) 0x01; // 01 means enabled feature
+        } else {
+            limitedCreditOperationEnabledByte = (byte) 0x00; // 00 means disabled feature
+        }
+
+        // build the command string
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(commSettings);
+        baos.write(accessRights, 0, accessRights.length);
+        baos.write(minimumValueByte, 0, minimumValueByte.length);
+        baos.write(maximumValueByte, 0, maximumValueByte.length);
+        baos.write(initialValueByte, 0, initialValueByte.length);
+        baos.write(limitedCreditOperationEnabledByte);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+        try {
+            apdu = wrapMessage(CREATE_VALUE_FILE_COMMAND, commandParameter);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            log(methodName, "SUCCESS");
+            return true;
+        } else {
+            log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            return false;
+        }
+    }
+
     /**
      * stubs
      */
 
     // todo create file stubs
 
-    public boolean createValueFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int minimumValue, int maximumValue, int initialValue, boolean limitedCreditOperation) {
-        return false;
-    }
+
 
     public boolean createLinearRecordFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int recordSize, int maximumNumberOfRecords) {
         return false;

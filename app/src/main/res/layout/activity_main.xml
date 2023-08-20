@@ -217,7 +217,7 @@
             </LinearLayout>
 
             <LinearLayout
-                android:id="@+id/llDataFile"
+                android:id="@+id/llSectionDataFiles"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:layout_marginStart="8dp"
@@ -279,7 +279,7 @@
             </LinearLayout>
 
             <LinearLayout
-                android:id="@+id/llSectionValueFile"
+                android:id="@+id/llSectionValueFiles"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:layout_marginStart="8dp"
@@ -340,7 +340,7 @@
 
 
             <LinearLayout
-                android:id="@+id/llAuthentication"
+                android:id="@+id/llSectionAuthentication"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:layout_marginStart="8dp"

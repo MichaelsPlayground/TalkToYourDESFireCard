@@ -379,20 +379,20 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileSelected = findViewById(R.id.etSelectedFileId);
 
         // data file workflow - can be Standard or Backup files
-        llSectionDataFiles = findViewById(R.id.llDataFile);
+        llSectionDataFiles = findViewById(R.id.llSectionDataFiles);
         fileDataRead = findViewById(R.id.btnDataFileRead);
         fileDataWrite = findViewById(R.id.btnDataFileWrite);
         llSectionDataFiles.setVisibility(View.GONE);
 
         // value file workflow
-        llSectionValueFiles = findViewById(R.id.llValueFile);
+        llSectionValueFiles = findViewById(R.id.llSectionValueFiles);
         fileValueRead = findViewById(R.id.btnValueFileRead);
         fileValueCredit = findViewById(R.id.btnValueFileCredit);
         fileValueDebit = findViewById(R.id.btnValueFileDebit);
         llSectionValueFiles.setVisibility(View.GONE);
         
         // authenticate workflow
-        llSectionAuthentication = findViewById(R.id.llAuthentication);
+        llSectionAuthentication = findViewById(R.id.llSectionAuthentication);
         authM0D = findViewById(R.id.btnAuthM0D);
         authM0C = findViewById(R.id.btnAuthM0C);
         authA0D = findViewById(R.id.btnAuthA0D);
@@ -723,6 +723,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         if (selectedFileType == FileSettings.BACKUP_FILE_TYPE) {
                             llSectionDataFiles.setVisibility(View.VISIBLE);
                         }
+                        if (selectedFileType == FileSettings.VALUE_FILE_TYPE) {
+                            llSectionValueFiles.setVisibility(View.VISIBLE);
+                        }
+
                         llSectionAuthentication.setVisibility(View.VISIBLE);
                         vibrateShort();
                     }
@@ -870,11 +874,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             @Override
             public void onClick(View view) {
                 clearOutputFields();
-                String logString = "get the value from a Value file";
+                String logString = "fileValueRead";
                 writeToUiAppend(output, logString);
-                // todo skipped, using a fixed fileNumber
-                selectedFileId = "8";
-                fileSelected.setText(selectedFileId);
+
+                if (!isDesfireEv3Available()) return;
 
                 // check that a file was selected before
                 if (TextUtils.isEmpty(selectedFileId)) {
@@ -882,9 +885,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
                     return;
                 }
-                //byte fileIdByte = Byte.parseByte(selectedFileId);
+                byte fileIdByte = Byte.parseByte(selectedFileId);
 
-                byte fileIdByte = (byte) 0x08; // fixed
+                // pre-check if fileNumber is existing
+                boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
+                if (!isFileExisting) {
+                    writeToUiAppend(output, logString + " The file does not exist, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
+                    return;
+                }
 
                 byte[] responseData = new byte[2];
                 int result = desfireAuthenticateEv2.getValueFileEv2(fileIdByte);
