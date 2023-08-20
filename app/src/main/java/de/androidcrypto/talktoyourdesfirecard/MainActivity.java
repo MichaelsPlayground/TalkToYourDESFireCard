@@ -88,7 +88,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
     
     private LinearLayout llSectionValueFiles;
-
+    private Button fileValueRead, fileValueCredit, fileValueDebit;
 
     /**
      * section for authentication
@@ -385,8 +385,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         llSectionDataFiles.setVisibility(View.GONE);
 
         // value file workflow
-
-        
+        llSectionValueFiles = findViewById(R.id.llValueFile);
+        fileValueRead = findViewById(R.id.btnValueFileRead);
+        fileValueCredit = findViewById(R.id.btnValueFileCredit);
+        fileValueDebit = findViewById(R.id.btnValueFileDebit);
+        llSectionValueFiles.setVisibility(View.GONE);
         
         // authenticate workflow
         llSectionAuthentication = findViewById(R.id.llAuthentication);
@@ -843,8 +846,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 } else {
                     // it is a Backup file where we need to submit a commit command to confirm the write
                     writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Backup file, run COMMIT");
-                    success = desfireEv3.commitTransactionPlain();
-                    //success = desfireEv3.commitTransactionFull();
+                    //success = desfireEv3.commitTransactionPlain(); // this is not working
+                    success = desfireEv3.commitTransactionFull();
                     responseData = desfireEv3.getErrorCode();
                     if (success) {
                         writeToUiAppend(output, "data is written to Backup file number " + fileIdByte);
@@ -856,6 +859,155 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         return;
                     }
                 }
+            }
+        });
+
+        /**
+         * value file actions
+         */
+
+        fileValueRead.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "get the value from a Value file";
+                writeToUiAppend(output, logString);
+                // todo skipped, using a fixed fileNumber
+                selectedFileId = "8";
+                fileSelected.setText(selectedFileId);
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                //byte fileIdByte = Byte.parseByte(selectedFileId);
+
+                byte fileIdByte = (byte) 0x08; // fixed
+
+                byte[] responseData = new byte[2];
+                int result = desfireAuthenticateEv2.getValueFileEv2(fileIdByte);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (result < 0) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " ID: " + fileIdByte + " value: " + result);
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }
+            }
+        });
+
+
+        fileValueCredit.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "credit the value on a Value file";
+                writeToUiAppend(output, logString);
+                // todo skipped, using a fixed fileNumber
+                selectedFileId = "8";
+                fileSelected.setText(selectedFileId);
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                //byte fileIdByte = Byte.parseByte(selectedFileId);
+
+                byte fileIdByte = (byte) 0x08; // fixed
+
+                int changeValue = 7; // fixed
+                writeToUiAppend(output, "The value file will get CREDITED by " + changeValue);
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.creditValueFileEv2(fileIdByte, changeValue);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    //vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return; // don't submit a commit
+                }
+                boolean successCommit = desfireAuthenticateEv2.commitTransactionEv2();
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                writeToUiAppend(output, "commitSuccess: " + successCommit);
+                if (!successCommit) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit NOT Success, aborted", COLOR_RED);
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Did you forget to authenticate with a WRITE ACCESS Key first ?");
+                    return;
+                }
+                writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
+                vibrateShort();
+
+            }
+        });
+
+        fileValueDebit.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "debit the value on a Value file";
+                writeToUiAppend(output, logString);
+                // todo skipped, using a fixed fileNumber
+                selectedFileId = "8";
+                fileSelected.setText(selectedFileId);
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                //byte fileIdByte = Byte.parseByte(selectedFileId);
+
+                byte fileIdByte = (byte) 0x08; // fixed
+
+                int changeValue = 7; // fixed
+                writeToUiAppend(output, "The value file will get DEBITED by " + changeValue);
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireAuthenticateEv2.debitValueFileEv2(fileIdByte, changeValue);
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return; // don't submit a commit
+                }
+                boolean successCommit = desfireAuthenticateEv2.commitTransactionEv2();
+                responseData = desfireAuthenticateEv2.getErrorCode();
+                writeToUiAppend(output, "commitSuccess: " + successCommit);
+                if (!successCommit) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit NOT Success, aborted", COLOR_RED);
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Did you forget to authenticate with a WRITE ACCESS Key first ?");
+                    return;
+                }
+                writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
+                vibrateShort();
             }
         });
 
@@ -7219,6 +7371,7 @@ posMacInpOffset:  75
     private void allLayoutsInvisible() {
         //llApplicationHandling.setVisibility(View.GONE);
         llSectionDataFiles.setVisibility(View.GONE);
+        llSectionValueFiles.setVisibility(View.GONE);
         llSectionAuthentication.setVisibility(View.GONE);
     }
 
