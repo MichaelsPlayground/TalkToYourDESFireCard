@@ -539,6 +539,284 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileStandardFileId.setText(String.valueOf((int) STANDARD_FILE_FREE_ACCESS_ID)); // preset is FREE ACCESS
 
         /**
+         * select application and file
+         */
+
+        applicationSelect.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "select an application";
+                writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+
+                // select Master Application first
+                boolean success = desfireEv3.selectApplicationByAid(DesfireEv3.MASTER_APPLICATION_IDENTIFIER);
+                byte[] errorCodeDf = desfireEv3.getErrorCode();
+                String errorCodeReason = desfireEv3.getErrorCodeReason();
+                if (!success) {
+                    writeToUiAppend(output, "cannot select Master Application, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(errorCodeDf), COLOR_RED);
+                    return;
+                }
+
+                List<byte[]> applicationIdList = desfireEv3.getApplicationIdsList();
+                errorCodeDf = desfireEv3.getErrorCode();
+                errorCodeReason = desfireEv3.getErrorCodeReason();
+                if ((applicationIdList == null) || (applicationIdList.size() == 0)) {
+                    writeToUiAppend(output, "there are no application IDs on the  PICC");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(errorCodeDf), COLOR_RED);
+                    return;
+                }
+
+                String[] applicationList = new String[applicationIdList.size()];
+                for (int i = 0; i < applicationIdList.size(); i++) {
+                    byte[] aid = applicationIdList.get(i);
+                    //Utils.reverseByteArrayInPlace(aid);
+                    applicationList[i] = Utils.bytesToHexNpeUpperCase(aid);
+                }
+
+                // setup the alert builder
+                AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
+                builder.setTitle("Choose an application");
+
+                builder.setItems(applicationList, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        writeToUiAppend(output, "you  selected nr " + which + " = " + applicationList[which]);
+                        selectedApplicationId = Utils.hexStringToByteArray(applicationList[which]);
+                        // now we run the command to select the application
+                        byte[] responseData = new byte[2];
+                        byte[] aid = selectedApplicationId.clone();
+                        //Utils.reverseByteArrayInPlace(aid);
+                        boolean result = desfireEv3.selectApplicationByAid(aid);
+                        responseData = desfireEv3.getErrorCode();
+                        writeToUiAppend(output, "result of selectApplication: " + result);
+                        int colorFromErrorCode = EV3.getColorFromErrorCode(responseData);
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "selectApplication: " + EV3.getErrorCode(responseData), colorFromErrorCode);
+                        applicationSelected.setText(applicationList[which]);
+                        selectedApplicationId = Utils.hexStringToByteArray(applicationList[which]);
+                        invalidateEncryptionKeys();
+                    }
+                });
+                // create and show the alert dialog
+                AlertDialog dialog = builder.create();
+                dialog.show();
+            }
+        });
+
+        fileSelect.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "select a file";
+                writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+
+                // on application selection the file ids where read from the application, together with the file settings
+
+                byte[] allFileIds = desfireEv3.getAllFileIds();
+                FileSettings[] allFileSettings = desfireEv3.getAllFileSettings();
+                if ((allFileIds == null) || (allFileIds.length == 0)) {
+                    writeToUiAppend(output, "no file IDs found, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                if ((allFileSettings == null) || (allFileSettings.length == 0)) {
+                    writeToUiAppend(output, "no file settings found, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+
+                // debug
+                Log.d(TAG, "allFileIds");
+                for (int i = 0; i < allFileIds.length; i++) {
+                    Log.d(TAG, "i: " + i + ":" + allFileIds[i]);
+                }
+                Log.d(TAG, "allFileSettings");
+                for (int i = 0; i < allFileSettings.length; i++) {
+                    FileSettings fs = allFileSettings[i];
+                    if (fs == null) {
+                        Log.d(TAG, "i: " + i + ":" + "null");
+                    } else {
+                        Log.d(TAG, "i: " + i + ":" + allFileSettings[i].dump());
+                    }
+                }
+
+                String[] fileList = new String[allFileIds.length];
+                for (int i = 0; i < allFileIds.length; i++) {
+                    // get the file type for each entry
+                    byte fileId = allFileIds[i];
+                    FileSettings fileSettings = allFileSettings[fileId];
+                    Log.e(TAG, fileSettings.dump());
+                    String fileTypeName = "unknown";
+                    fileTypeName = fileSettings.getFileTypeName();
+                    String communicationMode = fileSettings.getCommunicationSettingsName();
+                    fileList[i] = String.valueOf(fileId) + " (" + fileTypeName + "|" + communicationMode + ")";
+                }
+
+                // setup the alert builder
+                AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
+                builder.setTitle("Choose a file");
+
+                builder.setItems(fileList, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        writeToUiAppend(output, "you  selected nr " + which + " = " + fileList[which]);
+                        selectedFileId = String.valueOf(allFileIds[which]);
+                        // here we are reading the fileSettings
+                        String outputString = fileList[which] + " ";
+                        byte fileIdByte = Byte.parseByte(selectedFileId);
+                        selectedFileSettings = allFileSettings[fileIdByte];
+                        outputString += "(" + selectedFileSettings.getFileTypeName();
+                        selectedFileSize = selectedFileSettings.getFileSizeInt();
+                        outputString += " size: " + selectedFileSize + ")";
+                        writeToUiAppend(output, outputString);
+                        fileSelected.setText(fileList[which]);
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "file selected", COLOR_GREEN);
+                        selectedFileType = selectedFileSettings.getFileType();
+                        if (selectedFileType == FileSettings.STANDARD_FILE_TYPE) {
+                            llSectionStandardFiles.setVisibility(View.VISIBLE);
+                        }
+                        if (selectedFileType == FileSettings.BACKUP_FILE_TYPE) {
+                            llSectionBackupFiles.setVisibility(View.VISIBLE);
+                        }
+                        vibrateShort();
+                    }
+                });
+                // create and show the alert dialog
+                AlertDialog dialog = builder.create();
+                dialog.show();
+            }
+        });
+
+        /**
+         * standard file actions
+         */
+
+        fileStandardRead.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "read from a standard file";
+                writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                int fileSizeInt = selectedFileSettings.getFileSizeInt();
+
+                // pre-check if fileNumber is existing
+                boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
+                if (!isFileExisting) {
+                    writeToUiAppend(output, logString + " The file does not exist, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
+                    return;
+                }
+
+                byte[] responseData = new byte[2];
+                byte[] result = desfireEv3.readFromStandardFileRawFull(fileIdByte, 1, 128);
+
+                result = desfireEv3.readFromADataFile(fileIdByte, 0, fileSizeInt);
+                responseData = desfireEv3.getErrorCode();
+                if (result == null) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkResponseMoreData(responseData)) {
+                        writeToUiAppend(output, "the file is too long to read, sorry");
+                    }
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + printData(" data", result));
+                    writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + " data: " + new String(result, StandardCharsets.UTF_8));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }
+            }
+        });
+
+        fileStandardWrite.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "write to a standard file";
+                writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                int fileSizeInt = selectedFileSettings.getFileSizeInt();
+
+                // pre-check if fileNumber is existing
+                boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
+                if (!isFileExisting) {
+                    writeToUiAppend(output, logString + " The file does not exist, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
+                    return;
+                }
+
+                // we are going to write a timestamp to the file, filled up with testData
+                byte[] fullDataToWrite = new byte[fileSizeInt];
+                String dataToWrite = Utils.getTimestamp();
+                byte[] dataToWriteBytes = dataToWrite.getBytes(StandardCharsets.UTF_8);
+                if (dataToWriteBytes.length >= fileSizeInt) {
+                    // the file is smaller than the timestamp, we do write only parts of the timestamp
+                    System.arraycopy(dataToWriteBytes, 0, fullDataToWrite, 0, fileSizeInt);
+                } else {
+                    System.arraycopy(dataToWriteBytes, 0, fullDataToWrite, 0, dataToWriteBytes.length);
+                    // now filling up the fullData with testData
+                    byte[] testData = Utils.generateTestData(fileSizeInt - dataToWriteBytes.length);
+                    System.arraycopy(testData, 0, fullDataToWrite, dataToWriteBytes.length, testData.length);
+                }
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireEv3.writeToADataFile(fileIdByte, fullDataToWrite);
+                responseData = desfireEv3.getErrorCode();
+                Log.e(TAG, printData("responseData", responseData));
+
+                if (success) {
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString+ " fileNumber " + fileIdByte + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                }
+            }
+        });
+
+
+
+
+
+
+
+        /**
          * just es quick test button
          */
         Button pad = findViewById(R.id.btncardUIDxx);
@@ -647,68 +925,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
-        applicationSelect.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                clearOutputFields();
-                String logString = "select an application";
-                writeToUiAppend(output, logString);
-                if (!isDesfireEv3Available()) return;
 
-                // select Master Application first
-                boolean success = desfireEv3.selectApplicationByAid(DesfireEv3.MASTER_APPLICATION_IDENTIFIER);
-                byte[] errorCodeDf = desfireEv3.getErrorCode();
-                String errorCodeReason = desfireEv3.getErrorCodeReason();
-                if (!success) {
-                    writeToUiAppend(output, "cannot select Master Application, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(errorCodeDf), COLOR_RED);
-                    return;
-                }
-
-                List<byte[]> applicationIdList = desfireEv3.getApplicationIdsList();
-                errorCodeDf = desfireEv3.getErrorCode();
-                errorCodeReason = desfireEv3.getErrorCodeReason();
-                if ((applicationIdList == null) || (applicationIdList.size() == 0)) {
-                    writeToUiAppend(output, "there are no application IDs on the  PICC");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(errorCodeDf), COLOR_RED);
-                    return;
-                }
-
-                String[] applicationList = new String[applicationIdList.size()];
-                for (int i = 0; i < applicationIdList.size(); i++) {
-                    byte[] aid = applicationIdList.get(i);
-                    //Utils.reverseByteArrayInPlace(aid);
-                    applicationList[i] = Utils.bytesToHexNpeUpperCase(aid);
-                }
-
-                // setup the alert builder
-                AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
-                builder.setTitle("Choose an application");
-
-                builder.setItems(applicationList, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        writeToUiAppend(output, "you  selected nr " + which + " = " + applicationList[which]);
-                        selectedApplicationId = Utils.hexStringToByteArray(applicationList[which]);
-                        // now we run the command to select the application
-                        byte[] responseData = new byte[2];
-                        byte[] aid = selectedApplicationId.clone();
-                        //Utils.reverseByteArrayInPlace(aid);
-                        boolean result = desfireEv3.selectApplicationByAid(aid);
-                        responseData = desfireEv3.getErrorCode();
-                        writeToUiAppend(output, "result of selectApplication: " + result);
-                        int colorFromErrorCode = EV3.getColorFromErrorCode(responseData);
-                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "selectApplication: " + EV3.getErrorCode(responseData), colorFromErrorCode);
-                        applicationSelected.setText(applicationList[which]);
-                        selectedApplicationId = Utils.hexStringToByteArray(applicationList[which]);
-                        invalidateEncryptionKeys();
-                    }
-                });
-                // create and show the alert dialog
-                AlertDialog dialog = builder.create();
-                dialog.show();
-            }
-        });
 
         /**
          * section for EV2 authentication and communication
@@ -1968,7 +2185,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
 
                 byte[] responseData = new byte[2];
-                boolean success = desfireEv3.writeToStandardFilePlain(fileIdByte, fullDataToWrite);
+                boolean success = desfireEv3.writeToADataFile(fileIdByte, fullDataToWrite);
                 responseData = desfireEv3.getErrorCode();
 
                 if (success) {
@@ -2115,7 +2332,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
 
                 byte[] responseData = new byte[2];
-                boolean success = desfireEv3.writeToAStandardFile(fileIdByte, fullDataToWrite);
+                boolean success = desfireEv3.writeToADataFile(fileIdByte, fullDataToWrite);
                 //boolean success = desfireEv3.writeToStandardFileRawFull(fileIdByte, fullDataToWrite);
 
                 //boolean success = desfireEv3.writeStandardFileEv2(fileIdByte, 33, fullDataToWrite);
@@ -3070,214 +3287,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
-        fileSelect.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                clearOutputFields();
-                String logString = "select a file";
-                writeToUiAppend(output, logString);
-                if (!isDesfireEv3Available()) return;
-
-                if (selectedApplicationId == null) {
-                    writeToUiAppend(output, "You need to select an application first, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
-                    return;
-                }
-
-                // on application selection the file ids where read from the application, together with the file settings
-
-                byte[] allFileIds = desfireEv3.getAllFileIds();
-                FileSettings[] allFileSettings = desfireEv3.getAllFileSettings();
-                if ((allFileIds == null) || (allFileIds.length == 0)) {
-                    writeToUiAppend(output, "no file IDs found, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
-                    return;
-                }
-                if ((allFileSettings == null) || (allFileSettings.length == 0)) {
-                    writeToUiAppend(output, "no file settings found, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
-                    return;
-                }
-
-                // debug
-                Log.d(TAG, "allFileIds");
-                for (int i = 0; i < allFileIds.length; i++) {
-                    Log.d(TAG, "i: " + i + ":" + allFileIds[i]);
-                }
-                Log.d(TAG, "allFileSettings");
-                for (int i = 0; i < allFileSettings.length; i++) {
-                    FileSettings fs = allFileSettings[i];
-                    if (fs == null) {
-                        Log.d(TAG, "i: " + i + ":" + "null");
-                    } else {
-                        Log.d(TAG, "i: " + i + ":" + allFileSettings[i].dump());
-                    }
-                }
-
-                String[] fileList = new String[allFileIds.length];
-                for (int i = 0; i < allFileIds.length; i++) {
-                    // get the file type for each entry
-                    byte fileId = allFileIds[i];
-                    FileSettings fileSettings = allFileSettings[fileId];
-                    Log.e(TAG, fileSettings.dump());
-                    String fileTypeName = "unknown";
-                    fileTypeName = fileSettings.getFileTypeName();
-                    String communicationMode = fileSettings.getCommunicationSettingsName();
-                    fileList[i] = String.valueOf(fileId) + " (" + fileTypeName + "|" + communicationMode + ")";
-                }
-
-                // setup the alert builder
-                AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
-                builder.setTitle("Choose a file");
-
-                builder.setItems(fileList, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        writeToUiAppend(output, "you  selected nr " + which + " = " + fileList[which]);
-                        selectedFileId = String.valueOf(allFileIds[which]);
-                        // here we are reading the fileSettings
-                        String outputString = fileList[which] + " ";
-                        byte fileIdByte = Byte.parseByte(selectedFileId);
-                        selectedFileSettings = allFileSettings[fileIdByte];
-                        outputString += "(" + selectedFileSettings.getFileTypeName();
-                        selectedFileSize = selectedFileSettings.getFileSizeInt();
-                        outputString += " size: " + selectedFileSize + ")";
-                        writeToUiAppend(output, outputString);
-                        fileSelected.setText(fileList[which]);
-                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "file selected", COLOR_GREEN);
-                        selectedFileType = selectedFileSettings.getFileType();
-                        if (selectedFileType == FileSettings.STANDARD_FILE_TYPE) {
-                            llSectionStandardFiles.setVisibility(View.VISIBLE);
-                        }
-                        if (selectedFileType == FileSettings.BACKUP_FILE_TYPE) {
-                            llSectionBackupFiles.setVisibility(View.VISIBLE);
-                        }
-                        vibrateShort();
-                    }
-                });
-                // create and show the alert dialog
-                AlertDialog dialog = builder.create();
-                dialog.show();
-            }
-        });
 
         /**
          * section for Standard files
          */
 
-        fileStandardRead.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                clearOutputFields();
-                String logString = "read from a standard file";
-                writeToUiAppend(output, logString);
-                if (!isDesfireEv3Available()) return;
 
-                // check that a file was selected before
-                if (TextUtils.isEmpty(selectedFileId)) {
-                    writeToUiAppend(output, "You need to select a file first, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
-                    return;
-                }
-                byte fileIdByte = Byte.parseByte(selectedFileId);
-
-                int fileSizeInt = 256; // todo fixed
-
-                // pre-check if fileNumber is existing
-                boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
-                if (!isFileExisting) {
-                    writeToUiAppend(output, logString + " The file does not exist, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
-                    return;
-                }
-
-                byte[] responseData = new byte[2];
-                byte[] result = desfireEv3.readFromStandardFileRawFull(fileIdByte, 1, 128);
-
-                result = desfireEv3.readFromAStandardFile(fileIdByte, 0, fileSizeInt);
-                responseData = desfireEv3.getErrorCode();
-                if (result == null) {
-                    // something gone wrong
-                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
-                    if (checkResponseMoreData(responseData)) {
-                        writeToUiAppend(output, "the file is too long to read, sorry");
-                    }
-                    if (checkAuthenticationError(responseData)) {
-                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
-                    }
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
-                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
-                    return;
-                } else {
-                    writeToUiAppend(output, logString + " ID: " + fileIdByte + printData(" data", result));
-                    writeToUiAppend(output, logString + " ID: " + fileIdByte + " data: " + new String(result, StandardCharsets.UTF_8));
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    vibrateShort();
-                }
-            }
-        });
-
-        fileStandardWrite.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                clearOutputFields();
-                String logString = "write to a standard file";
-                writeToUiAppend(output, logString);
-
-                selectedFileId = String.valueOf(13); // 06
-                fileSelected.setText(selectedFileId);
-                int fileSizeInt = 256; // fixed
-                //int fileSizeInt = 40;
-
-                // check that a file was selected before
-                if (TextUtils.isEmpty(selectedFileId)) {
-                    writeToUiAppend(output, "You need to select a file first, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
-                    return;
-                }
-
-                // we are going to write a timestamp to the file
-                String dataToWrite = Utils.getTimestamp();
-
-                //dataToWrite = "123 some data";
-
-                if (TextUtils.isEmpty(dataToWrite)) {
-                    //writeToUiAppend(errorCode, "please enter some data to write");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "please enter some data to write", COLOR_RED);
-                    return;
-                }
-
-                byte[] fullDataToWrite = Utils.generateTestData(fileSizeInt);
-                //System.arraycopy(dataToWrite.getBytes(StandardCharsets.UTF_8), 0, fullDataToWrite, 0, dataToWrite.getBytes(StandardCharsets.UTF_8).length);
-
-                byte fileIdByte = Byte.parseByte(selectedFileId);
-
-                // pre-check if fileNumber is existing
-                boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
-                if (!isFileExisting) {
-                    writeToUiAppend(output, logString + " The file does not exist, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
-                    return;
-                }
-
-                byte[] responseData = new byte[2];
-                boolean success = desfireEv3.writeToAStandardFile(fileIdByte, fullDataToWrite);
-                responseData = desfireEv3.getErrorCode();
-
-                if (success) {
-                    writeToUiAppend(output, logString + " SUCCESS");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    vibrateShort();
-                } else {
-                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
-                    if (checkAuthenticationError(responseData)) {
-                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
-                    }
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
-                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
-                }
-            }
-        });
 
         /**
          * section for Backup files

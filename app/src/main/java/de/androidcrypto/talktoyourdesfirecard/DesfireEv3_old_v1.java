@@ -20,7 +20,6 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -86,9 +85,9 @@ import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
 
 // todo do not run tasks after authentication (e.g. deleteFile won't run as the PICC is in authenticated state)
 
-public class DesfireEv3 {
+public class DesfireEv3_old_v1 {
 
-    private static final String TAG = DesfireEv3.class.getName();
+    private static final String TAG = DesfireEv3_old_v1.class.getName();
 
 
     private IsoDep isoDep;
@@ -118,7 +117,7 @@ public class DesfireEv3 {
     public static final byte LINEAR_RECORD_FILE_TYPE = (byte) 0x03;
     public static final byte CYCLIC_RECORD_FILE_TYPE = (byte) 0x04;
     public static final byte TRANSACTION_MAC_FILE_TYPE = (byte) 0x05;
-    
+
     public static final byte[] NDEF_APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("010000"); // this is the AID for NDEF application
     public static final byte[] NDEF_ISO_APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("10E1"); // this is the ISO AID for NDEF application
     public static final byte[] NDEF_APPLICATION_DF_NAME = Utils.hexStringToByteArray("D2760000850101"); // this is the Data File name for NDEF application
@@ -221,7 +220,7 @@ public class DesfireEv3 {
     }
 
 
-    public DesfireEv3(IsoDep isoDep) {
+    public DesfireEv3_old_v1(IsoDep isoDep) {
         this.isoDep = isoDep;
         Log.i(TAG, "class is initialized");
     }
@@ -792,7 +791,7 @@ public class DesfireEv3 {
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if (!checkIsoDep()) return false; // logFile and errorCode are updated
 
-        return writeToADataFileRawPlain(fileNumber, 0, NDEF_FILE_01_CONTENT_CONTAINER);
+        return writeToStandardFileRawPlain(fileNumber, 0, NDEF_FILE_01_CONTENT_CONTAINER);
     }
 
     /**
@@ -836,15 +835,81 @@ public class DesfireEv3 {
             errorCodeReason = "NDEF message exceeds MAXIMUM_FILE_SIZE";
             return false;
         }
-        return writeToADataFileRawPlain(fileNumber, 0, data);
+        return writeToStandardFilePlain(fileNumber, data);
     }
+
+    /**
+     * This method will write the Template URL string to the NDEF-File 02. If the templateUrl
+     * exceeds the maximum length for writing it will chunk the complete message into several parts
+     *
+     * @param templateUrl
+     * @return true on success
+     */
+    /*
+    public boolean writeToNdefFile2(String templateUrl) {
+
+        // status:
+
+        String logData = "";
+        final String methodName = "writeToNdefFile2Iso";
+        log(methodName, "started", true);
+        log(methodName, "templateUrl: " + templateUrl);
+
+        if (!Utils.isValidUrl(templateUrl)) {
+            Log.d(TAG, "inValid templateURL, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        // adding NDEF wrapping
+        NdefRecord ndefRecord = NdefRecord.createUri(templateUrl);
+        NdefMessage ndefMessage = new NdefMessage(ndefRecord);
+        byte[] ndefMessageBytesHeadless = ndefMessage.toByteArray();
+        // now we do have the NDEF message but it needs to get wrapped by '0x00 || (byte) (length of NdefMessage)
+        byte[] data = new byte[ndefMessageBytesHeadless.length + 2];
+        System.arraycopy(new byte[]{(byte) 0x00, (byte) (ndefMessageBytesHeadless.length)}, 0, data, 0, 2);
+        System.arraycopy(ndefMessageBytesHeadless, 0, data, 2, ndefMessageBytesHeadless.length);
+        Log.d(TAG, printData("NDEF Message bytes", data));
+
+        // depending on ndefMessageBytes length we need to send several write commands
+        // this is due to avoid framing as the maximum command APDU length is limited to 66
+        // bytes including all overhead and attached MAC
+        int dataLength = data.length;
+
+        int numberOfWrites = dataLength / MAXIMUM_MESSAGE_LENGTH;
+        int numberOfWritesMod = Utils.mod(dataLength, MAXIMUM_MESSAGE_LENGTH);
+        if (numberOfWritesMod > 0) numberOfWrites++; // one extra write for the remainder
+        Log.d(TAG, "data length: " + dataLength + " numberOfWrites: " + numberOfWrites);
+        boolean completeSuccess = true;
+        int offset = 0;
+        int numberOfDataToWrite = MAXIMUM_MESSAGE_LENGTH; // we are starting with a maximum length
+        for (int i = 0; i < numberOfWrites; i++) {
+            if (offset + numberOfDataToWrite > dataLength) {
+                numberOfDataToWrite = dataLength - offset;
+            }
+            byte[] dataToWrite = Arrays.copyOfRange(data, offset, (offset + numberOfDataToWrite));
+            boolean success = writeToStandardFileMax40Plain(NDEF_DATA_FILE_NUMBER, dataToWrite, offset);
+            offset = offset + numberOfDataToWrite;
+            if (!success) {
+                completeSuccess = false;
+                Log.e(TAG, methodName + " could not successfully write, aborted");
+                log(methodName, "could not successfully write, aborted");
+                System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+                return false;
+            }
+        }
+        System.arraycopy(RESPONSE_OK, 0, errorCode, 0, 2);
+        log(methodName, "SUCCESS");
+        return true;
+    }
+*/
 
     /**
      * The method writes a byte array to a Standard or Backup file. The communication mode is read out from
      * 'getFileSettings command'. If the comm mode is 'Plain' it runs the Plain path, otherwise it
      * uses the 'Full' path. If the comm mode is 'MACed' the method ends a there is no method available
      * within this class to handle those files, sorry.
-     * The data is written to the  beginning of the file (offset = 0)
+     *
      * If the data length exceeds the MAXIMUM_WRITE_MESSAGE_LENGTH the data will be written in chunks.
      * If the data length exceeds MAXIMUM_FILE_LENGTH the methods returns a FAILURE
      * @param fileNumber | in range 0..31 AND file is a Standard or Backup file
@@ -1021,6 +1086,10 @@ public class DesfireEv3 {
         }
     }
 
+    public boolean writeToADataFileRawFull(byte fileNumber, byte[] data) {
+        int offset = 0;
+        return writeToADataFileRawFull(fileNumber, offset, data);
+    }
     private boolean writeToADataFileRawFull(byte fileNumber, int offset, byte[] data) {
         String logData = "";
         final String methodName = "writeToADataFileRawFull";
@@ -1105,10 +1174,12 @@ public class DesfireEv3 {
             dataBlockEncryptedList.add(dataBlockEncrypted);
             ivDataEncryption = dataBlockEncrypted.clone(); // new, subsequent iv for next encryption
         }
-        //        log(methodName, printData("startingIv", startingIv));
+//        log(methodName, printData("startingIv", startingIv));
         for (int i = 0; i < numberOfDataBlocks; i++) {
             log(methodName, printData("dataBlock" + i + "Encrypted", dataBlockEncryptedList.get(i)));
         }
+        //log(methodName, printData("dataBlock1Encrypted", dataBlock1Encrypted));
+        //log(methodName, printData("dataBlock2Encrypted", dataBlock2Encrypted));
 
         // Encrypted Data (complete), concatenate all byte arrays
         ByteArrayOutputStream baosDataEncrypted = new ByteArrayOutputStream();
@@ -1209,6 +1280,432 @@ public class DesfireEv3 {
     }
 
 
+
+    /**
+     * The method writes a byte array to a Standard file. The communication mode is read out from
+     * 'getFileSettings command'. If the comm mode is 'Plain'  it runs the Plain path, otherwise it
+     * uses the 'Full' path. If the comm mode is 'MACed' the method ends a there is no method available
+     * within this class to handle those files, sorry.
+     *
+     * If the data length exceeds the MAXIMUM_WRITE_MESSAGE_LENGTH the data will be written in chunks.
+     * If the data length exceeds MAXIMUM_FILE_LENGTH the methods returns a FAILURE
+     * @param fileNumber | in range 0..31 AND file is a Standard file
+     * @param data
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+    public boolean writeToAStandardFile(byte fileNumber, byte[] data) {
+        String logData = "";
+        final String methodName = "writeToStandardFile";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, printData("data", data));
+        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
+        if ((data == null) || (data.length < 1) || (data.length > MAXIMUM_FILE_SIZE)) {
+            log(methodName, "data length not in range 1..MAXIMUM_FILE_SIZE, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "data length not in range 1..MAXIMUM_FILE_SIZE";
+            return false;
+        }
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+        if (!checkFileNumberExisting(fileNumber)) return false; // logFile and errorCode are updated
+        // checking fileSettings for Communication.mode
+        boolean isPlainMode = false;
+        boolean isMacedMode = false;
+        FileSettings fileSettings;
+        try {
+            fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        } catch (NullPointerException e) {
+            Log.e(TAG, methodName + " could not read fileSettings, aborted");
+            log(methodName, "could not read fileSettings, aborted");
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "could not read fileSettings, aborted";
+            return false;
+        }
+        if (fileSettings.getCommunicationSettings() == FILE_COMMUNICATION_SETTINGS_MACED) {
+            isMacedMode = true;
+            Log.e(TAG, methodName + " CommunicationMode MACed is not supported, aborted");
+            log(methodName, "CommunicationMode MACed is not supported, aborted");
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "CommunicationMode MACed is not supported, aborted";
+            return false;
+        }
+        if (fileSettings.getCommunicationSettings() == FILE_COMMUNICATION_SETTINGS_PLAIN) {
+            isPlainMode = true;
+            log(methodName, "CommunicationMode is Plain");
+        } else {
+            log(methodName, "CommunicationMode is Full enciphered");
+        }
+        // The chunking is done to avoid framing as the maximum command APDU length is limited to 66
+        // bytes including all overhead and attached MAC
+        int dataLength = data.length;
+        int numberOfWrites = dataLength / MAXIMUM_WRITE_MESSAGE_LENGTH;
+        int numberOfWritesMod = Utils.mod(dataLength, MAXIMUM_WRITE_MESSAGE_LENGTH);
+        if (numberOfWritesMod > 0) numberOfWrites++; // one extra write for the remainder
+        Log.d(TAG, "data length: " + dataLength + " numberOfWrites: " + numberOfWrites);
+        boolean completeSuccess = true;
+        int offset = 0;
+        int numberOfDataToWrite = MAXIMUM_WRITE_MESSAGE_LENGTH; // we are starting with a maximum length
+        for (int i = 0; i < numberOfWrites; i++) {
+            if (offset + numberOfDataToWrite > dataLength) {
+                numberOfDataToWrite = dataLength - offset;
+            }
+            byte[] dataToWrite = Arrays.copyOfRange(data, offset, (offset + numberOfDataToWrite));
+            boolean success;
+            if (isPlainMode) {
+                success = writeToStandardFileRawPlain(fileNumber, offset, dataToWrite);
+            } else {
+                success = writeToAStandardFileRawFull(fileNumber, offset, dataToWrite);
+            }
+            offset = offset + numberOfDataToWrite;
+            if (!success) {
+                completeSuccess = false;
+                Log.e(TAG, methodName + " could not successfully write, aborted");
+                log(methodName, "could not successfully write, aborted");
+                errorCode = RESPONSE_FAILURE.clone();
+                errorCodeReason = "could not successfully write";
+                return false;
+            }
+        }
+        System.arraycopy(RESPONSE_OK, 0, errorCode, 0, 2);
+        log(methodName, "SUCCESS");
+        return true;
+    }
+
+
+    /**
+     * The method writes a byte array to a Standard file using CommunicationMode.Plain. If the data
+     * length exceeds the MAXIMUM_MESSAGE_LENGTH the data will be written in chunks.
+     * If the data length exceeds MAXIMUM_FILE_LENGTH the methods returns a FAILURE
+     * @param fileNumber | in range 0..31 AND file is a Standard file
+     * @param data
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+    public boolean writeToStandardFilePlain(byte fileNumber, byte[] data) {
+        String logData = "";
+        final String methodName = "writeToStandardFilePlain";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, printData("data", data));
+        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
+        if ((data == null) || (data.length < 1) || (data.length > MAXIMUM_FILE_SIZE)) {
+            log(methodName, "data length not in range 1..MAXIMUM_FILE_SIZE, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "data length not in range 1..MAXIMUM_FILE_SIZE";
+            return false;
+        }
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+
+        // The chunking is done to avoid framing as the maximum command APDU length is limited to 66
+        // bytes including all overhead and attached MAC
+        int dataLength = data.length;
+        int numberOfWrites = dataLength / MAXIMUM_WRITE_MESSAGE_LENGTH;
+        int numberOfWritesMod = Utils.mod(dataLength, MAXIMUM_WRITE_MESSAGE_LENGTH);
+        if (numberOfWritesMod > 0) numberOfWrites++; // one extra write for the remainder
+        Log.d(TAG, "data length: " + dataLength + " numberOfWrites: " + numberOfWrites);
+        boolean completeSuccess = true;
+        int offset = 0;
+        int numberOfDataToWrite = MAXIMUM_WRITE_MESSAGE_LENGTH; // we are starting with a maximum length
+        for (int i = 0; i < numberOfWrites; i++) {
+            if (offset + numberOfDataToWrite > dataLength) {
+                numberOfDataToWrite = dataLength - offset;
+            }
+            byte[] dataToWrite = Arrays.copyOfRange(data, offset, (offset + numberOfDataToWrite));
+            boolean success = writeToStandardFileRawPlain(fileNumber, offset, dataToWrite);
+            offset = offset + numberOfDataToWrite;
+            if (!success) {
+                completeSuccess = false;
+                Log.e(TAG, methodName + " could not successfully write, aborted");
+                log(methodName, "could not successfully write, aborted");
+                errorCode = RESPONSE_FAILURE.clone();
+                errorCodeReason = "could not successfully write";
+                return false;
+            }
+        }
+        System.arraycopy(RESPONSE_OK, 0, errorCode, 0, 2);
+        log(methodName, "SUCCESS");
+        return true;
+    }
+
+    /**
+     * writes a byte array to a Standard file, beginning at offset position
+     * This works for a Standard file with CommunicationMode.Plain only
+     * Note: as the number of bytes is limited per transmission this method limits the amount
+     * of data to a maximum of MAXIMUM_MESSAGE_LENGTH bytes
+     * The method does not take care of the offset so 'offset + data.length <= file size' needs to obeyed
+     * Do NOT CALL this method from outside this class but use one of the writeToStandardFile callers
+     * as it uses the pre-read fileSettings
+     * @param fileNumber | in range 0..31 AND file is a Standard file
+     * @param data       | maximum of 40 bytes to avoid framing
+     * @param offset     | offset in the file
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+    private boolean writeToStandardFileRawPlain(byte fileNumber, int offset, byte[] data) {
+        String logData = "";
+        final String methodName = "writeToStandardFileRawPlain";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber + Utils.printData(" data", data) + " offset: " + offset);
+
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
+        if ((data == null) || (data.length > 40)) {
+            Log.e(TAG, methodName + " data is NULL or length is > 40, aborted");
+            log(methodName, "data is NULL or length is > 40, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "data is NULL or length is > 40";
+            return false;
+        }
+        if (!checkOffsetMinus(offset)) return false;
+        // getFileSettings for file type and length information
+        FileSettings fileSettings;
+        try {
+            fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        } catch (NullPointerException e) {
+            Log.e(TAG, methodName + " could not read fileSettings, aborted");
+            log(methodName, "could not read fileSettings");
+            errorCode = RESPONSE_FAILURE_MISSING_GET_FILE_SETTINGS.clone();
+            errorCodeReason = "could not read fileSettings, aborted";
+            return false;
+        }
+        int fileSize = fileSettings.getFileSizeInt();
+        if (data.length > fileSize) {
+            Log.e(TAG, methodName + " data length is > fileSize, aborted");
+            log(methodName, "length is > fileSize, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "length is > fileSize";
+            return false;
+        }
+        if (!checkFileTypeStandard(fileNumber)) {
+            Log.e(TAG, methodName + " fileType is not Standard file, aborted");
+            log(methodName, "fileType is not Standard file, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "fileType is not Standard file";
+            return false; // logFile and errorCode are updated
+        }
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+        byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset);
+        byte[] lengthOfDataBytes = Utils.intTo3ByteArrayInversed(data.length);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(offsetBytes, 0, offsetBytes.length);
+        baos.write(lengthOfDataBytes, 0, lengthOfDataBytes.length);
+        baos.write(data, 0, data.length);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+        try {
+            apdu = wrapMessage(WRITE_STANDARD_FILE_COMMAND, commandParameter);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE");
+            return false;
+        }
+    }
+
+    public boolean writeToAStandardFileRawFull(byte fileNumber, byte[] data) {
+        int offset = 0;
+        return writeToAStandardFileRawFull(fileNumber, offset, data);
+    }
+    private boolean writeToAStandardFileRawFull(byte fileNumber, int offset, byte[] data) {
+        String logData = "";
+        final String methodName = "writeToStandardFileRawFull";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber + Utils.printData(" data", data) + " offset: " + offset);
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
+        if ((data == null) || (data.length > MAXIMUM_WRITE_MESSAGE_LENGTH)) {
+            Log.e(TAG, methodName + " data is NULL or length is > " + MAXIMUM_WRITE_MESSAGE_LENGTH + ", aborted");
+            log(methodName, "data is NULL or length is > " + MAXIMUM_WRITE_MESSAGE_LENGTH + ", aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "data is NULL or length is > " + MAXIMUM_WRITE_MESSAGE_LENGTH;
+            return false;
+        }
+        if (!checkOffsetMinus(offset)) return false;
+        // getFileSettings for file type and size information
+        FileSettings fileSettings;
+        try {
+            fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        } catch (NullPointerException e) {
+            Log.e(TAG, methodName + " could not read fileSettings, aborted");
+            log(methodName, "could not read fileSettings");
+            errorCode = RESPONSE_FAILURE_MISSING_GET_FILE_SETTINGS.clone();
+            errorCodeReason = "could not read fileSettings, aborted";
+            return false;
+        }
+        int fileSize = fileSettings.getFileSizeInt();
+        if (data.length > fileSize) {
+            Log.e(TAG, methodName + " data length is > fileSize, aborted");
+            log(methodName, "length is > fileSize, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "length is > fileSize";
+            return false;
+        }
+        if (!checkFileTypeStandard(fileNumber)) {
+            Log.e(TAG, methodName + " fileType is not Standard file, aborted");
+            log(methodName, "fileType is not Standard file, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "fileType is not Standard file";
+            return false; // logFile and errorCode are updated
+        }
+        if (!checkAuthentication()) return false; // logFile and errorCode are updated
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+
+        // next step is to pad the data according to padding rules in DESFire EV2/3 for AES Secure Messaging full mode
+        byte[] dataPadded = paddingWriteData(data);
+        log(methodName, printData("data unpad", data));
+        log(methodName, printData("data pad  ", dataPadded));
+
+        int numberOfDataBlocks = dataPadded.length / 16;
+        log(methodName, "number of dataBlocks: " + numberOfDataBlocks);
+        List<byte[]> dataBlockList = Utils.divideArrayToList(dataPadded, 16);
+
+        // Encrypting the Command Data
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        // MAC_Input
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(IV_LABEL_ENC, 0, IV_LABEL_ENC.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        List<byte[]> dataBlockEncryptedList = new ArrayList<>();
+        byte[] ivDataEncryption = ivForCmdData.clone(); // the "starting iv"
+
+        for (int i = 0; i < numberOfDataBlocks; i++) {
+            byte[] dataBlockEncrypted = AES.encrypt(ivDataEncryption, SesAuthENCKey, dataBlockList.get(i));
+            dataBlockEncryptedList.add(dataBlockEncrypted);
+            ivDataEncryption = dataBlockEncrypted.clone(); // new, subsequent iv for next encryption
+        }
+//        log(methodName, printData("startingIv", startingIv));
+        for (int i = 0; i < numberOfDataBlocks; i++) {
+            log(methodName, printData("dataBlock" + i + "Encrypted", dataBlockEncryptedList.get(i)));
+        }
+        //log(methodName, printData("dataBlock1Encrypted", dataBlock1Encrypted));
+        //log(methodName, printData("dataBlock2Encrypted", dataBlock2Encrypted));
+
+        // Encrypted Data (complete), concatenate all byte arrays
+        ByteArrayOutputStream baosDataEncrypted = new ByteArrayOutputStream();
+        for (int i = 0; i < numberOfDataBlocks; i++) {
+            try {
+                baosDataEncrypted.write(dataBlockEncryptedList.get(i));
+            } catch (IOException e) {
+                Log.e(TAG, "IOException on concatenating encrypted dataBlocks, aborted\n" +
+                        e.getMessage());
+                return false;
+            }
+        }
+        byte[] encryptedData = baosDataEncrypted.toByteArray();
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // Generating the MAC for the Command APDU
+        // CmdHeader (FileNo || Offset || DataLength)
+        byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset); // LSB order
+        byte[] lengthBytes = Utils.intTo3ByteArrayInversed(data.length); // LSB order
+        log(methodName, printData("offset", offsetBytes));
+        log(methodName, printData("length", lengthBytes));
+        ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
+        baosCmdHeader.write(fileNumber);
+        baosCmdHeader.write(offsetBytes, 0, offsetBytes.length);
+        baosCmdHeader.write(lengthBytes, 0, lengthBytes.length);
+        byte[] cmdHeader = baosCmdHeader.toByteArray();
+        log(methodName, printData("cmdHeader", cmdHeader));
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted CmdData )
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(WRITE_STANDARD_FILE_SECURE_COMMAND); // 0x8D
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // error in Features and Hints, page 57, point 28:
+        // Data (FileNo || Offset || DataLenght || Data) is NOT correct, as well not the Data Message
+        // correct is the following concatenation:
+
+        // Data (CmdHeader || Encrypted Data || MAC)
+        ByteArrayOutputStream baosWriteDataCommand = new ByteArrayOutputStream();
+        baosWriteDataCommand.write(cmdHeader, 0, cmdHeader.length);
+        baosWriteDataCommand.write(encryptedData, 0, encryptedData.length);
+        baosWriteDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] writeDataCommand = baosWriteDataCommand.toByteArray();
+        log(methodName, printData("writeDataCommand", writeDataCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(WRITE_STANDARD_FILE_SECURE_COMMAND, writeDataCommand);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        //byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        if (verifyResponseMac(responseMACTruncatedReceived, null)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return true;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return false;
+        }
+    }
 
     // todo remove, old method just to check
     public boolean writeStandardFileEv2(byte fileNumber, int offsetInt, byte[] dataToWrite) {
