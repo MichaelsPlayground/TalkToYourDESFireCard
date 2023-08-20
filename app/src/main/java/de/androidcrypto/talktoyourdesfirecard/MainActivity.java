@@ -896,8 +896,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
 
                 byte[] responseData = new byte[2];
-                int result = desfireAuthenticateEv2.getValueFileEv2(fileIdByte);
-                responseData = desfireAuthenticateEv2.getErrorCode();
+                int result = desfireEv3.readFromAValueFile(fileIdByte);
+                responseData = desfireEv3.getErrorCode();
                 if (result < 0) {
                     // something gone wrong
                     writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
