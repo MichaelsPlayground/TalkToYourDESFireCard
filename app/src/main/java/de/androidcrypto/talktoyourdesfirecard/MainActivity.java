@@ -850,8 +850,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 } else {
                     // it is a Backup file where we need to submit a commit command to confirm the write
                     writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Backup file, run COMMIT");
-                    //success = desfireEv3.commitTransactionPlain(); // this is not working
-                    success = desfireEv3.commitTransactionFull();
+                    success = desfireEv3.commitTransactionPlain(); // this is not working
+                    //success = desfireEv3.commitTransactionFull();
                     responseData = desfireEv3.getErrorCode();
                     if (success) {
                         writeToUiAppend(output, "data is written to Backup file number " + fileIdByte);

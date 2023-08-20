@@ -2510,10 +2510,11 @@ public class DesfireEv3 {
         log(methodName, "started", true);
         // sanity checks
         if (!checkIsoDep()) return false;
+        byte COMMIT_TRANSACTION_OPTION = (byte) 0x00; // 01 meaning TMC and TMV to be returned in the R-APDU
         byte[] apdu;
         byte[] response;
         try {
-            apdu = wrapMessage(COMMIT_TRANSACTION_COMMAND, null);
+            apdu = wrapMessage(COMMIT_TRANSACTION_COMMAND, new byte[]{COMMIT_TRANSACTION_OPTION});
             response = sendData(apdu);
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
