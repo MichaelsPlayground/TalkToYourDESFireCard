@@ -89,6 +89,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private LinearLayout llSectionValueFiles;
     private Button fileValueRead, fileValueCredit, fileValueDebit;
 
+    private LinearLayout llSectionRecordFiles;
+    private Button fileRecordRead, fileRecordWrite;
+    
+    
+    
     /**
      * section for authentication
      * note: the character at the end 'D' or 'C' is meaning 'default' or 'changed'
@@ -393,6 +398,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileValueCredit = findViewById(R.id.btnValueFileCredit);
         fileValueDebit = findViewById(R.id.btnValueFileDebit);
         llSectionValueFiles.setVisibility(View.GONE);
+        
+        // record file workflow
+        llSectionRecordFiles = findViewById(R.id.llSectionRecordFiles);
+        fileRecordRead = findViewById(R.id.btnRecordFileRead);
+        fileRecordWrite = findViewById(R.id.btnRecordFileWrite);
+        llSectionRecordFiles.setVisibility(View.GONE);
 
         // authenticate workflow
         llSectionAuthentication = findViewById(R.id.llSectionAuthentication);
@@ -736,7 +747,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         if (selectedFileType == FileSettings.VALUE_FILE_TYPE) {
                             llSectionValueFiles.setVisibility(View.VISIBLE);
                         }
-
+                        if (selectedFileType == FileSettings.LINEAR_RECORD_FILE_TYPE) {
+                            llSectionRecordFiles.setVisibility(View.VISIBLE);
+                        }
+                        if (selectedFileType == FileSettings.CYCLIC_RECORD_FILE_TYPE) {
+                            llSectionRecordFiles.setVisibility(View.VISIBLE);
+                        }
                         llSectionAuthentication.setVisibility(View.VISIBLE);
                         vibrateShort();
                     }
@@ -870,7 +886,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 String dataToWrite = Utils.getTimestamp();
                 byte[] dataToWriteBytes = dataToWrite.getBytes(StandardCharsets.UTF_8);
                 if (dataToWriteBytes.length >= fileSizeInt) {
-                    // the file is smaller than the timestamp, we do write only parts of the timestamp
+                    // if the file is smaller than the timestamp we do write only parts of the timestamp
                     System.arraycopy(dataToWriteBytes, 0, fullDataToWrite, 0, fileSizeInt);
                 } else {
                     System.arraycopy(dataToWriteBytes, 0, fullDataToWrite, 0, dataToWriteBytes.length);
@@ -1123,6 +1139,149 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit" + " FAILURE with error code: " + EV3.getErrorCode(responseData), COLOR_RED);
                     writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
                     return;
+                }
+            }
+        });
+
+        /**
+         * record file actions - could be a Linear or Cyclic file
+         */
+
+        fileRecordRead.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "read from a record file";
+                writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                int fileSizeInt = selectedFileSettings.getRecordSizeInt();
+
+                // pre-check if fileNumber is existing
+                boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
+                if (!isFileExisting) {
+                    writeToUiAppend(output, logString + " The file does not exist, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
+                    return;
+                }
+
+                byte[] responseData = new byte[2];
+                //byte[] result = desfireEv3.readFromADataFile(fileIdByte, 0, fileSizeInt);
+                byte[] result = desfireEv3.readFromARecordFileRawFull(fileIdByte);
+                responseData = desfireEv3.getErrorCode();
+                if (result == null) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkResponseMoreData(responseData)) {
+                        writeToUiAppend(output, "the file is too long to read, sorry");
+                    }
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + printData(" data", result));
+                    writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + " data: " + new String(result, StandardCharsets.UTF_8));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }
+            }
+        });
+
+        fileRecordWrite.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "write to a record file";
+                writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                int fileSizeInt = selectedFileSettings.getRecordSizeInt();
+
+                // pre-check if fileNumber is existing
+                boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
+                if (!isFileExisting) {
+                    writeToUiAppend(output, logString + " The file does not exist, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
+                    return;
+                }
+
+                // we are going to write a timestamp to the file, filled up with testData
+                byte[] fullDataToWrite = new byte[fileSizeInt];
+                String dataToWrite = Utils.getTimestamp();
+                byte[] dataToWriteBytes = dataToWrite.getBytes(StandardCharsets.UTF_8);
+                if (dataToWriteBytes.length >= fileSizeInt) {
+                    // if the file is smaller than the timestamp we do write only parts of the timestamp
+                    System.arraycopy(dataToWriteBytes, 0, fullDataToWrite, 0, fileSizeInt);
+                } else {
+                    System.arraycopy(dataToWriteBytes, 0, fullDataToWrite, 0, dataToWriteBytes.length);
+                    // now filling up the fullData with testData
+                    byte[] testData = Utils.generateTestData(fileSizeInt - dataToWriteBytes.length);
+                    System.arraycopy(testData, 0, fullDataToWrite, dataToWriteBytes.length, testData.length);
+                }
+
+                byte[] responseData = new byte[2];
+                //boolean success = desfireEv3.writeToADataFile(fileIdByte, 0, fullDataToWrite);
+                boolean success = desfireEv3.writeToARecordFile(fileIdByte, 0, fullDataToWrite);
+                responseData = desfireEv3.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                } else {
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
+                if (selectedFileSettings.getFileType() == FileSettings.STANDARD_FILE_TYPE) {
+                    vibrateShort();
+                } else {
+                    // it is a Backup file where we need to submit a commit command to confirm the write
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Record file, run COMMIT");
+                    byte commMode = selectedFileSettings.getCommunicationSettings();
+                    if (commMode == (byte) 0x00) {
+                        // Plain
+                        success = desfireEv3.commitTransactionPlain();
+                    }
+                    if (commMode == (byte) 0x03) {
+                        // Full enciphered
+                        success = desfireEv3.commitTransactionFull();
+                    }
+                    if (commMode == (byte) 0x01) {
+                        // MACed
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The selected file has the Communication Mode MACed that is not supported, sorry", COLOR_RED);
+                        return;
+                    }
+                    responseData = desfireEv3.getErrorCode();
+                    if (success) {
+                        writeToUiAppend(output, "data is written to Backup file number " + fileIdByte);
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
+                        vibrateShort();
+                    } else {
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit" + " FAILURE with error code: " + EV3.getErrorCode(responseData), COLOR_RED);
+                        writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                        return;
+                    }
                 }
             }
         });
@@ -7534,6 +7693,7 @@ posMacInpOffset:  75
         //llApplicationHandling.setVisibility(View.GONE);
         llSectionDataFiles.setVisibility(View.GONE);
         llSectionValueFiles.setVisibility(View.GONE);
+        llSectionRecordFiles.setVisibility(View.GONE);
         llSectionAuthentication.setVisibility(View.GONE);
     }
 

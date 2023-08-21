@@ -1252,6 +1252,16 @@ public class DesfireEv3 {
         }
     }
 
+    private boolean writeToADataFileRawMac(byte fileNumber, int offset, byte[] data) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 53 - 54
+        String logData = "";
+        final String methodName = "writeToADataFileRawMac";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + Utils.printData(" data", data) );
+
+        return false;
+    }
+
     private boolean writeToADataFileRawFull(byte fileNumber, int offset, byte[] data) {
         String logData = "";
         final String methodName = "writeToADataFileRawFull";
@@ -2271,6 +2281,17 @@ public class DesfireEv3 {
         return getData(response);
     }
 
+    public byte[] readFromADataFileRawMac(byte fileNumber, int offset, int length){
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 54 -55
+        String logData = "";
+        final String methodName = "readFromADataFileRawMac";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + " size: " + length);
+
+        return null;
+    }
+
+
     /**
      * Read data from a Standard file, beginning at offset position and length of data.
      * As the amount of data that can be send from PICC to reader is limited and the PICC will chunk the
@@ -2976,9 +2997,9 @@ public class DesfireEv3 {
         }
         if ((fileSettings.getFileType() == FileSettings.LINEAR_RECORD_FILE_TYPE) ||
                 (fileSettings.getFileType() == FileSettings.CYCLIC_RECORD_FILE_TYPE)) {
-            log(methodName, "fileNumber to read is a " + fileSettings.getFileTypeName() + ", proceed");
+            log(methodName, "fileNumber to write is a " + fileSettings.getFileTypeName() + ", proceed");
         } else {
-            log(methodName, "fileNumber to read is a " + fileSettings.getFileTypeName() + ", aborted");
+            log(methodName, "fileNumber to write is a " + fileSettings.getFileTypeName() + ", aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
             errorCodeReason = "fileType is not Linear or Cyclic Record file";
             return false;
@@ -3073,7 +3094,7 @@ public class DesfireEv3 {
          */
 
         String logData = "";
-        final String methodName = "writeRecordFileEv2";
+        final String methodName = "writeToARecordFileRawFull";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
         log(methodName, printData("dataToWrite", data));
@@ -3089,19 +3110,18 @@ public class DesfireEv3 {
             return false;
         }
 
-        // todo other sanity checks on values
+        // next step is to pad the data according to padding rules in DESFire EV2/3 for AES Secure Messaging full mode
+        byte[] dataPadded = paddingWriteData(data);
+        log(methodName, printData("data unpad", data));
+        log(methodName, printData("data pad  ", dataPadded));
 
-        // todo read the file settings to get e.g. the recordSize and communication mode
-        // NOTE we need to receive PRE PADDED DATA, not the full 32 data bytes for a record
-        // in the MainActivity we padded the data (length 30 bytes) with 0x80 0x00
-        int DATA_SIZE_FIXED = 30;
-
-
-        //int dataLength = 25;
+        int numberOfDataBlocks = dataPadded.length / 16;
+        log(methodName, "number of dataBlocks: " + numberOfDataBlocks);
+        List<byte[]> dataBlockList = Utils.divideArrayToList(dataPadded, 16);
 
         // Encrypting the Command Data
         // IV_Input (IV_Label || TI || CmdCounter || Padding)
-        // IV_Input
+        // MAC_Input
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -3120,37 +3140,36 @@ public class DesfireEv3 {
         byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
         log(methodName, printData("ivForCmdData", ivForCmdData));
 
-        // create an empty array and copy the dataToWrite to clear the complete standard file
-        // this is done to avoid the padding
-        // todo work on this, this is rough coded
-        //byte[] fullDataToWrite = new byte[FILE_SIZE_FIXED];
-        //System.arraycopy(dataToWrite, 0, fullDataToWrite, 0, dataToWrite.length);
+        List<byte[]> dataBlockEncryptedList = new ArrayList<>();
+        byte[] ivDataEncryption = ivForCmdData.clone(); // the "starting iv"
 
-        // here we are splitting up the data into 2 data blocks
-        byte[] dataBlock1 = Arrays.copyOfRange(data, 0, 16);
-        byte[] dataBlock2 = Arrays.copyOfRange(data, 16, 32);
-        log(methodName, printData("dataToWrite", data));
-        log(methodName, printData("dataBlock1 ", dataBlock1));
-        log(methodName, printData("dataBlock2 ", dataBlock2));
+        for (int i = 0; i < numberOfDataBlocks; i++) {
+            byte[] dataBlockEncrypted = AES.encrypt(ivDataEncryption, SesAuthENCKey, dataBlockList.get(i));
+            dataBlockEncryptedList.add(dataBlockEncrypted);
+            ivDataEncryption = dataBlockEncrypted.clone(); // new, subsequent iv for next encryption
+        }
+        //        log(methodName, printData("startingIv", startingIv));
+        for (int i = 0; i < numberOfDataBlocks; i++) {
+            log(methodName, printData("dataBlock" + i + "Encrypted", dataBlockEncryptedList.get(i)));
+        }
 
-        // Encrypted Data Block 1 = E(KSesAuthENC, Data Input)
-        byte[] dataBlock1Encrypted = AES.encrypt(ivForCmdData, SesAuthENCKey, dataBlock1);
-        byte[] iv2 = dataBlock1Encrypted.clone();
-        log(methodName, printData("iv2", iv2));
-        byte[] dataBlock2Encrypted = AES.encrypt(iv2, SesAuthENCKey, dataBlock2); // todo is this correct ? or startingIv ?
-
-        //byte[] dataBlock2Encrypted = AES.encrypt(startingIv, SesAuthENCKey, dataBlock2); // todo is this correct ? or startingIv ?
-        log(methodName, printData("startingIv", startingIv));
-        log(methodName, printData("dataBlock1Encrypted", dataBlock1Encrypted));
-        log(methodName, printData("dataBlock2Encrypted", dataBlock2Encrypted));
-
-        // Encrypted Data (complete), concatenate 2 byte arrays
-        byte[] encryptedData = concatenate(dataBlock1Encrypted, dataBlock2Encrypted);
+        // Encrypted Data (complete), concatenate all byte arrays
+        ByteArrayOutputStream baosDataEncrypted = new ByteArrayOutputStream();
+        for (int i = 0; i < numberOfDataBlocks; i++) {
+            try {
+                baosDataEncrypted.write(dataBlockEncryptedList.get(i));
+            } catch (IOException e) {
+                Log.e(TAG, "IOException on concatenating encrypted dataBlocks, aborted\n" +
+                        e.getMessage());
+                return false;
+            }
+        }
+        byte[] encryptedData = baosDataEncrypted.toByteArray();
         log(methodName, printData("encryptedData", encryptedData));
 
         // Generating the MAC for the Command APDU
         // CmdHeader (FileNo || Offset || DataLength)
-        int dataSizeInt = DATA_SIZE_FIXED;
+        int dataSizeInt = data.length;
         //int offsetBytes = 0; // read from the beginning
         byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset); // LSB order
         byte[] dataSizeBytes = Utils.intTo3ByteArrayInversed(dataSizeInt); // LSB order
