@@ -206,11 +206,11 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
     private boolean createFileSetPlain() {
         // create 5 files with communication settings PLAIN
         Log.d(TAG, "createFileSetPlain"); // DesfireEv3.DesfireFileType.Standard, DesfireEv3.DesfireFileType.Backup, DesfireEv3.DesfireFileType.Value, DesfireEv3.DesfireFileType.LinearRecord, DesfireEv3.DesfireFileType.CyclicRecord
-        boolean createStandardFile = desfireEv3.createStandardFile(Constants.STANDARD_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
-        boolean createBackupFile = desfireEv3.createBackupFile(Constants.BACKUP_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32);
-        boolean createValueFile = desfireEv3.createValueFile(Constants.VALUE_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT,0,10000, 0,false);
-        boolean createLinearRecordFile = desfireEv3.createLinearRecordFile(Constants.LINEAR_RECORD_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
-        boolean createCyclicRecordFile = desfireEv3.createCyclicRecordFile(Constants.CYCLIC_RECORD_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
+        boolean createStandardFile = desfireEv3.createAStandardFile(Constants.STANDARD_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
+        boolean createBackupFile = desfireEv3.createABackupFile(Constants.BACKUP_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32);
+        boolean createValueFile = desfireEv3.createAValueFile(Constants.VALUE_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT,0,10000, 0,false);
+        boolean createLinearRecordFile = desfireEv3.createALinearRecordFile(Constants.LINEAR_RECORD_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
+        boolean createCyclicRecordFile = desfireEv3.createACyclicRecordFile(Constants.CYCLIC_RECORD_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
         Log.d(TAG, "createStandardFile result: " + createStandardFile);
         Log.d(TAG, "createBackupFile result: " + createBackupFile);
         Log.d(TAG, "createValueFile result: " + createValueFile);
@@ -222,11 +222,11 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
     private boolean createFileSetMACed() {
         // create 5 files with communication settings MACed
         Log.d(TAG, "createFileSetMACed"); // DesfireEv3.DesfireFileType.Standard, DesfireEv3.DesfireFileType.Backup, DesfireEv3.DesfireFileType.Value, DesfireEv3.DesfireFileType.LinearRecord, DesfireEv3.DesfireFileType.CyclicRecord
-        boolean createStandardFile = desfireEv3.createStandardFile(Constants.STANDARD_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
-        boolean createBackupFile = desfireEv3.createBackupFile(Constants.BACKUP_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32);
-        boolean createValueFile = desfireEv3.createValueFile(Constants.VALUE_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT,0,10000, 0,false);
-        boolean createLinearRecordFile = desfireEv3.createLinearRecordFile(Constants.LINEAR_RECORD_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
-        boolean createCyclicRecordFile = desfireEv3.createCyclicRecordFile(Constants.CYCLIC_RECORD_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
+        boolean createStandardFile = desfireEv3.createAStandardFile(Constants.STANDARD_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
+        boolean createBackupFile = desfireEv3.createABackupFile(Constants.BACKUP_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32);
+        boolean createValueFile = desfireEv3.createAValueFile(Constants.VALUE_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT,0,10000, 0,false);
+        boolean createLinearRecordFile = desfireEv3.createALinearRecordFile(Constants.LINEAR_RECORD_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
+        boolean createCyclicRecordFile = desfireEv3.createACyclicRecordFile(Constants.CYCLIC_RECORD_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
         Log.d(TAG, "createStandardFile result: " + createStandardFile);
         Log.d(TAG, "createBackupFile result: " + createBackupFile);
         Log.d(TAG, "createValueFile result: " + createValueFile);
@@ -238,11 +238,11 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
     private boolean createFileSetFull() {
         // create 5 files with communication settings Full
         Log.d(TAG, "createFileSetEncrypted"); // DesfireEv3.DesfireFileType.Standard, DesfireEv3.DesfireFileType.Backup, DesfireEv3.DesfireFileType.Value, DesfireEv3.DesfireFileType.LinearRecord, DesfireEv3.DesfireFileType.CyclicRecord
-        boolean createStandardFile = desfireEv3.createStandardFile(Constants.STANDARD_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
-        boolean createBackupFile = desfireEv3.createBackupFile(Constants.BACKUP_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32);
-        boolean createValueFile = desfireEv3.createValueFile(Constants.VALUE_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT,0,10000, 0,false);
-        boolean createLinearRecordFile = desfireEv3.createLinearRecordFile(Constants.LINEAR_RECORD_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
-        boolean createCyclicRecordFile = desfireEv3.createCyclicRecordFile(Constants.CYCLIC_RECORD_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
+        boolean createStandardFile = desfireEv3.createAStandardFile(Constants.STANDARD_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
+        boolean createBackupFile = desfireEv3.createABackupFile(Constants.BACKUP_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32);
+        boolean createValueFile = desfireEv3.createAValueFile(Constants.VALUE_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT,0,10000, 0,false);
+        boolean createLinearRecordFile = desfireEv3.createALinearRecordFile(Constants.LINEAR_RECORD_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
+        boolean createCyclicRecordFile = desfireEv3.createACyclicRecordFile(Constants.CYCLIC_RECORD_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
         Log.d(TAG, "createStandardFile result: " + createStandardFile);
         Log.d(TAG, "createBackupFile result: " + createBackupFile);
         Log.d(TAG, "createValueFile result: " + createValueFile);

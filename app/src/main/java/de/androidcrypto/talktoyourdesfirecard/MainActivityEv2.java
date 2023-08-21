@@ -1792,7 +1792,7 @@ public class MainActivityEv2 extends AppCompatActivity implements NfcAdapter.Rea
                 writeToUiAppend(output, logString + " with id: " + fileIdByte + " size: " + fileSizeInt);
                 byte[] responseData = new byte[2];
                 // create a Standard file with Plain communication
-                boolean success = desfireEv3.createStandardFile(fileIdByte, DesfireEv3.CommunicationSettings.Plain, DesfireEv3.ACCESS_RIGHTS_DEFAULT, fileSizeInt, false);
+                boolean success = desfireEv3.createAStandardFile(fileIdByte, DesfireEv3.CommunicationSettings.Plain, DesfireEv3.ACCESS_RIGHTS_DEFAULT, fileSizeInt, false);
                 responseData = desfireEv3.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
@@ -1935,7 +1935,7 @@ public class MainActivityEv2 extends AppCompatActivity implements NfcAdapter.Rea
                 writeToUiAppend(output, logString + " with id: " + fileIdByte + " size: " + fileSizeInt);
                 byte[] responseData = new byte[2];
                 // create a Standard file with Full enciphered communication
-                boolean success = desfireEv3.createStandardFile(fileIdByte, DesfireEv3.CommunicationSettings.Full, DesfireEv3.ACCESS_RIGHTS_DEFAULT, fileSizeInt, false);
+                boolean success = desfireEv3.createAStandardFile(fileIdByte, DesfireEv3.CommunicationSettings.Full, DesfireEv3.ACCESS_RIGHTS_DEFAULT, fileSizeInt, false);
                 responseData = desfireEv3.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");

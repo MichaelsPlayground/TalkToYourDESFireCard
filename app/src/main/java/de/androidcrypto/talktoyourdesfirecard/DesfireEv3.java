@@ -3,6 +3,7 @@ package de.androidcrypto.talktoyourdesfirecard;
 import static de.androidcrypto.talktoyourdesfirecard.DesfireAuthenticateEv2.intTo2ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.byteArrayLength4InversedToInt;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
+import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo3ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo4ByteArrayInversed;
 
 import android.nfc.NdefMessage;
@@ -10,7 +11,6 @@ import android.nfc.NdefRecord;
 import android.nfc.TagLostException;
 import android.nfc.tech.IsoDep;
 import android.util.Log;
-import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
@@ -23,7 +23,6 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -94,7 +93,7 @@ public class DesfireEv3 {
     private static final String TAG = DesfireEv3.class.getName();
 
 
-    private IsoDep isoDep;
+    private final IsoDep isoDep;
     private String logData;
     private boolean authenticateEv2FirstSuccess = false;
     private boolean authenticateEv2NonFirstSuccess = false;
@@ -517,8 +516,8 @@ public class DesfireEv3 {
      * Note: check errorCode and errorCodeReason in case of failure
      */
 
-    public boolean createStandardFileOld(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize, boolean preEnableSdm) {
-        final String methodName = "createStandardFile";
+    public boolean createAStandardFileOld(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize, boolean preEnableSdm) {
+        final String methodName = "createAStandardFile";
         logData = "";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
@@ -594,8 +593,8 @@ public class DesfireEv3 {
      * Note: check errorCode and errorCodeReason in case of failure
      */
 
-    public boolean createStandardFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize, boolean preEnableSdm) {
-        return createDataFile(fileNumber, communicationSettings, accessRights, true, fileSize, preEnableSdm);
+    public boolean createAStandardFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize, boolean preEnableSdm) {
+        return createADataFile(fileNumber, communicationSettings, accessRights, true, fileSize, preEnableSdm);
     }
 
     /**
@@ -608,8 +607,8 @@ public class DesfireEv3 {
      * Note: check errorCode and errorCodeReason in case of failure
      */
 
-    public boolean createBackupFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize) {
-        return createDataFile(fileNumber, communicationSettings, accessRights, false, fileSize, false);
+    public boolean createABackupFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize) {
+        return createADataFile(fileNumber, communicationSettings, accessRights, false, fileSize, false);
     }
 
     /**
@@ -624,8 +623,8 @@ public class DesfireEv3 {
      * Note: check errorCode and errorCodeReason in case of failure
      */
 
-    public boolean createStandardFileIso(byte fileNumber, byte[] isoFileId, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize, boolean preEnableSdm) {
-        final String methodName = "createStandardFileIso";
+    public boolean createAStandardFileIso(byte fileNumber, byte[] isoFileId, CommunicationSettings communicationSettings, byte[] accessRights, int fileSize, boolean preEnableSdm) {
+        final String methodName = "createAStandardFileIso";
         logData = "";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
@@ -706,8 +705,8 @@ public class DesfireEv3 {
      * Note: check errorCode and errorCodeReason in case of failure
      */
 
-    private boolean createDataFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, boolean isStandardFile, int fileSize, boolean preEnableSdm) {
-        final String methodName = "createDataFile";
+    private boolean createADataFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, boolean isStandardFile, int fileSize, boolean preEnableSdm) {
+        final String methodName = "createADataFile";
         logData = "";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
@@ -772,12 +771,13 @@ public class DesfireEv3 {
             return true;
         } else {
             log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            errorCodeReason = "FAILURE";
             return false;
         }
     }
 
-    public boolean createValueFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int minimumValue, int maximumValue, int initialValue, boolean limitedCreditOperation) {
-        final String methodName = "createValueFile";
+    public boolean createAValueFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int minimumValue, int maximumValue, int initialValue, boolean limitedCreditOperation) {
+        final String methodName = "createAValueFile";
         logData = "";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
@@ -861,6 +861,101 @@ public class DesfireEv3 {
             return true;
         } else {
             log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            errorCodeReason = "FAILURE";
+            return false;
+        }
+    }
+
+    public boolean createALinearRecordFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int recordSize, int maximumNumberOfRecords) {
+        final String methodName = "createALinearRecordFile";
+        logData = "";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "communicationSettings: " + communicationSettings.toString());
+        log(methodName, printData("accessRights", accessRights));
+        log(methodName, "recordSize: " + recordSize);
+        log(methodName, "maximumNumberOfRecords: " + maximumNumberOfRecords);
+        return createARecordFile(fileNumber, communicationSettings, accessRights, recordSize, maximumNumberOfRecords, true);
+    }
+    public boolean createACyclicRecordFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int recordSize, int maximumNumberOfRecords) {
+        final String methodName = "createACyclicRecordFile";
+        logData = "";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "communicationSettings: " + communicationSettings.toString());
+        log(methodName, printData("accessRights", accessRights));
+        log(methodName, "recordSize: " + recordSize);
+        log(methodName, "maximumNumberOfRecords: " + maximumNumberOfRecords);
+        return createARecordFile(fileNumber, communicationSettings, accessRights, recordSize, maximumNumberOfRecords, false);
+    }
+
+    private boolean createARecordFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int recordSize, int maximumNumberOfRecords, boolean isLinearRecordFile) {
+        final String methodName = "createARecordFile";
+        logData = "";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "communicationSettings: " + communicationSettings.toString());
+        log(methodName, printData("accessRights", accessRights));
+        log(methodName, "recordSize: " + recordSize);
+        log(methodName, "maximumNumberOfRecords: " + maximumNumberOfRecords);
+        log(methodName, "isLinearRecordFile: " + isLinearRecordFile);
+
+        errorCode = new byte[2];
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false;
+        if (!checkAccessRights(accessRights)) return false;
+        if (recordSize < 1) {
+            log(methodName, "recordSize is < 1, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "recordSize is < 1";
+            return false;
+        }
+        if (maximumNumberOfRecords < 1) {
+            log(methodName, "maximumNumberOfRecords is < 1, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "maximumNumberOfRecords is < 1";
+            return false;
+        }
+        if (!checkIsoDep()) return false;
+        byte commSettings = (byte) 0;
+        if (communicationSettings == CommunicationSettings.Plain) commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        if (communicationSettings == CommunicationSettings.MACed) commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
+        if (communicationSettings == CommunicationSettings.Full) commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
+
+        // build the command string
+        byte[] recordSizeBytes = intTo3ByteArrayInversed(recordSize);
+        byte[] maximumNumberOfRecordsBytes = intTo3ByteArrayInversed(maximumNumberOfRecords);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(commSettings);
+        baos.write(accessRights, 0, accessRights.length);
+        baos.write(recordSizeBytes, 0, recordSizeBytes.length);
+        baos.write(maximumNumberOfRecordsBytes, 0, maximumNumberOfRecordsBytes.length);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+        try {
+            if (isLinearRecordFile) {
+                apdu = wrapMessage(CREATE_LINEAR_RECORD_FILE_COMMAND, commandParameter);
+            } else {
+                apdu = wrapMessage(CREATE_CYCLIC_RECORD_FILE_COMMAND, commandParameter);
+            }
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            log(methodName, "SUCCESS");
+            return true;
+        } else {
+            log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            errorCodeReason = "FAILURE";
             return false;
         }
     }
@@ -869,16 +964,11 @@ public class DesfireEv3 {
      * stubs
      */
 
-    // todo create file stubs
 
 
 
-    public boolean createLinearRecordFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int recordSize, int maximumNumberOfRecords) {
-        return false;
-    }
-    public boolean createCyclicRecordFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int recordSize, int maximumNumberOfRecords) {
-        return false;
-    }
+
+
 
     /**
      * writes the NDEF container to a Standard file in the selected application. It uses the pre-defined
@@ -2834,6 +2924,489 @@ public class DesfireEv3 {
             return false;
         }
     }
+
+    /**
+     * section for record files
+     */
+
+    /**
+     * The method writes a byte array to a Linear or Cyclic Record file. The communication mode is read out from
+     * 'getFileSettings command'. If the comm mode is 'Plain' it runs the Plain path, otherwise it
+     * uses the 'Full' path. If the comm mode is 'MACed' the method ends a there is no method available
+     * within this class to handle those files, sorry.
+     * The data is written to the offset position of the file
+     * If the data length exceeds the MAXIMUM_WRITE_MESSAGE_LENGTH the data will be written in chunks.
+     * If the data length exceeds MAXIMUM_FILE_LENGTH the methods returns a FAILURE
+     * If the data length exceeds record size the data is truncated
+     * @param fileNumber | in range 0..31 AND file is a Linear or Cyclic Record file
+     * @param offset     | position to write the data, starting with 0
+     * @param data
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+    public boolean writeToARecordFile (byte fileNumber, int offset, byte[] data) {
+        String logData = "";
+        final String methodName = "writeToARecordFile";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "offset: " + offset);
+        log(methodName, printData("data", data));
+        if (!checkFileNumber(fileNumber)) return false;
+        if (!checkOffsetMinus(offset)) return false;
+        if ((data == null) || (data.length < 1) || (data.length > MAXIMUM_FILE_SIZE)) {
+            log(methodName, "data length not in range 1..MAXIMUM_FILE_SIZE, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "data length not in range 1..MAXIMUM_FILE_SIZE";
+            return false;
+        }
+        if (!checkIsoDep()) return false;
+        if (!checkFileNumberExisting(fileNumber)) return false;
+        // checking fileSettings for Communication.mode
+        boolean isPlainMode = false;
+        boolean isMacedMode = false;
+        FileSettings fileSettings;
+        try {
+            fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        } catch (NullPointerException e) {
+            Log.e(TAG, methodName + " could not read fileSettings, aborted");
+            log(methodName, "could not read fileSettings, aborted");
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "could not read fileSettings, aborted";
+            return false;
+        }
+        if ((fileSettings.getFileType() == FileSettings.LINEAR_RECORD_FILE_TYPE) ||
+                (fileSettings.getFileType() == FileSettings.CYCLIC_RECORD_FILE_TYPE)) {
+            log(methodName, "fileNumber to read is a " + fileSettings.getFileTypeName() + ", proceed");
+        } else {
+            log(methodName, "fileNumber to read is a " + fileSettings.getFileTypeName() + ", aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "fileType is not Linear or Cyclic Record file";
+            return false;
+        }
+        if (fileSettings.getCommunicationSettings() == FILE_COMMUNICATION_SETTINGS_MACED) {
+            isMacedMode = true;
+            Log.e(TAG, methodName + " CommunicationMode MACed is not supported, aborted");
+            log(methodName, "CommunicationMode MACed is not supported, aborted");
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "CommunicationMode MACed is not supported, aborted";
+            return false;
+        }
+        if (fileSettings.getCommunicationSettings() == FILE_COMMUNICATION_SETTINGS_PLAIN) {
+            isPlainMode = true;
+            log(methodName, "CommunicationMode is Plain");
+        } else {
+            log(methodName, "CommunicationMode is Full enciphered");
+        }
+        // handling the situation where offset + data length > fileSize
+        // priority is the offset, so data that is larger than remaining fileSize is truncated
+        int dataLength = data.length;
+        int fileSizeInt = fileSettings.getRecordSizeInt();
+        if ((offset + dataLength) > fileSizeInt) {
+            data = Arrays.copyOf(data, (fileSizeInt - offset));
+            dataLength = data.length;
+            Log.d(TAG, "data is truncated due to offset and fileSize");
+            Log.d(TAG, printData("new data", data));
+        }
+        boolean isLinearRecordFile = false;
+        if (fileSettings.getFileType() == FileSettings.LINEAR_RECORD_FILE_TYPE) isLinearRecordFile = true;
+
+        // The chunking is done to avoid framing as the maximum command APDU length is limited to 66
+        // bytes including all overhead and attached MAC
+
+        int numberOfWrites = dataLength / MAXIMUM_WRITE_MESSAGE_LENGTH;
+        int numberOfWritesMod = Utils.mod(dataLength, MAXIMUM_WRITE_MESSAGE_LENGTH);
+        if (numberOfWritesMod > 0) numberOfWrites++; // one extra write for the remainder
+        Log.d(TAG, "data length: " + dataLength + " numberOfWrites: " + numberOfWrites);
+        boolean completeSuccess = true;
+        int numberOfDataToWrite = MAXIMUM_WRITE_MESSAGE_LENGTH; // we are starting with a maximum length
+        int offsetChunk = 0;
+        for (int i = 0; i < numberOfWrites; i++) {
+            if (offsetChunk + numberOfDataToWrite > dataLength) {
+                numberOfDataToWrite = dataLength - offsetChunk;
+            }
+            byte[] dataToWrite = Arrays.copyOfRange(data, offsetChunk, (offsetChunk + numberOfDataToWrite));
+            boolean success;
+            if (isPlainMode) {
+                success = writeToARecordFileRawPlain(fileNumber, offset, dataToWrite);
+            } else {
+                success = writeToARecordFileRawFull(fileNumber, offset, dataToWrite);
+            }
+            offsetChunk = offsetChunk + numberOfDataToWrite;
+            offset = offset + numberOfDataToWrite;
+            if (!success) {
+                completeSuccess = false;
+                Log.e(TAG, methodName + " could not successfully write, aborted");
+                log(methodName, "could not successfully write, aborted");
+                //errorCode = RESPONSE_FAILURE.clone(); // errorCode was written by the write method
+                errorCodeReason = "could not successfully write";
+                return false;
+            }
+        }
+        System.arraycopy(RESPONSE_OK, 0, errorCode, 0, 2);
+        log(methodName, "SUCCESS");
+        return true;
+    }
+
+    public boolean writeToARecordFileRawPlain(byte fileNumber, int offset, byte[] data) {
+        return false;
+    }
+
+    public boolean writeToARecordFileRawFull(byte fileNumber, int offset, byte[] data) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 61 - 65
+        // Cmd.WriteRecord in AES Secure Messaging using CommMode.Full
+        // this is based on the write to a data file on a DESFire Light card
+
+        // status
+        // todo add padding
+        // if data length is a multiple of AES block length (16 bytes) we need to add a complete
+        // block of padding data, beginning with 0x80 00 00...
+
+        /**
+         * Mifare DESFire Light Features and Hints AN12343.pdf page 30
+         * 7.1.2 Encryption and Decryption
+         * Encryption and decryption are done using the underlying block cipher (in this case
+         * the AES block cipher) according to the CBC mode of the NIST Special Publication
+         * 800-38A, see [6]. Padding is done according to Padding Method 2 (0x80 followed by zero
+         * bytes) of ISO/IEC 9797-1. Note that if the original data is already a multiple of 16 bytes,
+         * another additional padding block (16 bytes) is added. The only exception is during the
+         * authentication itself, where no padding is applied at all.
+         */
+
+        String logData = "";
+        final String methodName = "writeRecordFileEv2";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, printData("dataToWrite", data));
+        // sanity checks
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        // todo other sanity checks on values
+
+        // todo read the file settings to get e.g. the recordSize and communication mode
+        // NOTE we need to receive PRE PADDED DATA, not the full 32 data bytes for a record
+        // in the MainActivity we padded the data (length 30 bytes) with 0x80 0x00
+        int DATA_SIZE_FIXED = 30;
+
+
+        //int dataLength = 25;
+
+        // Encrypting the Command Data
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        // IV_Input
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(IV_LABEL_ENC, 0, IV_LABEL_ENC.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        // create an empty array and copy the dataToWrite to clear the complete standard file
+        // this is done to avoid the padding
+        // todo work on this, this is rough coded
+        //byte[] fullDataToWrite = new byte[FILE_SIZE_FIXED];
+        //System.arraycopy(dataToWrite, 0, fullDataToWrite, 0, dataToWrite.length);
+
+        // here we are splitting up the data into 2 data blocks
+        byte[] dataBlock1 = Arrays.copyOfRange(data, 0, 16);
+        byte[] dataBlock2 = Arrays.copyOfRange(data, 16, 32);
+        log(methodName, printData("dataToWrite", data));
+        log(methodName, printData("dataBlock1 ", dataBlock1));
+        log(methodName, printData("dataBlock2 ", dataBlock2));
+
+        // Encrypted Data Block 1 = E(KSesAuthENC, Data Input)
+        byte[] dataBlock1Encrypted = AES.encrypt(ivForCmdData, SesAuthENCKey, dataBlock1);
+        byte[] iv2 = dataBlock1Encrypted.clone();
+        log(methodName, printData("iv2", iv2));
+        byte[] dataBlock2Encrypted = AES.encrypt(iv2, SesAuthENCKey, dataBlock2); // todo is this correct ? or startingIv ?
+
+        //byte[] dataBlock2Encrypted = AES.encrypt(startingIv, SesAuthENCKey, dataBlock2); // todo is this correct ? or startingIv ?
+        log(methodName, printData("startingIv", startingIv));
+        log(methodName, printData("dataBlock1Encrypted", dataBlock1Encrypted));
+        log(methodName, printData("dataBlock2Encrypted", dataBlock2Encrypted));
+
+        // Encrypted Data (complete), concatenate 2 byte arrays
+        byte[] encryptedData = concatenate(dataBlock1Encrypted, dataBlock2Encrypted);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // Generating the MAC for the Command APDU
+        // CmdHeader (FileNo || Offset || DataLength)
+        int dataSizeInt = DATA_SIZE_FIXED;
+        //int offsetBytes = 0; // read from the beginning
+        byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset); // LSB order
+        byte[] dataSizeBytes = Utils.intTo3ByteArrayInversed(dataSizeInt); // LSB order
+        log(methodName, printData("dataSizeBytes", dataSizeBytes));
+        ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
+        baosCmdHeader.write(fileNumber);
+        baosCmdHeader.write(offsetBytes, 0, offsetBytes.length);
+        baosCmdHeader.write(dataSizeBytes, 0, dataSizeBytes.length);
+        byte[] cmdHeader = baosCmdHeader.toByteArray();
+        log(methodName, printData("cmdHeader", cmdHeader));
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted CmdData )
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(WRITE_RECORD_FILE_SECURE_COMMAND); // 0x8B
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Data (CmdHeader || Encrypted Data || MAC)
+        ByteArrayOutputStream baosWriteRecordCommand = new ByteArrayOutputStream();
+        baosWriteRecordCommand.write(cmdHeader, 0, cmdHeader.length);
+        baosWriteRecordCommand.write(encryptedData, 0, encryptedData.length);
+        baosWriteRecordCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] writeRecordCommand = baosWriteRecordCommand.toByteArray();
+        log(methodName, printData("writeRecordCommand", writeRecordCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(WRITE_RECORD_FILE_SECURE_COMMAND, writeRecordCommand);
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+
+        // verifying the received Response MAC
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        byte[] macInput2 = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput2", macInput2));
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return true;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return false;
+        }
+    }
+
+    public byte[] readFromARecordFileRawFull(byte fileNumber) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 65 - 67
+        // Cmd.ReadRecords in AES Secure Messaging using CommMode.Full
+        // this is based on the read of a record file on a DESFire Light card
+
+        // status WORKING but does not remove any padding from the data
+        // todo read file settings to get recordSize, actualRecords etc
+
+        // at the moment it is using a pre created Cyclic Record File with 5 records and
+        // 5 application keys (AES) in full enciphered communication mode
+        // reason: no examples for creating a record file in Features and Hints
+
+        String logData = "";
+        final String methodName = "readRecordFileEv2";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        // sanity checks
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+            return null;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+
+        // todo other sanity checks on values
+
+        // todo read the file settings to get e.g. the recordSize, actual records and communication mode
+
+        int FILE_SIZE_FIXED = 32;
+        // Generating the MAC for the Command APDU
+
+        // CmdHeader (FileNo || RecordNo || RecordCount)
+        // setting recordNo and recordCount to 0 to read all records
+        int recordNoInt = 0;
+        int recordCountInt = 0;
+        byte[] recordNo = Utils.intTo3ByteArrayInversed(recordNoInt); // LSB order
+        byte[] recordCount = Utils.intTo3ByteArrayInversed(recordCountInt); // LSB order
+
+        ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
+        baosCmdHeader.write(fileNumber);
+        baosCmdHeader.write(recordNo, 0, recordNo.length);
+        baosCmdHeader.write(recordCount, 0, recordCount.length);
+        byte[] cmdHeader = baosCmdHeader.toByteArray();
+        log(methodName, printData("cmdHeader", cmdHeader));
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader )
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(READ_RECORD_FILE_SECURE_COMMAND); // 0xAB
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Constructing the full ReadRecords Command APDU
+        // todo is this correct, NO encryption ??
+        // Data (CmdHeader || MAC)
+
+        // Constructing the full ReadData Command APDU
+        ByteArrayOutputStream baosReadRecordCommand = new ByteArrayOutputStream();
+        baosReadRecordCommand.write(cmdHeader, 0, cmdHeader.length);
+        baosReadRecordCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] readDataCommand = baosReadRecordCommand.toByteArray();
+        log(methodName, printData("readRecordCommand", readDataCommand));
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] fullEncryptedData;
+        byte[] encryptedData;
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(READ_RECORD_FILE_SECURE_COMMAND, readDataCommand);
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+            fullEncryptedData = Arrays.copyOf(response, response.length - 2);
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return null;
+        }
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        // response length: 58 data: 8b61541d54f73901c8498c71dd45bae80578c4b1581aad439a806f37517c86ad4df8970279bbb8874ef279149aaa264c3e5eceb0e37a87699100
+
+        // the fullEncryptedData is 56 bytes long, the first 48 bytes are encryptedData and the last 8 bytes are the responseMAC
+        int encryptedDataLength = fullEncryptedData.length - 8;
+        log(methodName, "The fullEncryptedData is of length " + fullEncryptedData.length + " that includedes 8 bytes for MAC");
+        log(methodName, "The encryptedData length is " + encryptedDataLength);
+        encryptedData = Arrays.copyOfRange(fullEncryptedData, 0, encryptedDataLength);
+        responseMACTruncatedReceived = Arrays.copyOfRange(fullEncryptedData, encryptedDataLength, fullEncryptedData.length);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // start decrypting the data
+        byte[] header = new byte[]{(byte) (0x5A), (byte) (0xA5)}; // fixed to 0x5AA5
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+        byte[] padding = hexStringToByteArray("0000000000000000");
+        byte[] startingIv = new byte[16];
+        ByteArrayOutputStream decryptBaos = new ByteArrayOutputStream();
+        decryptBaos.write(header, 0, header.length);
+        decryptBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        decryptBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        decryptBaos.write(padding, 0, padding.length);
+        byte[] ivInputResponse = decryptBaos.toByteArray();
+        log(methodName, printData("ivInputResponse", ivInputResponse));
+        byte[] ivResponse = AES.encrypt(startingIv, SesAuthENCKey, ivInputResponse);
+        log(methodName, printData("ivResponse", ivResponse));
+        byte[] decryptedData = AES.decrypt(ivResponse, SesAuthENCKey, encryptedData);
+        log(methodName, printData("decryptedData", decryptedData)); // should be the cardUID || 9 zero bytes
+        byte[] readData = decryptedData.clone();
+        //byte[] readData = Arrays.copyOfRange(decryptedData, 0, fileSize); // todo work on this
+        log(methodName, printData("readData", readData));
+
+        // verifying the received MAC
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write((byte) 0x00); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        responseMacBaos.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput2 = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput", macInput2));
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+            return readData;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return null;
+        }
+    }
+
 
 
     /**
@@ -5503,6 +6076,10 @@ fileSize: 128
 
     public byte[] getTransactionIdentifier() {
         return TransactionIdentifier;
+    }
+
+    public byte getKeyNumberUsedForLegacyAuthentication() {
+        return keyNumberUsedForLegacyAuthentication;
     }
 
     public static byte[] getApplicationAllFileIds() {
