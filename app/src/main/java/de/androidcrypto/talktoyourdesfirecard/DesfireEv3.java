@@ -1144,7 +1144,11 @@ public class DesfireEv3 {
             if (isPlainMode) {
                 success = writeToADataFileRawPlain(fileNumber, offset, dataToWrite);
             } else {
-                success = writeToADataFileRawFull(fileNumber, offset, dataToWrite);
+                if (isMacedMode) {
+                    success = writeToADataFileRawMac(fileNumber, offset, dataToWrite);
+                } else {
+                    success = writeToADataFileRawFull(fileNumber, offset, dataToWrite);
+                }
             }
             offsetChunk = offsetChunk + numberOfDataToWrite;
             offset = offset + numberOfDataToWrite;
@@ -1252,14 +1256,98 @@ public class DesfireEv3 {
         }
     }
 
-    private boolean writeToADataFileRawMac(byte fileNumber, int offset, byte[] data) {
+    public boolean writeToADataFileRawMac(byte fileNumber, int offset, byte[] data) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 53 - 54
+
+        // todo status working but CLEAN code and add sanity checks
+
         String logData = "";
         final String methodName = "writeToADataFileRawMac";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + Utils.printData(" data", data) );
 
-        return false;
+        // Generating the MAC for the Command APDU
+        // CmdHeader (FileNo || Offset || DataLength) Note: DataLength and NOT Data, e.g. 190000 for length = 25
+        byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset); // LSB order
+        byte[] lengthBytes = Utils.intTo3ByteArrayInversed(data.length); // LSB order
+        log(methodName, printData("offset", offsetBytes));
+        log(methodName, printData("length", lengthBytes));
+        ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
+        baosCmdHeader.write(fileNumber);
+        baosCmdHeader.write(offsetBytes, 0, offsetBytes.length);
+        baosCmdHeader.write(lengthBytes, 0, lengthBytes.length);
+        byte[] cmdHeader = baosCmdHeader.toByteArray();
+        log(methodName, printData("cmdHeader", cmdHeader));
+
+        // MAC_Input
+        //(Ins || CmdCounter || TI || CmdHeader || CmdData )
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(WRITE_DATA_FILE_SECURE_COMMAND); // 0x8D
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
+        baosMacInput.write(data, 0, data.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // MAC = CMAC(KSesAuthMAC, MAC_ Input)
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Constructing the full WriteData Command APDU
+        // Data (FileNo || Offset || DataLenght || Data)
+        ByteArrayOutputStream baosWriteDataCommand = new ByteArrayOutputStream();
+        baosWriteDataCommand.write(cmdHeader, 0, cmdHeader.length);
+        baosWriteDataCommand.write(data, 0, data.length);
+        baosWriteDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] writeDataCommand = baosWriteDataCommand.toByteArray();
+        log(methodName, printData("writeDataCommand", writeDataCommand));
+
+        byte[] response;
+        byte[] apdu;
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(WRITE_DATA_FILE_SECURE_COMMAND, writeDataCommand);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        //byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        if (verifyResponseMac(responseMACTruncatedReceived, null)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return true;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return false;
+        }
     }
 
     private boolean writeToADataFileRawFull(byte fileNumber, int offset, byte[] data) {
@@ -1738,7 +1826,7 @@ public class DesfireEv3 {
         } else {
             if (!checkAuthentication()) return null;
         }
-        if (!checkCommunicationModeMaced()) return null;
+        // todo if (!checkCommunicationModeMaced()) return null;
         if (!checkIsoDep()) return null; // logFile and errorCode are updated
 
         boolean isPlainMode = false;
@@ -2283,12 +2371,105 @@ public class DesfireEv3 {
 
     public byte[] readFromADataFileRawMac(byte fileNumber, int offset, int length){
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 54 -55
+
+        // todo status: working but code clean and integration in readFromADataFile
+
         String logData = "";
         final String methodName = "readFromADataFileRawMac";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + " size: " + length);
 
-        return null;
+        // Generating the MAC for the Command APDU
+        // CmdHeader (FileNo || Offset || DataLength)
+        byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset); // LSB order
+        byte[] lengthBytes = Utils.intTo3ByteArrayInversed(length); // LSB order
+        ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
+        baosCmdHeader.write(fileNumber);
+        baosCmdHeader.write(offsetBytes, 0, offsetBytes.length);
+        baosCmdHeader.write(lengthBytes, 0, lengthBytes.length);
+        byte[] cmdHeader = baosCmdHeader.toByteArray();
+        log(methodName, printData("cmdHeader", cmdHeader));
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader || CmdData )
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(READ_DATA_FILE_SECURE_COMMAND); // 0xAD
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // MAC = CMAC(KSesAuthMAC, MAC_ Input)
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Constructing the full ReadData Command APDU
+        // Data (FileNo || Offset || DataLength)
+        ByteArrayOutputStream baosReadDataCommand = new ByteArrayOutputStream();
+        baosReadDataCommand.write(cmdHeader, 0, cmdHeader.length);
+        baosReadDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] readDataCommand = baosReadDataCommand.toByteArray();
+        log(methodName, printData("readDataCommand", readDataCommand));
+
+        byte[] response;
+        byte[] apdu;
+        byte[] fullMacedData;
+        byte[] macedData;
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(READ_STANDARD_FILE_SECURE_COMMAND, readDataCommand);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return null;
+        }
+
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+            fullMacedData = Arrays.copyOf(response, response.length - 2);
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return null;
+        }
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
+        int macedDataLength = fullMacedData.length - 8;
+        log(methodName, "The fullMacedData is of length " + fullMacedData.length + " that includes 8 bytes for MAC");
+        log(methodName, "The macedData length is " + macedDataLength);
+        macedData = Arrays.copyOfRange(fullMacedData, 0, macedDataLength);
+        responseMACTruncatedReceived = Arrays.copyOfRange(fullMacedData, macedDataLength, fullMacedData.length);
+        log(methodName, printData("macedData", macedData));
+        byte[] readData = Arrays.copyOfRange(macedData, 0, length);
+        log(methodName, printData("readData", readData));
+        if (verifyResponseMac(responseMACTruncatedReceived, macedData)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return readData;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return null;
+        }
+
+
+
     }
 
 

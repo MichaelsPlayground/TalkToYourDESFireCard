@@ -824,6 +824,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte fileIdByte = Byte.parseByte(selectedFileId);
                 int fileSizeInt = selectedFileSettings.getFileSizeInt();
 
+                // todo
+                fileSizeInt = 32;
+
                 // pre-check if fileNumber is existing
                 boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
                 if (!isFileExisting) {
@@ -833,7 +836,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
 
                 byte[] responseData = new byte[2];
-                byte[] result = desfireEv3.readFromADataFile(fileIdByte, 0, fileSizeInt);
+                // todo byte[] result = desfireEv3.readFromADataFile(fileIdByte, 0, fileSizeInt);
+                byte[] result = desfireEv3.readFromADataFileRawMac(fileIdByte, 0, fileSizeInt);
                 responseData = desfireEv3.getErrorCode();
                 if (result == null) {
                     // something gone wrong
@@ -873,6 +877,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte fileIdByte = Byte.parseByte(selectedFileId);
                 int fileSizeInt = selectedFileSettings.getFileSizeInt();
 
+                // todo change as test
+                fileSizeInt = 32;
+
                 // pre-check if fileNumber is existing
                 boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
                 if (!isFileExisting) {
@@ -896,7 +903,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
 
                 byte[] responseData = new byte[2];
-                boolean success = desfireEv3.writeToADataFile(fileIdByte, 0, fullDataToWrite);
+                //boolean success = desfireEv3.writeToADataFile(fileIdByte, 0, fullDataToWrite);
+                boolean success = desfireEv3.writeToADataFileRawMac(fileIdByte, 0, fullDataToWrite);
                 responseData = desfireEv3.getErrorCode();
 
                 if (success) {
@@ -7250,7 +7258,7 @@ posMacInpOffset:  75
             // MACed
             Log.e(TAG, "The selected file has the Communication Mode MACed that is not supported");
             writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The selected file has the Communication Mode MACed that is not supported, sorry", COLOR_RED);
-            success = desfireEv3.authenticateAesLegacy(keyNumber, keyForAuthentication);
+            success = desfireEv3.authenticateAesEv2First(keyNumber, keyForAuthentication);
             //return false;
         }
         responseData = desfireEv3.getErrorCode();
