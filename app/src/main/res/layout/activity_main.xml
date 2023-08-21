@@ -190,7 +190,7 @@
                         android:id="@+id/btnSelectApplication"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginRight="8dp"
+                        android:layout_marginRight="2dp"
                         android:layout_weight="1"
                         android:backgroundTint="#F85252"
                         android:text="select app" />
@@ -199,18 +199,18 @@
                         android:id="@+id/btnSelectFile"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginLeft="8dp"
+                        android:layout_marginLeft="2dp"
                         android:layout_weight="1"
                         android:backgroundTint="#F85252"
                         android:text="select file" />
 
                     <Button
-                        android:id="@+id/btnYYCreateApplicationAes"
+                        android:id="@+id/btnGetFileSettings"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginLeft="8dp"
+                        android:layout_marginLeft="4dp"
                         android:layout_weight="1"
-                        android:text="yy" />
+                        android:text="settings" />
 
                 </LinearLayout>
 
@@ -823,12 +823,12 @@
                     android:orientation="horizontal">
 
                     <Button
-                        android:id="@+id/btnGetFileSettings"
+                        android:id="@+id/btnXGetFileSettings"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
-                        android:text="file settings" />
+                        android:text="XX" />
 
                     <Button
                         android:id="@+id/btnChangeFileSettings"

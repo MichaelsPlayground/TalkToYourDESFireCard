@@ -3,6 +3,7 @@ package de.androidcrypto.talktoyourdesfirecard;
 import static de.androidcrypto.talktoyourdesfirecard.DesfireAuthenticateEv2.intTo2ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.byteArrayLength4InversedToInt;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
+import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo4ByteArrayInversed;
 
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
@@ -164,10 +165,10 @@ public class DesfireEv3 {
     private final byte WRITE_DATA_FILE_SECURE_COMMAND = (byte) 0x8D;
     private final byte READ_DATA_FILE_SECURE_COMMAND = (byte) 0xAD;
     private final byte CREATE_VALUE_FILE_COMMAND = (byte) 0xCC;
-
     private final byte GET_VALUE_COMMAND = (byte) 0x6C;
-    private final byte CREDIT_VALUE_COMMAND = (byte) 0x0C;
-    private final byte DEBIT_VALUE_COMMAND = (byte) 0xDC;
+    private final byte CREDIT_VALUE_FILE_COMMAND = (byte) 0x0C;
+    private final byte DEBIT_VALUE_FILE_COMMAND = (byte) 0xDC;
+
     private final byte CREATE_LINEAR_RECORD_FILE_COMMAND = (byte) 0xC1;
     private final byte CREATE_CYCLIC_RECORD_FILE_COMMAND = (byte) 0xC0;
     private static final byte READ_RECORD_FILE_SECURE_COMMAND = (byte) 0xAB;
@@ -206,6 +207,7 @@ public class DesfireEv3 {
 
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
     private final byte[] RESPONSE_ISO_OK = new byte[]{(byte) 0x90, (byte) 0x00};
+    public static final byte[] RESPONSE_LENGTH_ERROR = new byte[]{(byte) 0x91, (byte) 0x7E};
     private final byte[] RESPONSE_PERMISSION_DENIED_ERROR = new byte[]{(byte) 0x91, (byte) 0x9D};
     public static final byte[] RESPONSE_DUPLICATE_ERROR = new byte[]{(byte) 0x91, (byte) 0xDE};
     public static final byte[] RESPONSE_ISO_DUPLICATE_ERROR = new byte[]{(byte) 0x90, (byte) 0xDE};
@@ -1636,18 +1638,10 @@ public class DesfireEv3 {
         } else {
             if (!checkAuthentication()) return null;
         }
+        if (!checkCommunicationModeMaced()) return null;
         if (!checkIsoDep()) return null; // logFile and errorCode are updated
-    
+
         boolean isPlainMode = false;
-        boolean isMacedMode = false;
-        if (fileSettings.getCommunicationSettings() == FILE_COMMUNICATION_SETTINGS_MACED) {
-            isMacedMode = true;
-            Log.e(TAG, methodName + " CommunicationMode MACed is not supported, aborted");
-            log(methodName, "CommunicationMode MACed is not supported, aborted");
-            errorCode = RESPONSE_FAILURE.clone();
-            errorCodeReason = "CommunicationMode MACed is not supported, aborted";
-            return null;
-        }
         if (fileSettings.getCommunicationSettings() == FILE_COMMUNICATION_SETTINGS_PLAIN) {
             isPlainMode = true;
             log(methodName, "CommunicationMode is Plain");
@@ -2366,7 +2360,7 @@ public class DesfireEv3 {
      * section for Value files
      */
 
-    // todo readFromAValueFile RawPlain and RawFull
+
 
     public int readFromAValueFile(byte fileNumber) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 67 - 70
@@ -2374,10 +2368,8 @@ public class DesfireEv3 {
         // this is based on the get value on a value file on a DESFire Light card
         String logData = "";
         final String methodName = "readFromAValueFile";
-        log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
         log(methodName, "started", true);
-        log(methodName, "fileNumber: " + fileNumber);
         // sanity checks
         if (!checkFileNumber(fileNumber)) return -1;
 
@@ -2395,13 +2387,16 @@ public class DesfireEv3 {
         if (fileSettings.getFileType() != FileSettings.VALUE_FILE_TYPE) {
             log(methodName, "fileType to read is a " + fileSettings.getFileTypeName() + ", aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
-            errorCodeReason = "fileType is not Standard or Backup file";
+            errorCodeReason = "fileType is not Value file";
             return -1;
         }
+        if (!checkCommunicationModeMaced()) return -1;
         // the check on authentication depends on the communication mode in file settings:
         byte commMode = fileSettings.getCommunicationSettings();
+        boolean isPlainCommunicationMode = false;
         if (commMode == (byte) 0x00) {
-            // Plain
+            // Plain or MACed
+            isPlainCommunicationMode = true;
             if (!authenticateAesLegacySuccess) {
                 log(methodName, "missing legacy authentication, aborted");
                 errorCode = RESPONSE_FAILURE_MISSING_AUTHENTICATION.clone();
@@ -2411,6 +2406,69 @@ public class DesfireEv3 {
         } else {
             if (!checkAuthentication()) return -1;
         }
+        if (!checkIsoDep()) return -1;
+
+        if (isPlainCommunicationMode) {
+            return readFromAValueFileRawPlain(fileNumber);
+        } else {
+            return readFromAValueFileRawFull(fileNumber);
+        }
+    }
+
+    /**
+     * read the value of a Value file in Communication mode Plain
+     * Note: There are no sanity checks on parameter, Communication mode or authentication status
+     * so this method should be called by 'readFromAValueFile' only.
+     * @param fileNumber | in range 0..31
+     * @return the integer value or -1 on failure
+     */
+    private int readFromAValueFileRawPlain(byte fileNumber) {
+        String logData = "";
+        final String methodName = "readFromAValueFileRawPlain";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "started", true);
+        if (!checkIsoDep()) return -1;
+
+        byte[] apdu;
+        byte[] response;
+        try {
+            apdu = wrapMessage(GET_VALUE_COMMAND, new byte[]{fileNumber});
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return -1;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            errorCodeReason = "SUCCESS";
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            errorCodeReason = "FAILURE";
+            return -1;
+        }
+        byte[] valueBytes = getData(response);
+        return Utils.byteArrayLength4InversedToInt(valueBytes);
+    }
+
+    /**
+     * read the value of a Value file in Communication mode Full
+     * Note: There are no sanity checks on parameter, Communication mode or authentication status
+     * so this method should be called by 'readFromAValueFile' only.
+     * @param fileNumber | in range 0..31
+     * @return the integer value or -1 on failure
+     */
+    private int readFromAValueFileRawFull(byte fileNumber) {
+        String logData = "";
+        final String methodName = "readFromAValueFileRawFull";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
         if (!checkIsoDep()) return -1;
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader ( = File number) )
@@ -2469,6 +2527,7 @@ public class DesfireEv3 {
         // note: after sending data to the card the commandCounter is increased by 1
         CmdCounter++;
         log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
         byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
 
         // the fullEncryptedData is xx bytes long, the first xx bytes are encryptedData and the last 8 bytes are the responseMAC
@@ -2510,34 +2569,272 @@ public class DesfireEv3 {
             errorCodeReason = methodName + " FAILURE";
             return -1;
         }
+    }
 
-        /*
-        // MAC_Input (RC || CmdCounter || TI || Encrypted Response Data)
-        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
-        responseMacBaos.write((byte) 0x00); // response code 00 means success
-        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
-        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        responseMacBaos.write(encryptedData, 0, encryptedData.length);
-        byte[] macInput2 = responseMacBaos.toByteArray();
-        log(methodName, printData("macInput2", macInput2));
-        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
-        log(methodName, printData("responseMACCalculated", responseMACCalculated));
-        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
-        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
-        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
-        // compare the responseMAC's
-        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
-            Log.d(TAG, "responseMAC SUCCESS");
-            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
-            return byteArrayLength4InversedToInt(decryptedData);
+    /**
+     * credits or debits the value of a Value file in Communication modes Plain or Full enciphered
+     * @param fileNumber   | in range 0..31
+     * @param changeValue  | minimum 1, maximum depending on fileSettings
+     * @param isCredit     | true for crediting, fals for debiting
+     * @return             | true on success
+     *
+     */
+
+    public boolean changeAValueFile(byte fileNumber, int changeValue, boolean isCredit) {
+        String logData = "";
+        final String methodName = "changeAValueFile";
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "started", true);
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false;
+        if (!checkValueMinus(changeValue)) return false;
+        // getFileSettings for file type communication mode and length information
+        FileSettings fileSettings;
+        try {
+            fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        } catch (NullPointerException e) {
+            Log.e(TAG, methodName + " could not read fileSettings, aborted");
+            log(methodName, "could not read fileSettings, aborted");
+            errorCode = RESPONSE_FAILURE_MISSING_GET_FILE_SETTINGS.clone();
+            errorCodeReason = "could not read fileSettings, aborted";
+            return false;
+        }
+        if (fileSettings.getFileType() != FileSettings.VALUE_FILE_TYPE) {
+            log(methodName, "fileType to read is a " + fileSettings.getFileTypeName() + ", aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "fileType is not Value file";
+            return false;
+        }
+        if (!checkCommunicationModeMaced()) return false;
+        // the check on authentication depends on the communication mode in file settings:
+        byte commMode = fileSettings.getCommunicationSettings();
+        boolean isPlainCommunicationMode = false;
+        if ((commMode == (byte) 0x00)) {
+            // Plain
+            isPlainCommunicationMode = true;
+            if (!authenticateAesLegacySuccess) {
+                log(methodName, "missing legacy authentication, aborted");
+                errorCode = RESPONSE_FAILURE_MISSING_AUTHENTICATION.clone();
+                errorCodeReason = "missing legacy authentication";
+                return false;
+            };
         } else {
-            Log.d(TAG, "responseMAC FAILURE");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
-            return -1;
+            if (!checkAuthentication()) return false;
+        }
+        if (!checkIsoDep()) return false;
+
+        if (isPlainCommunicationMode) {
+            return changeAValueFileRawPlain(fileNumber, changeValue, isCredit);
+        } else {
+            return changeAValueFileRawFull(fileNumber, changeValue, isCredit);
+        }
+    }
+
+    /**
+     * credits or debits the value of a Value file in Communication mode Plain.
+     * Note: There are no sanity checks on parameter, Communication mode or authentication status
+     * so this method should be called by 'changeAValueFile' only.
+     * @param fileNumber   | in range 0..31
+     * @param changeValue  | minimum 1, maximum depending on fileSettings
+     * @param isCredit     | true for crediting, fals for debiting
+     * @return             | true on success
+     *
+     */
+    private boolean changeAValueFileRawPlain(byte fileNumber, int changeValue, boolean isCredit) {
+        String logData = "";
+        final String methodName = "changeAValueFileRawPlain";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "changeValue: " + changeValue);
+        log(methodName, "isCredit: " + isCredit);
+
+        if (!checkValueMinus(changeValue)) return false;
+        if (!checkIsoDep()) return false;
+
+        byte[] changeValueBytes = Utils.intTo4ByteArrayInversed(changeValue);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(changeValueBytes, 0, changeValueBytes.length);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+        try {
+            if (isCredit) {
+                apdu = wrapMessage(CREDIT_VALUE_FILE_COMMAND, commandParameter);
+            } else {
+                apdu = wrapMessage(DEBIT_VALUE_FILE_COMMAND, commandParameter);
+            }
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            errorCodeReason = "FAILURE";
+            return false;
+        }
+    }
+
+    /**
+     * credits or debits the value of a Value file in Communication mode Full enciphered.
+     * Note: There are no sanity checks on parameter, Communication mode or authentication status
+     * so this method should be called by 'changeAValueFile' only.
+     * @param fileNumber   | in range 0..31
+     * @param changeValue  | minimum 1, maximum depending on fileSettings
+     * @param isCredit     | true for crediting, fals for debiting
+     * @return             | true on success
+     *
+     */
+
+    private boolean changeAValueFileRawFull(byte fileNumber, int changeValue, boolean isCredit) {
+        String logData = "";
+        final String methodName = "changeAValueFileRawFull";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "changeValue: " + changeValue);
+        log(methodName, "isCredit: " + isCredit);
+
+        if (!checkValueMinus(changeValue)) return false;
+        if (!checkAuthentication()) return false;
+        if (!checkIsoDep()) return false;
+
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 70 - 71
+        // Cmd.CreditValue in AES Secure Messaging using CommMode.Full
+        // this is based on the credit a value on a value file on a DESFire Light card
+        // Note: this document does not mention to submit a COMMIT command !
+
+        if (changeValue < 1) {
+            Log.e(TAG, methodName + " minimum changeValue is 1, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
         }
 
-         */
+        // encrypting the  command data
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(IV_LABEL_ENC, 0, IV_LABEL_ENC.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        // Data (Value || Padding)
+        // 71000000800000000000000000000000 ( 4 bytes LSB value || 12 bytes padding, starting with 0x80 00)
+        byte[] value = intTo4ByteArrayInversed(changeValue);
+        log(methodName, printData("value", value));
+        byte[] padding2 = hexStringToByteArray("800000000000000000000000"); // 12 bytes
+        log(methodName, printData("padding2", padding2));
+        byte[] data = concatenate(value, padding2);
+        log(methodName, printData("data", data));
+
+        // Encrypt Command Data = E(KSesAuthENC, Data)
+        byte[] encryptedData = AES.encrypt(ivForCmdData, SesAuthENCKey, data);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // Generating the MAC for the Command APDU
+        // CmdHeader = FileNo
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted CmdData )
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        if (isCredit) {
+            baosMacInput.write(CREDIT_VALUE_FILE_COMMAND); // 0x0C
+        } else {
+            baosMacInput.write(DEBIT_VALUE_FILE_COMMAND); // 0xDC
+        }
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(fileNumber);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // error in Feature and Hints page 70 point 23
+        // wrong: Data (CmdHeader || MAC) and Data Messaging
+        // correct: see below
+        // Data (CmdHeader || Encrypted Data || MAC)
+        ByteArrayOutputStream baosChangeValueCommand = new ByteArrayOutputStream();
+        baosChangeValueCommand.write(fileNumber);
+        baosChangeValueCommand.write(encryptedData, 0, encryptedData.length);
+        baosChangeValueCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] changeValueCommand = baosChangeValueCommand.toByteArray();
+        log(methodName, printData("changeCommand", changeValueCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            if (isCredit) {
+                apdu = wrapMessage(CREDIT_VALUE_FILE_COMMAND, changeValueCommand);
+            } else {
+                apdu = wrapMessage(DEBIT_VALUE_FILE_COMMAND, changeValueCommand);
+            }
+            log(methodName, printData("apdu", apdu));
+            response = isoDep.transceive(apdu);
+            log(methodName, printData("response", response));
+            //Log.d(TAG, methodName + printData(" response", response));
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        if (verifyResponseMac(responseMACTruncatedReceived, null)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return true;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return false;
+        }
     }
+
 
     /**
      * section for committing a transaction
@@ -2782,9 +3079,7 @@ public class DesfireEv3 {
         byte[] response;
         try {
             apdu = wrapMessage(GET_FILE_IDS_COMMAND, null);
-            log(methodName, printData("apdu", apdu));
-            response = isoDep.transceive(apdu);
-            log(methodName, printData("response", response));
+            response = sendData(apdu);
         } catch (Exception e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
@@ -2879,6 +3174,7 @@ public class DesfireEv3 {
         String logData = "";
         final String methodName = "getFileSettings";
         log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
         // sanity checks
         if (!checkFileNumber(fileNumber)) return null;
         if (!checkIsoDep()) return null;
@@ -4893,6 +5189,17 @@ fileSize: 128
         return true;
     }
 
+    private boolean checkValueMinus(int offset) {
+        if (offset < 0) {
+            Log.e(TAG, "checkValueMinus" + " value is < 0, aborted");
+            log("checkValueMinus", "value is < 0, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "value is < 0";
+            return false;
+        }
+        return true;
+    }
+
     public boolean checkFileNumberExisting(byte fileNumber) {
         if (!checkFileNumber(fileNumber)) return false;
         FileSettings fileSettings;
@@ -5008,6 +5315,19 @@ fileSize: 128
         }
         return true;
     }
+
+    private boolean checkCommunicationModeMaced() {
+        String methodName = "checkCommunicationModeMaced";
+        if (selectedFileSetting.getCommunicationSettings() == FILE_COMMUNICATION_SETTINGS_MACED) {
+            Log.e(TAG, methodName + " CommunicationMode MACed is not supported, aborted");
+            log(methodName, "CommunicationMode MACed is not supported, aborted");
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "CommunicationMode MACed is not supported";
+            return true;
+        }
+        return false;
+    }
+
 
     private boolean checkAuthentication() {
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
