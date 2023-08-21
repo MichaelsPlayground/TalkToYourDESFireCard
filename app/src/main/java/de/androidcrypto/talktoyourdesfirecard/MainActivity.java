@@ -1181,8 +1181,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
 
                 byte[] responseData = new byte[2];
-                //byte[] result = desfireEv3.readFromADataFile(fileIdByte, 0, fileSizeInt);
-                byte[] result = desfireEv3.readFromARecordFileRawFull(fileIdByte);
+                //byte[] result = desfireEv3.readFromARecordFile(fileIdByte, 0, fileSizeInt);
+                byte[] result = desfireEv3.readFromARecordFile(fileIdByte, 0, 0);
                 responseData = desfireEv3.getErrorCode();
                 if (result == null) {
                     // something gone wrong
@@ -1193,12 +1193,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     if (checkAuthenticationError(responseData)) {
                         writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
                     }
+                    if (checkBoundaryError(responseData)) {
+                        writeToUiAppend(output, "as we received a Boundary Error - there might be NO records to read");
+                    }
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
                     writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
                     return;
                 } else {
                     writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + printData(" data", result));
-                    writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + " data: " + new String(result, StandardCharsets.UTF_8));
+                    writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + " data: \n" + new String(result, StandardCharsets.UTF_8));
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     vibrateShort();
                 }
@@ -1245,7 +1248,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
 
                 byte[] responseData = new byte[2];
-                //boolean success = desfireEv3.writeToADataFile(fileIdByte, 0, fullDataToWrite);
                 boolean success = desfireEv3.writeToARecordFile(fileIdByte, 0, fullDataToWrite);
                 responseData = desfireEv3.getErrorCode();
 
@@ -1264,7 +1266,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 if (selectedFileSettings.getFileType() == FileSettings.STANDARD_FILE_TYPE) {
                     vibrateShort();
                 } else {
-                    // it is a Backup file where we need to submit a commit command to confirm the write
+                    // it is a Record file where we need to submit a commit command to confirm the write
                     writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Record file, run COMMIT");
                     byte commMode = selectedFileSettings.getCommunicationSettings();
                     if (commMode == (byte) 0x00) {
@@ -1277,12 +1279,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     }
                     if (commMode == (byte) 0x01) {
                         // MACed
-                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The selected file has the Communication Mode MACed that is not supported, sorry", COLOR_RED);
-                        return;
+                        success = desfireEv3.commitTransactionFull();
+                        //writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The selected file has the Communication Mode MACed that is not supported, sorry", COLOR_RED);
+                        //return;
                     }
                     responseData = desfireEv3.getErrorCode();
                     if (success) {
-                        writeToUiAppend(output, "data is written to Backup file number " + fileIdByte);
+                        writeToUiAppend(output, "data is written to Record file number " + fileIdByte);
                         writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
                         vibrateShort();
                     } else {

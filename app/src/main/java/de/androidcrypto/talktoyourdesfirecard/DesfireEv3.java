@@ -1776,7 +1776,8 @@ public class DesfireEv3 {
         log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + " size: " + length);
 
         // sanity checks
-
+        if (!checkFileNumber(fileNumber)) return null;
+        if (!checkFileNumberExisting(fileNumber)) return null;
         if (!checkOffsetMinus(offset)) return null;
         // getFileSettings for file type and length information
         FileSettings fileSettings;
@@ -3187,17 +3188,20 @@ public class DesfireEv3 {
         }
         if (fileSettings.getCommunicationSettings() == FILE_COMMUNICATION_SETTINGS_MACED) {
             isMacedMode = true;
+            log(methodName, "CommunicationMode is MACed");
+            /*
             Log.e(TAG, methodName + " CommunicationMode MACed is not supported, aborted");
             log(methodName, "CommunicationMode MACed is not supported, aborted");
             errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = "CommunicationMode MACed is not supported, aborted";
             return false;
+            */
         }
         if (fileSettings.getCommunicationSettings() == FILE_COMMUNICATION_SETTINGS_PLAIN) {
             isPlainMode = true;
             log(methodName, "CommunicationMode is Plain");
         } else {
-            log(methodName, "CommunicationMode is Full enciphered");
+            if (!isMacedMode) log(methodName, "CommunicationMode is Full enciphered");
         }
         // handling the situation where offset + data length > fileSize
         // priority is the offset, so data that is larger than remaining fileSize is truncated
@@ -3209,8 +3213,6 @@ public class DesfireEv3 {
             Log.d(TAG, "data is truncated due to offset and fileSize");
             Log.d(TAG, printData("new data", data));
         }
-        boolean isLinearRecordFile = false;
-        if (fileSettings.getFileType() == FileSettings.LINEAR_RECORD_FILE_TYPE) isLinearRecordFile = true;
 
         // The chunking is done to avoid framing as the maximum command APDU length is limited to 66
         // bytes including all overhead and attached MAC
@@ -3231,7 +3233,11 @@ public class DesfireEv3 {
             if (isPlainMode) {
                 success = writeToARecordFileRawPlain(fileNumber, offset, dataToWrite);
             } else {
-                success = writeToARecordFileRawFull(fileNumber, offset, dataToWrite);
+                if (isMacedMode) {
+                    success = writeToARecordFileRawMac(fileNumber, offset, dataToWrite);
+                } else {
+                    success = writeToARecordFileRawFull(fileNumber, offset, dataToWrite);
+                }
             }
             offsetChunk = offsetChunk + numberOfDataToWrite;
             offset = offset + numberOfDataToWrite;
@@ -3250,29 +3256,74 @@ public class DesfireEv3 {
     }
 
     public boolean writeToARecordFileRawPlain(byte fileNumber, int offset, byte[] data) {
+        String logData = "";
+        final String methodName = "writeToARecordFileRawPlain";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "offset: " + offset);
+        log(methodName, printData("data", data));
+
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false;
+        if (!checkOffsetMinus(offset)) return false;
+        if ((data == null) || (data.length < 1)) {
+            log(methodName, "data is NULL or length is < 1, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "data length not in range 1..MAXIMUM_FILE_SIZE";
+            return false;
+        }
+        if (!checkIsoDep()) return false;
+
+        byte[] offsetBytes = Utils.intTo3ByteArrayInversed(offset);
+        byte[] lengthOfDataBytes = Utils.intTo3ByteArrayInversed(data.length);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(offsetBytes, 0, offsetBytes.length);
+        baos.write(lengthOfDataBytes, 0, lengthOfDataBytes.length);
+        baos.write(data, 0, data.length);
+        byte[] commandParameter = baos.toByteArray();
+
+        byte[] apdu;
+        byte[] response;
+        try {
+            apdu = wrapMessage(WRITE_RECORD_FILE_SECURE_COMMAND, commandParameter);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            errorCodeReason = "FAILURE";
+            return false;
+        }
+      }
+
+    public boolean writeToARecordFileRawMac(byte fileNumber, int offset, byte[] data) {
+        String logData = "";
+        final String methodName = "writeToARecordFileRawMac";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "offset: " + offset);
+        log(methodName, printData("data", data));
+
+        log(methodName, "*** STUB ***");
+        Log.e(TAG, "*** STUB ***");
+        // this is just a stub
         return false;
     }
 
     public boolean writeToARecordFileRawFull(byte fileNumber, int offset, byte[] data) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 61 - 65
-        // Cmd.WriteRecord in AES Secure Messaging using CommMode.Full
-        // this is based on the write to a data file on a DESFire Light card
-
-        // status
-        // todo add padding
-        // if data length is a multiple of AES block length (16 bytes) we need to add a complete
-        // block of padding data, beginning with 0x80 00 00...
-
-        /**
-         * Mifare DESFire Light Features and Hints AN12343.pdf page 30
-         * 7.1.2 Encryption and Decryption
-         * Encryption and decryption are done using the underlying block cipher (in this case
-         * the AES block cipher) according to the CBC mode of the NIST Special Publication
-         * 800-38A, see [6]. Padding is done according to Padding Method 2 (0x80 followed by zero
-         * bytes) of ISO/IEC 9797-1. Note that if the original data is already a multiple of 16 bytes,
-         * another additional padding block (16 bytes) is added. The only exception is during the
-         * authentication itself, where no padding is applied at all.
-         */
 
         String logData = "";
         final String methodName = "writeToARecordFileRawFull";
@@ -3280,16 +3331,15 @@ public class DesfireEv3 {
         log(methodName, "fileNumber: " + fileNumber);
         log(methodName, printData("dataToWrite", data));
         // sanity checks
-        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
-            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+        if (!checkFileNumber(fileNumber)) return false;
+        if (!checkOffsetMinus(offset)) return false;
+        if ((data == null) || (data.length < 1)) {
+            log(methodName, "data is NULL or length is < 1, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "data length not in range 1..MAXIMUM_FILE_SIZE";
             return false;
         }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return false;
-        }
+        if (!checkIsoDep()) return false;
 
         // next step is to pad the data according to padding rules in DESFire EV2/3 for AES Secure Messaging full mode
         byte[] dataPadded = paddingWriteData(data);
@@ -3329,7 +3379,7 @@ public class DesfireEv3 {
             dataBlockEncryptedList.add(dataBlockEncrypted);
             ivDataEncryption = dataBlockEncrypted.clone(); // new, subsequent iv for next encryption
         }
-        //        log(methodName, printData("startingIv", startingIv));
+        // log(methodName, printData("startingIv", startingIv));
         for (int i = 0; i < numberOfDataBlocks; i++) {
             log(methodName, printData("dataBlock" + i + "Encrypted", dataBlockEncryptedList.get(i)));
         }
@@ -3388,19 +3438,17 @@ public class DesfireEv3 {
         byte[] writeRecordCommand = baosWriteRecordCommand.toByteArray();
         log(methodName, printData("writeRecordCommand", writeRecordCommand));
 
-        byte[] response = new byte[0];
-        byte[] apdu = new byte[0];
+        byte[] response;
+        byte[] apdu;
         byte[] responseMACTruncatedReceived;
         try {
             apdu = wrapMessage(WRITE_RECORD_FILE_SECURE_COMMAND, writeRecordCommand);
-            log(methodName, printData("apdu", apdu));
-            response = isoDep.transceive(apdu);
-            log(methodName, printData("response", response));
-            //Log.d(TAG, methodName + printData(" response", response));
+            response = sendData(apdu);
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -3418,77 +3466,262 @@ public class DesfireEv3 {
         log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
         byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
 
-        // verifying the received Response MAC
-        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
-        responseMacBaos.write((byte) 0x00); // response code 00 means success
-        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
-        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        byte[] macInput2 = responseMacBaos.toByteArray();
-        log(methodName, printData("macInput2", macInput2));
         responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
-        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
-        log(methodName, printData("responseMACCalculated", responseMACCalculated));
-        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
-        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
-        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
-        // compare the responseMAC's
-        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
-            Log.d(TAG, "responseMAC SUCCESS");
-            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+        if (verifyResponseMac(responseMACTruncatedReceived, null)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
             return true;
         } else {
-            Log.d(TAG, "responseMAC FAILURE");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
             return false;
         }
     }
 
-    public byte[] readFromARecordFileRawFull(byte fileNumber) {
+    /**
+     * section for record files
+     */
+
+    /**
+     * section for record files
+     * @param fileNumber
+     * @param offsetRecord
+     * @param numberOfRecordsToRead
+     * @return
+     */
+
+    public byte[] readFromARecordFile(byte fileNumber, int offsetRecord, int numberOfRecordsToRead) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 65 - 67
-        // Cmd.ReadRecords in AES Secure Messaging using CommMode.Full
-        // this is based on the read of a record file on a DESFire Light card
-
-        // status WORKING but does not remove any padding from the data
-        // todo read file settings to get recordSize, actualRecords etc
-
-        // at the moment it is using a pre created Cyclic Record File with 5 records and
-        // 5 application keys (AES) in full enciphered communication mode
-        // reason: no examples for creating a record file in Features and Hints
+        /*
+        The first parameter is of one byte length and codes the file number in the range from 0x00 to 0x07.
+        The next parameter is three bytes long and codes the offset of the newest record which is read out.
+        In case of 0x00 00 00 the latest record is read out. The offset value must be in the range from 0x00
+        to number of existing records – 1.
+        The third parameter is another three bytes which code the number of records to be read from the PICC.
+        Records are always transmitted by the PICC in chronological order (= starting with the oldest, which
+        is number of records – 1 before the one addressed by the given offset). If this parameter is set to
+        0x00 00 00 then all records, from the oldest record up to and including the newest record (given by
+        the offset parameter) are read.
+        The allowed range for the number of records parameter is from 0x00 00 00 to number of existing
+        records – offset.
+        In short: if offsetRecord and numberOfRecordsToRead are '0' all records will be read
+         */
 
         String logData = "";
-        final String methodName = "readRecordFileEv2";
+        final String methodName = "readFromARecordFile";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "offsetRecord: " + offsetRecord);
+        log(methodName, "numberOfRecordsToRead: " + numberOfRecordsToRead);
         // sanity checks
-        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
-            Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
-            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+        if (!checkFileNumber(fileNumber)) return null;
+        if (!checkOffsetMinus(offsetRecord)) return null;
+        if (!checkOffsetMinus(numberOfRecordsToRead)) return null;
+        if (!checkIsoDep()) return null;
+
+        // getFileSettings for file type and length information
+        FileSettings fileSettings;
+        try {
+            fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        } catch (NullPointerException e) {
+            Log.e(TAG, methodName + " could not read fileSettings, aborted");
+            log(methodName, "could not read fileSettings, aborted");
+            errorCode = RESPONSE_FAILURE_MISSING_GET_FILE_SETTINGS.clone();
+            errorCodeReason = "could not read fileSettings, aborted";
             return null;
         }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+        int fileSize = fileSettings.getRecordSizeInt(); // size of a single record
+        if ((fileSettings.getFileType() == FileSettings.LINEAR_RECORD_FILE_TYPE) ||
+                (fileSettings.getFileType() == FileSettings.CYCLIC_RECORD_FILE_TYPE)) {
+            log(methodName, "fileNumber to read is a " + fileSettings.getFileTypeName() + ", proceed");
+        } else {
+            log(methodName, "fileNumber to read is a " + fileSettings.getFileTypeName() + ", aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "fileType is not Linear or Cyclic Record file";
             return null;
         }
+        // the check on authentication depends on the communication mode in file settings:
+        byte commMode = fileSettings.getCommunicationSettings();
+        if (commMode == (byte) 0x00) {
+            // Plain
+            if (!authenticateAesLegacySuccess) {
+                log(methodName, "missing legacy authentication, aborted");
+                errorCode = RESPONSE_FAILURE_MISSING_AUTHENTICATION.clone();
+                errorCodeReason = "missing legacy authentication";
+                return null;
+            };
+        } else {
+            if (!checkAuthentication()) return null;
+        }
+        if (!checkIsoDep()) return null; // logFile and errorCode are updated
 
-        // todo other sanity checks on values
+        boolean isPlainMode = false;
+        boolean isMacedMode = false;
+        boolean isFullMode = false;
+        if (fileSettings.getCommunicationSettings() == FILE_COMMUNICATION_SETTINGS_PLAIN) {
+            isPlainMode = true;
+            log(methodName, "CommunicationMode is Plain");
+        }
+        if (fileSettings.getCommunicationSettings() == FILE_COMMUNICATION_SETTINGS_MACED) {
+            isMacedMode = true;
+            log(methodName, "CommunicationMode is MACed");
+        }
+        if (fileSettings.getCommunicationSettings() == FILE_COMMUNICATION_SETTINGS_FULL) {
+            isFullMode = true;
+            log(methodName, "CommunicationMode is Full");
+        }
 
-        // todo read the file settings to get e.g. the recordSize, actual records and communication mode
+        // The chunking is done to avoid framing as the maximum command APDU length is limited
+        // bytes including all overhead and attached MAC
+        // As the PICC is chunking already we do no have to worry about this and as long we read
+        // the data with 'sendRequest' everything is OK
 
-        int FILE_SIZE_FIXED = 32;
+        byte[] dataToRead = null;
+        if (isPlainMode) {
+            dataToRead = readFromARecordFileRawPlain(fileNumber, offsetRecord, numberOfRecordsToRead);
+        }
+        if (isMacedMode) {
+            dataToRead = readFromARecordFileRawMac(fileNumber, offsetRecord, numberOfRecordsToRead);
+        }
+        if (isFullMode) {
+            dataToRead = readFromARecordFileRawFull(fileNumber, offsetRecord, numberOfRecordsToRead);
+        }
+        return dataToRead;
+    }
+
+    private byte[] readFromARecordFileRawPlain(byte fileNumber, int offsetRecord, int numberOfRecordsToRead) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 65 - 67
+        /*
+        The first parameter is of one byte length and codes the file number in the range from 0x00 to 0x07.
+        The next parameter is three bytes long and codes the offset of the newest record which is read out.
+        In case of 0x00 00 00 the latest record is read out. The offset value must be in the range from 0x00
+        to number of existing records – 1.
+        The third parameter is another three bytes which code the number of records to be read from the PICC.
+        Records are always transmitted by the PICC in chronological order (= starting with the oldest, which
+        is number of records – 1 before the one addressed by the given offset). If this parameter is set to
+        0x00 00 00 then all records, from the oldest record up to and including the newest record (given by
+        the offset parameter) are read.
+        The allowed range for the number of records parameter is from 0x00 00 00 to number of existing
+        records – offset.
+        In short: if offsetRecord and numberOfRecordsToRead are '0' all records will be read
+         */
+
+        String logData = "";
+        final String methodName = "readFromARecordFileRawPlain";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "offsetRecord: " + offsetRecord);
+        log(methodName, "numberOfRecordsToRead: " + numberOfRecordsToRead);
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return null;
+        if (!checkOffsetMinus(offsetRecord)) return null;
+        if (!checkOffsetMinus(numberOfRecordsToRead)) return null;
+        if (!checkIsoDep()) return null;
+
+        byte[] offsetRecordBytes = Utils.intTo3ByteArrayInversed(offsetRecord);
+        byte[] numberOfRecordsToReadBytes = Utils.intTo3ByteArrayInversed(numberOfRecordsToRead);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(offsetRecordBytes, 0, offsetRecordBytes.length);
+        baos.write(numberOfRecordsToReadBytes, 0, numberOfRecordsToReadBytes.length);
+        byte[] commandParameter = baos.toByteArray();
+
+        byte[] response;
+        byte[] fullData;
+        response = sendRequest(READ_RECORD_FILE_SECURE_COMMAND, commandParameter);
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+            fullData = getData(response);
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return null;
+        }
+        // as we authenticated before reading the PICC is adding 8 bytes long MAC that is stripped off
+        return Arrays.copyOf(fullData, fullData.length - 8);
+    }
+
+
+    private byte[] readFromARecordFileRawMac(byte fileNumber, int offsetRecord, int numberOfRecordsToRead) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 65 - 67
+        /*
+        The first parameter is of one byte length and codes the file number in the range from 0x00 to 0x07.
+        The next parameter is three bytes long and codes the offset of the newest record which is read out.
+        In case of 0x00 00 00 the latest record is read out. The offset value must be in the range from 0x00
+        to number of existing records – 1.
+        The third parameter is another three bytes which code the number of records to be read from the PICC.
+        Records are always transmitted by the PICC in chronological order (= starting with the oldest, which
+        is number of records – 1 before the one addressed by the given offset). If this parameter is set to
+        0x00 00 00 then all records, from the oldest record up to and including the newest record (given by
+        the offset parameter) are read.
+        The allowed range for the number of records parameter is from 0x00 00 00 to number of existing
+        records – offset.
+        In short: if offsetRecord and numberOfRecordsToRead are '0' all records will be read
+         */
+
+        String logData = "";
+        final String methodName = "readFromARecordFileRawMac";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "offsetRecord: " + offsetRecord);
+        log(methodName, "numberOfRecordsToRead: " + numberOfRecordsToRead);
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return null;
+        if (!checkOffsetMinus(offsetRecord)) return null;
+        if (!checkOffsetMinus(numberOfRecordsToRead)) return null;
+        if (!checkIsoDep()) return null;
+
+        log(methodName, "*** STUB ***");
+        Log.e(TAG, "*** STUB ***");
+        // this is just a stub
+
+        return null;
+    }
+
+
+    private byte[] readFromARecordFileRawFull(byte fileNumber, int offsetRecord, int numberOfRecordsToRead) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 65 - 67
+        /*
+        The first parameter is of one byte length and codes the file number in the range from 0x00 to 0x07.
+        The next parameter is three bytes long and codes the offset of the newest record which is read out.
+        In case of 0x00 00 00 the latest record is read out. The offset value must be in the range from 0x00
+        to number of existing records – 1.
+        The third parameter is another three bytes which code the number of records to be read from the PICC.
+        Records are always transmitted by the PICC in chronological order (= starting with the oldest, which
+        is number of records – 1 before the one addressed by the given offset). If this parameter is set to
+        0x00 00 00 then all records, from the oldest record up to and including the newest record (given by
+        the offset parameter) are read.
+        The allowed range for the number of records parameter is from 0x00 00 00 to number of existing
+        records – offset.
+        In short: if offsetRecord and numberOfRecordsToRead are '0' all records will be read
+         */
+
+        String logData = "";
+        final String methodName = "readFromARecordFileRawFull";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "offsetRecord: " + offsetRecord);
+        log(methodName, "numberOfRecordsToRead: " + numberOfRecordsToRead);
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return null;
+        if (!checkOffsetMinus(offsetRecord)) return null;
+        if (!checkOffsetMinus(numberOfRecordsToRead)) return null;
+        if (!checkIsoDep()) return null;
+
+        //int FILE_SIZE_FIXED = 32;
+
         // Generating the MAC for the Command APDU
-
         // CmdHeader (FileNo || RecordNo || RecordCount)
-        // setting recordNo and recordCount to 0 to read all records
-        int recordNoInt = 0;
-        int recordCountInt = 0;
-        byte[] recordNo = Utils.intTo3ByteArrayInversed(recordNoInt); // LSB order
-        byte[] recordCount = Utils.intTo3ByteArrayInversed(recordCountInt); // LSB order
-
+        byte[] offsetRecordBytes = Utils.intTo3ByteArrayInversed(offsetRecord); // LSB order
+        byte[] numberOfRecordsToReadBytes = Utils.intTo3ByteArrayInversed(numberOfRecordsToRead); // LSB order
         ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
         baosCmdHeader.write(fileNumber);
-        baosCmdHeader.write(recordNo, 0, recordNo.length);
-        baosCmdHeader.write(recordCount, 0, recordCount.length);
+        baosCmdHeader.write(offsetRecordBytes, 0, offsetRecordBytes.length);
+        baosCmdHeader.write(numberOfRecordsToReadBytes, 0, numberOfRecordsToReadBytes.length);
         byte[] cmdHeader = baosCmdHeader.toByteArray();
         log(methodName, printData("cmdHeader", cmdHeader));
 
@@ -3513,32 +3746,19 @@ public class DesfireEv3 {
         log(methodName, printData("macTruncated", macTruncated));
 
         // Constructing the full ReadRecords Command APDU
-        // todo is this correct, NO encryption ??
         // Data (CmdHeader || MAC)
-
         // Constructing the full ReadData Command APDU
         ByteArrayOutputStream baosReadRecordCommand = new ByteArrayOutputStream();
         baosReadRecordCommand.write(cmdHeader, 0, cmdHeader.length);
         baosReadRecordCommand.write(macTruncated, 0, macTruncated.length);
         byte[] readDataCommand = baosReadRecordCommand.toByteArray();
         log(methodName, printData("readRecordCommand", readDataCommand));
-        byte[] response = new byte[0];
-        byte[] apdu = new byte[0];
+        byte[] response;
+        byte[] apdu;
         byte[] fullEncryptedData;
         byte[] encryptedData;
         byte[] responseMACTruncatedReceived;
-        try {
-            apdu = wrapMessage(READ_RECORD_FILE_SECURE_COMMAND, readDataCommand);
-            log(methodName, printData("apdu", apdu));
-            response = isoDep.transceive(apdu);
-            log(methodName, printData("response", response));
-            //Log.d(TAG, methodName + printData(" response", response));
-        } catch (IOException e) {
-            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
-            log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
-            return null;
-        }
+        response = sendRequest(READ_RECORD_FILE_SECURE_COMMAND, readDataCommand);
         byte[] responseBytes = returnStatusBytes(response);
         System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
@@ -3579,30 +3799,17 @@ public class DesfireEv3 {
         byte[] decryptedData = AES.decrypt(ivResponse, SesAuthENCKey, encryptedData);
         log(methodName, printData("decryptedData", decryptedData)); // should be the cardUID || 9 zero bytes
         byte[] readData = decryptedData.clone();
-        //byte[] readData = Arrays.copyOfRange(decryptedData, 0, fileSize); // todo work on this
         log(methodName, printData("readData", readData));
 
-        // verifying the received MAC
-        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
-        responseMacBaos.write((byte) 0x00); // response code 00 means success
-        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
-        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        responseMacBaos.write(encryptedData, 0, encryptedData.length);
-        byte[] macInput2 = responseMacBaos.toByteArray();
-        log(methodName, printData("macInput", macInput2));
-        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
-        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
-        log(methodName, printData("responseMACCalculated", responseMACCalculated));
-        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
-        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
-        // compare the responseMAC's
-        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
-            Log.d(TAG, "responseMAC SUCCESS");
-            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
+        if (verifyResponseMac(responseMACTruncatedReceived, encryptedData)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
             return readData;
         } else {
-            Log.d(TAG, "responseMAC FAILURE");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
             return null;
         }
     }
