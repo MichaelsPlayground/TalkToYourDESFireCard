@@ -170,6 +170,7 @@ public class DesfireEv3 {
 
     private final byte CREATE_LINEAR_RECORD_FILE_COMMAND = (byte) 0xC1;
     private final byte CREATE_CYCLIC_RECORD_FILE_COMMAND = (byte) 0xC0;
+    private static final byte READ_RECORD_FILE_COMMAND = (byte) 0xBB;
     private static final byte READ_RECORD_FILE_SECURE_COMMAND = (byte) 0xAB;
     private static final byte WRITE_RECORD_FILE_SECURE_COMMAND = (byte) 0x8B;
     private final byte COMMIT_TRANSACTION_COMMAND = (byte) 0xC7;
@@ -3630,7 +3631,7 @@ public class DesfireEv3 {
 
         byte[] response;
         byte[] fullData;
-        response = sendRequest(READ_RECORD_FILE_SECURE_COMMAND, commandParameter);
+        response = sendRequest(READ_RECORD_FILE_COMMAND, commandParameter);
         byte[] responseBytes = returnStatusBytes(response);
         System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
@@ -3730,7 +3731,8 @@ public class DesfireEv3 {
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
         ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(READ_RECORD_FILE_SECURE_COMMAND); // 0xAB
+        //baosMacInput.write(READ_RECORD_FILE_SECURE_COMMAND); // 0xAB
+        baosMacInput.write(READ_RECORD_FILE_COMMAND); // 0xAB
         baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
         baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         baosMacInput.write(cmdHeader, 0, cmdHeader.length);
@@ -3758,7 +3760,8 @@ public class DesfireEv3 {
         byte[] fullEncryptedData;
         byte[] encryptedData;
         byte[] responseMACTruncatedReceived;
-        response = sendRequest(READ_RECORD_FILE_SECURE_COMMAND, readDataCommand);
+        //response = sendRequest(READ_RECORD_FILE_SECURE_COMMAND, readDataCommand);
+        response = sendRequest(READ_RECORD_FILE_COMMAND, readDataCommand);
         byte[] responseBytes = returnStatusBytes(response);
         System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
@@ -3798,7 +3801,23 @@ public class DesfireEv3 {
         log(methodName, printData("ivResponse", ivResponse));
         byte[] decryptedData = AES.decrypt(ivResponse, SesAuthENCKey, encryptedData);
         log(methodName, printData("decryptedData", decryptedData)); // should be the cardUID || 9 zero bytes
-        byte[] readData = decryptedData.clone();
+        // the decrypted data contains the padding that needs to get removed
+        // getFileSettings for file type and length information
+        FileSettings fileSettings;
+        try {
+            fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        } catch (NullPointerException e) {
+            Log.e(TAG, methodName + " could not read fileSettings, aborted");
+            log(methodName, "could not read fileSettings, aborted");
+            errorCode = RESPONSE_FAILURE_MISSING_GET_FILE_SETTINGS.clone();
+            errorCodeReason = "could not read fileSettings, aborted";
+            return null;
+        }
+        int recordSize = fileSettings.getRecordSizeInt();
+        int fullLength = decryptedData.length;
+        int fullRecords = fullLength / recordSize;
+        Log.e(TAG, "fullRecords: " + fullRecords);
+        byte[] readData = Arrays.copyOfRange(decryptedData, 0, (fullRecords * recordSize)); // just return the real data
         log(methodName, printData("readData", readData));
 
         if (verifyResponseMac(responseMACTruncatedReceived, encryptedData)) {

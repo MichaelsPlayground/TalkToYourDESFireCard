@@ -4,6 +4,7 @@ import static de.androidcrypto.talktoyourdesfirecard.Utils.byteArrayLength4Inver
 import static de.androidcrypto.talktoyourdesfirecard.Utils.byteToHex;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.bytesToHexNpeUpperCase;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.bytesToHexNpeUpperCaseBlank;
+import static de.androidcrypto.talktoyourdesfirecard.Utils.divideArrayToList;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
 
@@ -1200,9 +1201,14 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
                     return;
                 } else {
-                    writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + printData(" data", result));
-                    writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + " data: \n" + new String(result, StandardCharsets.UTF_8));
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    // split the records
+                    List<byte[]> recordList = divideArrayToList(result, selectedFileSettings.getRecordSizeInt());
+                    for (int i = 0; i < recordList.size(); i++) {
+                        writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + " record: " + i + "\n");
+                        writeToUiAppend(output, printData("\ndata", recordList.get(i)));
+                        writeToUiAppend(output, "data: \n" + new String(recordList.get(i), StandardCharsets.UTF_8));
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    }
                     vibrateShort();
                 }
             }
