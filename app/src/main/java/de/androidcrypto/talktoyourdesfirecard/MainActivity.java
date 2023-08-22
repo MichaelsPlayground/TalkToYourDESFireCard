@@ -825,9 +825,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte fileIdByte = Byte.parseByte(selectedFileId);
                 int fileSizeInt = selectedFileSettings.getFileSizeInt();
 
-                // todo
-                fileSizeInt = 32;
-
                 // pre-check if fileNumber is existing
                 boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
                 if (!isFileExisting) {
@@ -837,8 +834,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
 
                 byte[] responseData = new byte[2];
-                // todo byte[] result = desfireEv3.readFromADataFile(fileIdByte, 0, fileSizeInt);
-                byte[] result = desfireEv3.readFromADataFileRawMac(fileIdByte, 0, fileSizeInt);
+                byte[] result = desfireEv3.readFromADataFile(fileIdByte, 0, fileSizeInt);
                 responseData = desfireEv3.getErrorCode();
                 if (result == null) {
                     // something gone wrong
@@ -1049,7 +1045,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
                 // it is a Value file where we need to submit a commit command to confirm the write
-                writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Backup file, run COMMIT");
+                writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Value file, run COMMIT");
                 byte commMode = selectedFileSettings.getCommunicationSettings();
                 if (commMode == (byte) 0x00) {
                     // Plain
@@ -1061,8 +1057,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 if (commMode == (byte) 0x01) {
                     // MACed
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The selected file has the Communication Mode MACed that is not supported, sorry", COLOR_RED);
-                    return;
+                    success = desfireEv3.commitTransactionFull();
                 }
                 responseData = desfireEv3.getErrorCode();
                 if (success) {
@@ -1124,7 +1119,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
                 // it is a Value file where we need to submit a commit command to confirm the write
-                writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Backup file, run COMMIT");
+                writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Value file, run COMMIT");
                 byte commMode = selectedFileSettings.getCommunicationSettings();
                 if (commMode == (byte) 0x00) {
                     // Plain
@@ -1136,8 +1131,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 if (commMode == (byte) 0x01) {
                     // MACed
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The selected file has the Communication Mode MACed that is not supported, sorry", COLOR_RED);
-                    return;
+                    success = desfireEv3.commitTransactionFull();
                 }
                 responseData = desfireEv3.getErrorCode();
                 if (success) {
