@@ -1477,7 +1477,28 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 clearOutputFields();
                 String logString = "delete a TransactionMAC file";
                 writeToUiAppend(output, logString);
+                byte fileIdByte = DesfireEv3.TRANSACTION_MAC_FILE_NUMBER;
+                writeToUiAppend(output, "using a pre defined fileNumber: " + fileIdByte);
+                writeToUiAppend(output, printData("using a predefined TMAC key", TRANSACTION_MAC_KEY_AES));
+                writeToUiAppend(output, "Note: you need to authenticate with the Application Master Key first !");
 
+                byte[] responseData = new byte[2];
+                boolean success = desfireEv3.deleteTransactionMacFileEv2(fileIdByte);
+                responseData = desfireEv3.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
             }
         });
 
@@ -1503,6 +1524,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 if (!isFileExisting) {
                     writeToUiAppend(output, logString + " The file does not exist, aborted");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
+                    return;
+                }
+
+                boolean isTransactionMacFile = desfireEv3.checkIsTransactionMacFileType(fileIdByte);
+                if (!isTransactionMacFile) {
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is NOT a TransactionMAC file, aborted");
                     return;
                 }
 
