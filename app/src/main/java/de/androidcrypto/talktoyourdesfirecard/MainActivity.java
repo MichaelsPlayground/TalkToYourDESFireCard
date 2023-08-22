@@ -104,6 +104,14 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button authM0D, authM0C; // Master Application key
     private Button authA0D, authA0C, authA1D, authA1C, authA2D, authA2C, authA3D, authA3C, authA4D, authA4C; // application keys  
 
+    /**
+     * section for Transaction MAC file
+     * note: this is visible always for create and delte of the file
+     */
+
+    private LinearLayout llSectionTransactionMacFile;
+    private Button fileTransactionMacCreate, fileTransactionMacDelete;
+
 
     // old ones
 
@@ -421,6 +429,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         authA3C = findViewById(R.id.btnAuthA3C);
         authA4C = findViewById(R.id.btnAuthA4C);
 
+        // transaction mac file workflow
+        fileTransactionMacCreate = findViewById(R.id.btnTransactionMacFileCreate);
+        fileTransactionMacDelete = findViewById(R.id.btnTransactionMacFileDelete);
 
         // application handling
         applicationCreate = findViewById(R.id.btnCreateApplication);
@@ -717,6 +728,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     fileList[i] = String.valueOf(fileId) + " (" + fileTypeName + "|" + communicationMode + ")";
                 }
 
+
                 // setup the alert builder
                 AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
                 builder.setTitle("Choose a file");
@@ -758,6 +770,16 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         vibrateShort();
                     }
                 });
+
+                // todo check for Transaction MAC file in this application
+
+                String tmacWarningMessage = "SERIOUS WARNING\n\n" +
+                        "This application does contain a Transaction MAC file.\n" +
+                        "This file does need a changed COMMIT command that is not available at the moment " +
+                        "within the DesfireEv3 class.\n\n" +
+                        "ALL write commands to a Backup, Value or Record file will FAIL !";
+                showDialog(MainActivity.this, tmacWarningMessage);
+
                 // create and show the alert dialog
                 AlertDialog dialog = builder.create();
                 dialog.show();
@@ -1412,6 +1434,52 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        /**
+         * section for Transaction MAC file handling
+         */
+
+        fileTransactionMacCreate.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "create a TransactionMAC file";
+                writeToUiAppend(output, logString);
+
+                byte fileIdByte = DesfireEv3.TRANSACTION_MAC_FILE_NUMBER;
+                writeToUiAppend(output, "using a pre defined fileNumber: " + fileIdByte);
+                writeToUiAppend(output, printData("using a predefined TMAC key", TRANSACTION_MAC_KEY_AES));
+                writeToUiAppend(output, "Note: you need to authenticate with the Application Master Key first !");
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireEv3.createTransactionMacFileEv2(fileIdByte, TRANSACTION_MAC_KEY_AES);
+                responseData = desfireEv3.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
+            }
+        });
+
+        fileTransactionMacDelete.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "delete a TransactionMAC file";
+                writeToUiAppend(output, logString);
+
+            }
+        });
+
 
         /**
          * just es quick test button
@@ -1564,12 +1632,14 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                     // this is the right time to read all file settings
                     desfireAuthenticateEv2.getAllFileSettingsEv2();
+                    allLayoutsInvisible();
                     vibrateShort();
                 } else {
                     selectedApplicationId = null;
                     applicationSelected.setText("please select an application");
                     writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    allLayoutsInvisible();
                 }
             }
         });

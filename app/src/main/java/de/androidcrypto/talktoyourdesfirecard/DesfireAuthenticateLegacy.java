@@ -479,8 +479,11 @@ public class DesfireAuthenticateLegacy {
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return null;
         }
-        if (fileNumber > 14) {
-            Log.e(TAG, methodName + " fileNumber is > 14, aborted");
+        //if (fileNumber > 14) {
+        // changed for using Transaction MAC files
+        if (fileNumber > 31) {
+            //Log.e(TAG, methodName + " fileNumber is > 14, aborted");
+            Log.e(TAG, methodName + " fileNumber is > 31, aborted");
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return null;
         }
