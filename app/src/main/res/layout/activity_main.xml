@@ -691,12 +691,12 @@
                         android:text="delete" />
 
                     <Button
-                        android:id="@+id/btnxx"
+                        android:id="@+id/btnTransactionMacFileRead"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="xxs" />
+                        android:text="read" />
 
                 </LinearLayout>
 

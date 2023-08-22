@@ -1636,6 +1636,10 @@ public class DesfireEv3 {
         return dataToRead;
     }
 
+    public byte[] readFromATransactionMacFile(byte fileNumber) {
+        return readFromADataFileRawPlain(fileNumber, 0, 0);
+    }
+
     /**
      * Read data from a Data file in Communication mode Plain, beginning at offset position and length of data.
      * As the amount of data that can be send from PICC to reader is limited and the PICC will chunk the
@@ -1656,7 +1660,7 @@ public class DesfireEv3 {
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + " size: " + length);
         // sanity checks
-        if (!checkFileNumber(fileNumber)) return null; // logFile and errorCode are updated
+        if (!checkFileNumber(fileNumber)) return null;
         if (!checkOffsetMinus(offset)) return null;
         // getFileSettings for file type and length information
         FileSettings fileSettings;
@@ -1684,7 +1688,7 @@ public class DesfireEv3 {
             errorCodeReason = "(offset + length) is > fileSize";
             return null;
         }
-        if (!checkIsDataFileType(fileNumber)) return null;
+        //if (!checkIsDataFileType(fileNumber)) return null;
         if (!checkIsoDep()) return null; // logFile and errorCode are updated
 
         // generate the parameter

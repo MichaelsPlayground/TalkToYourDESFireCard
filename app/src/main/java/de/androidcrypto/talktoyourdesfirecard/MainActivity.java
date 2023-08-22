@@ -110,7 +110,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     private LinearLayout llSectionTransactionMacFile;
-    private Button fileTransactionMacCreate, fileTransactionMacDelete;
+    private Button fileTransactionMacCreate, fileTransactionMacDelete, fileTransactionRead;
 
 
     // old ones
@@ -432,6 +432,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         // transaction mac file workflow
         fileTransactionMacCreate = findViewById(R.id.btnTransactionMacFileCreate);
         fileTransactionMacDelete = findViewById(R.id.btnTransactionMacFileDelete);
+        fileTransactionRead = findViewById(R.id.btnTransactionMacFileRead);
 
         // application handling
         applicationCreate = findViewById(R.id.btnCreateApplication);
@@ -1477,6 +1478,55 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 String logString = "delete a TransactionMAC file";
                 writeToUiAppend(output, logString);
 
+            }
+        });
+
+        fileTransactionRead.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "read from a transaction MAC file";
+                writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                int fileSizeInt = selectedFileSettings.getFileSizeInt();
+
+                // pre-check if fileNumber is existing
+                boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
+                if (!isFileExisting) {
+                    writeToUiAppend(output, logString + " The file does not exist, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
+                    return;
+                }
+
+                byte[] responseData = new byte[2];
+                byte[] result = desfireEv3.readFromATransactionMacFile(fileIdByte);
+                responseData = desfireEv3.getErrorCode();
+                if (result == null) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkResponseMoreData(responseData)) {
+                        writeToUiAppend(output, "the file is too long to read, sorry");
+                    }
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + printData(" data", result));
+                    writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + " data: " + new String(result, StandardCharsets.UTF_8));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }
             }
         });
 
