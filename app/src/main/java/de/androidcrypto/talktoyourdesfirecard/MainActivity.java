@@ -1496,8 +1496,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte[] responseData = new byte[2];
                 // this is the disabled Commit ReadId option
                 //boolean success = desfireEv3.createTransactionMacFileEv2(fileIdByte, TRANSACTION_MAC_ACCESS_RIGHTS_DISABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
+                //boolean success = desfireEv3.createATransactionMacFileFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, TRANSACTION_MAC_ACCESS_RIGHTS_DISABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
                 // this is the enabled Commit ReadId option
-                boolean success = desfireEv3.createTransactionMacFileEv2(fileIdByte, TRANSACTION_MAC_ACCESS_RIGHTS_ENABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
+                //boolean success = desfireEv3.createTransactionMacFileEv2(fileIdByte, TRANSACTION_MAC_ACCESS_RIGHTS_ENABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
+                boolean success = desfireEv3.createATransactionMacFileFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, TRANSACTION_MAC_ACCESS_RIGHTS_ENABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
 
                 responseData = desfireEv3.getErrorCode();
 
@@ -1598,6 +1600,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 } else {
                     writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + printData(" data", result));
                     writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + " data: " + new String(result, StandardCharsets.UTF_8));
+                    // todo the result is transaction counter (4 bytes, LSB) || Encrypted [last used] transaction MAC
+                    // todo: split and decrypt
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     vibrateShort();
                 }
