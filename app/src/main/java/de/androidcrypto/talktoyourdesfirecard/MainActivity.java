@@ -1321,7 +1321,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     }
                     if (commMode == (byte) 0x03) {
                         // Full enciphered
-                        success = desfireEv3.commitTransactionFull();
+                        //success = desfireEv3.commitTransactionFull();
+                        // todo this is hardcoded when working with TransactionMAC files
+                        success = desfireEv3.commitTransactionFullReturnTmv();
                     }
                     if (commMode == (byte) 0x01) {
                         // MACed

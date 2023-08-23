@@ -286,5 +286,224 @@ old settings:
 <color name="colorStatusBar">#1E88E5</color>
 ```
 
+# Transaction MAC Value feature
+
+General information: see Mifare DESFire Light Features and Hints AN12343.pdf page 81
+
+Delete and Create TMAC file: see Mifare DESFire Light Features and Hints AN12343.pdf pages 81 - 85
+
+WriteRecord in CommMode.Full with Commit ReadId: see Mifare DESFire Light Features and Hints AN12343.pdf pages 61 - 65
+
+ReadRecord in CommMode.Full with Commit ReadId: see Mifare DESFire Light Features and Hints AN12343.pdf pages 65 - 67
+
+Data sheet: MIFARE DESFire Light contactless application IC MF2DLHX0.pdf
+
+TransactionMAC file: pages 11 - 12
+
+TransactionMAC file access rights: page 14
+
+Transaction Management in general: pages 37 - 40
+
+```plaintext
+The CommitTransaction takes an optional parameter option, which indicates if the Transaction MAC Counter (TMC) and 
+Transaction MAC Value (TMV) of the calculated Transaction MAC, see Section 10.3, are to be sent with the response. 
+If this is requested while the selected application does not support Transaction MAC calculation, i.e. no TransactionMAC 
+file is present, the command is rejected.
+
+If the Transaction MAC feature is enabled, the TransactionMAC file is updated if the Transaction MAC Input (TMI) is 
+different from the empty string. The updated file holds the calculated TMV, as defined in Section 10.3.2.4 and the 
+increased TMC which was used for the calculation of SesTMACKey.
+
+So note that if Transaction MAC is enabled, successful execution of CommitTransaction updating the TransactionMAC is 
+possible without any write operation, as read operations are also included in the Transaction MAC calculation.
+
+The Transaction MAC feature helps preventing e.g. fraudulent merchant attacks. It allows a merchant operating a point-of-sale 
+terminal to prove that the transactions he executed with customers are genuine toward the card issuer’s or application provider’s backend. 
+This is done by letting the card generate a Transaction MAC over the transaction with
+a key shared only by the card and the card issuer’s (or application provider’s) backend. This key is called the AppTransactionMACKey. 
+
+The Transaction MAC Session Keys (SesTMMACKey and SesTMENCKey) are derived from the AppTransactionMACKey using the next 
+Transaction MAC Counter value, see also Section 10.3.2.1.
+
+The Transaction MAC is computed using SesTMMACKey over the following commands:
+• ReadData, GetValue and ReadRecords
+• WriteData, Credit, Debit, LimitedCredit, WriteRecord, UpdateRecord and ClearRecordFile
+• CommitReaderID
+
+The update of the manipulated backup files and the computed Transaction MAC, the related counter and (optionally) the committed ReaderID, 
+are one atomic operation. The computed Transaction MAC and the related counter are either provided with the response of CommitTransaction 
+or can be read afterwards using ReadData on the TransactionMAC file.
+
+Transaction MAC Counter TMC: In AES Secure Messaging the TMC is processed as a 4-byte integer. The TMC added by 1 serves as input for the 
+Transaction MAC Session Key generation, see Section 10.3.2.3.
+
+Transaction MAC Counter Limit: The number of transactions that can be executed within an application can be limited by setting a 
+Transaction MAC Counter Limit (TMCLimit). This is an unsigned integer of 4 bytes (if configured for Standard AES, related with TMC). 
+At delivery, the TMCLimit is disabled. This is equivalent to holding the maximum value (FFFFFFFFh, as configured for Standard AES at 
+that time). The TMCLimit can be enabled by setting a customized value with ChangeFileSettings. It can be retrieved with GetFileSettings.
+
+Once the TMC (actTMC in case of LRP) equals the TMCLimit, no data management commands, see Section 11.8 can be executed, except ReadData 
+targeting the TransactionMAC file. Also CommitReaderID will be rejected. This means the application can still be selected, but with limited 
+functionality. ISOSelectFile will be responded with error response 6283h indicating that the selected file or application has been deactivated 
+and provides limited functionality.
+
+Transaction MAC Session Keys: Out of the AppTransactionMACKey, two session keys are generated: 
+• SesTMMACKey for computing the Transaction MAC Value
+• SesTMENCKey for encrypting the committed ReaderID (if used)
+
+The Transaction MAC Session Keys are derived using the following algorithms.
+
+AES Secure Messaging: The session key generation is according to NIST SP 800-108 [10] in counter mode.
+
+The Pseudo Random Function PRF(key; message) applied during the key generation is the CMAC algorithm described in NIST Special Publication 800-38B [6]. 
+The key derivation key is the AppTransactionMACKey, see Section 8.2.4.. The input data is constructed using the following fields as defined by [10]. 
+Note that NIST SP 800-108 allows defining a different order than proposed by the standard as long as it is unambiguously defined.
+• a 1-byte label, distinguishing the purpose of the key: 31h for MACing and 32h for encryption
+• a 2-byte counter, fixed to 0001h as only 128-bit keys are generated.
+• a 2-byte length, fixed to 0080h as only 128-bit keys are generated.
+• a 11-byte context, constructed using the 4-byte TMC+1 and the UID
+Two session vectors SVx are derived as follows:       
+
+SV1 = 5Ah||00h||01h||00h||80h||(TMC+1)||UID
+SV2 = A5h||00h||01h||00h||80h||(TMC+1)||UID
+
+Then, the 16-byte session keys SesTMMACKey and SesTMENCKey are constructed as follows:
+
+SesTMMACKey = PRF(AppTransactionMACKey, SV1) 
+SesTMENCKey = PRF(AppTransactionMACKey, SV2)
+
+Transaction MAC Value and Input: The 8-byte Transaction MAC Value (TMV) is computed over the Transaction MAC Input (TMI). This input 
+depends on the commands executed during the transaction, see Section 10.3.4. The applied key is SesTMMACKey, defined in Section 10.3.2.3..
+A different notation than the one for Secure Messaging MACs is used: 
+
+MACtTM(key; message) is used to denote the CMAC operation including truncation. 
+MACTM(key; message) denotes the CMAC result before truncation. 
+
+Note that, though similar algorithm as for Secure Messaging are used, this MAC calculation is unrelated with the secure messaging itself 
+as a different key is applied. The TMV is calculated as follows:
+
+TMV = MACtTM(SesTMMACKey, TMI)
+
+using the MAC algorithm of the Secure Messaging with zero byte IV, see Section 9.1.3. Note that even if the application is configured for 
+LRP, standard AES CMAC is used for the TMV calculation. LRP is only used for the session key generation.
+
+Transaction MAC Reader ID and its encryption: A Transaction MAC ReaderID is 16 bytes. If ReaderID commitment is enabled, see Section 10.3.4.3, 
+two ReaderIDs are maintained by the card.
+
+• TMRICur: the current ReaderID of the ongoing transaction. It is set with CommitReaderID
+• TMRIPrev: the ReaderID of the latest successful transaction. On successful execution of CommitTransaction, TMRICur is stored on the PICC 
+
+as TMRIPrev. During the next transaction, the TMRIPrev is returned encrypted using SesTMENCKey. This is done via the EncTMRI parameter in the 
+response of the CommitReaderID:
+
+EncTMRI = ETM(SesTMENCKey, TMRIPrev)
+
+using the AES block cipher according to the CBC mode of NIST SP800-38A [5] without adding any padding. The zero byte IV is applied, i.e. 128 bits of 0.
+The initial TMRIPrev, as configured during creation of the TransactionMAC, is set to all zero bytes, see Section 11.7.6.
+
+Note that even if the application is configured for LRP, standard AES encryption is used for the EncTMRI calculation. LRP is only 
+used for the session key generation. The exact specification of the TMRI is out of scope for this document, but an example can be the 7- byte SAM UID with padding.
+
+Transaction MAC Calculation (pages 45 ff)
+
+Transaction MAC Initiation 10.3.4.2
+
+A Transaction MAC calculation is initiated on transaction start, if the TransactionMAC file is present. Next to this, a new 
+Transaction MAC calculation is initiated each time a transaction with ongoing Transaction MAC calculation is committed 
+successfully with CommitTransaction, or aborted, as described in Section 10.2.
+
+Initiating a Transaction MAC calculation consists of the following steps: 
+
+• Set TMI to the empty byte string.
+• Set TMRICur to the empty byte string.
+
+Note that AbortTransaction can be used to exclude data read (ReadData, ReadRecords or GetValue) from the Transaction MAC calculation 
+if this data does not need to be authenticated via the Transaction MAC toward the backend.
+
+Transaction MAC Update 10.3.4.2
+
+If the Transaction MAC Input TMI is still empty, the Transaction MAC Session Keys (SesTMMACKey and SesTMENCKey), as defined in Section 10.3.2.3, 
+are calculated. Note that the calculation of SesTMENCKey may be delayed until CommitReaderID. Once a Transaction MAC calculation is ongoing, 
+the Transaction MAC Input TMI gets updated on each following data manipulation command targeting a file of any file type within the application, 
+except TransactionMAC file itself. The affected commands are listed below including the exact TMI updates. The following holds for all commands:
+
+ZeroPadding is the minimal number of zero bytes added such that the length of the TMI up to and including the ZeroPadding is a multiple of 16 bytes. 
+Note that this padding is also added if this TMI update is not the last one before CommitTransaction.
+Note that if executed while in not authenticated state (in case the access rights allow), the command can be excluded from Transaction MAC 
+processing, according to the TransactionMAC configuration as can be done with ChangeFileSettings. In that case, TMI is not updated at all.
+Note that for each of these commands always the plain data are added, independently from the actual communication settings and secure messaging 
+(i.e. plain data without any MAC, CRC, padding,. . . ). In case of command chaining, the chaining overhead is ignored for the Transaction MAC 
+computation. Data is the complete response data of all frames with a total byte length of Length.
+Except otherwise noted in the commands, all parameters are exactly as they appear on the command interface.
+If TMCLimit was reached, see Section 10.3.2.2, the command is rejected.
+
+ReadData command TMI update:
+TMI = TMI || Cmd || FileNo || Offset || Length || ZeroPadding || Data || ZeroPadding
+
+If Length is set to 000000h in the command, meaning that the whole file is read, the actual length value is filled in with the number of bytes read 
+for the Transaction MAC calculation
+
+The Transaction MAC is not updated when the TransactionMAC file is targeted with the ReadData command.
+
+WriteData command TMI update:
+TMI = TMI || Cmd || FileNo || Offset || Length || ZeroPadding || Data || ZeroPadding
+
+Note that the first ZeroPadding for the WriteData command is actually adding 8 zero bytes after the command parameter fields 
+so that those and the padding add up to 16 bytes.
+
+GetValue command TMI update:
+TMI = TMI || Cmd || FileNo || Value || ZeroPadding Credit command TMI update
+TMI = TMI || Cmd || FileNo || Value || ZeroPadding Debit command TMI update
+TMI = TMI || Cmd || FileNo || Value || ZeroPadding LimitedCredit command TMI update
+TMI = TMI || Cmd || FileNo || Value || ZeroPadding ReadRecords command TMI update
+TMI = TMI || Cmd || FileNo || RecNo || RecCount || ZeroPadding || Data
+
+If RecCount is set to 000000h in the command, meaning that all records are read (starting from the RecNo), the actual length value 
+is filled in with the number of records read for the TM computation.
+Note that ZeroPadding for the ReadRecords command is actually adding 8 zero bytes after the command parameter fields so that those 
+and the padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no padding is needed at the end of the TMI.
+
+WriteRecord command TMI update:
+TMI = TMI || Cmd || FileNo || Offset || Length || ZeroPadding || Data
+
+Note that ZeroPadding for the WriteRecord command is actually adding 8 zero bytes after the command parameter fields so that those 
+and the padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no padding is needed at the end of the TMI.
+
+UpdateRecord command TMI update:
+TMI = TMI || Cmd || FileNo || RecNo || Offset || Length || ZeroPadding || Data
+
+Note that ZeroPadding for the UpdateRecord command is actually adding 5 zero bytes after the command parameter fields so that those 
+and the padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no padding is needed at the end of the TMI.
+
+ClearRecordFile command TMI update:
+TMI = TMI || Cmd || FileNo || ZeroPadding
+
+CommitReaderID Command 10.3.4.3: you need to read this when enabling this feature ! skipped here !
+
+Transaction MAC Finalization 10.3.4.3
+
+The Transaction MAC computation is successfully finalized on CommitTransaction as described in Section 10.2.
+
+The Transaction MAC is computed as defined in Section 10.3.2.4.
+If a transaction is aborted, either with AbortTransaction or implicitly by some other event, the ongoing Transaction MAC calculation 
+is also aborted. This is described in Section 10.2.2.
+
+Changes to Commit Transaction command, see pages 106 ff
+
+Command parameters description:
+
+Cmd C7h Command code length 1 byte
+Option [optional]           1 byte Note: this should be used ONLY when a TMAC file is present in this  application, otherwise the command will be rejected
+       Bit 7-1 0000000b     RFU
+       Bit 0                Calculated Transaction MAC requested on response
+               0b           No TMC and TMV returned
+               1b           TMC and TMV returned
+
+Response data parameters description
+TMC   00000001h .. FFFFFFFFh 4 bytes [Optional, only present if Bit0 of Option is set] Transaction MAC Counter (TMC)
+TMV   Full Range             8 bytes [Optional, only present if Bit0 of Option is set] Transaction MAC Value (TMV)
+
+
+```
 
 
