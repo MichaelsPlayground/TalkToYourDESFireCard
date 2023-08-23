@@ -88,7 +88,7 @@ import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
  *
  */
 
-// todo do not run tasks after authentication (e.g. deleteFile won't run as the PICC is in authenticated state)
+// todo do not run some tasks after authentication (e.g. deleteFile won't run as the PICC is in authenticated state)
 
 public class DesfireEv3 {
 
@@ -182,7 +182,16 @@ public class DesfireEv3 {
     private final byte DELETE_TRANSACTION_MAC_FILE_COMMAND = (byte) 0xDF;
     public static final byte TRANSACTION_MAC_FILE_NUMBER = (byte) 0x1F; // 31
     // key settings for Transaction MAC file
-    private final byte ACCESS_RIGHTS_RW_CAR_TMAC = (byte) 0x10; // Read&Write Access (key 01) & ChangeAccessRights (key 00)
+    //private final byte ACCESS_RIGHTS_RW_CAR_TMAC = (byte) 0x10; // Read&Write Access (key 01) & ChangeAccessRights (key 00)
+    private final byte ACCESS_RIGHTS_RW_CAR_TMAC = (byte) 0xF0; // CommitReaderID disabled & ChangeAccessRights (key 00)
+    /**
+     * Note on Access Right 'RW' - see MIFARE DESFire Light contactless application IC MF2DLHX0.pdf page 14
+     * AppCommitReaderIDKey: Note that this access right has a specific meaning in the context of a TransactionMAC file
+     * as if defines the availability and configuration for the CommitReaderID command:
+     * 0h..4h: CommitReaderID enabled, requiring authentication with the specified application key index
+     * Eh    : CommitReaderID enabled with free access
+     * Fh    : CommitReaderID disabled
+     */
     private final byte ACCESS_RIGHTS_R_W_TMAC = (byte) 0x1F; // Read Access (key 01) & Write Access (no access)
 
 
@@ -239,13 +248,14 @@ public class DesfireEv3 {
     private byte[] selectedApplicationId; // filled by 'select application'
 
     /**
-     * standard file
+     * files
      */
 
     private static byte[] APPLICATION_ALL_FILE_IDS; // filled by getAllFileIds and invalidated by selectApplication AND createFile
     private static FileSettings[] APPLICATION_ALL_FILE_SETTINGS; // filled by getAllFileSettings and invalidated by selectApplication AND createFile
     private FileSettings selectedFileSetting; // takes the fileSettings of the actual file
     private FileSettings[] fileSettingsArray = new FileSettings[MAXIMUM_NUMBER_OF_FILES]; // after an 'select application' the fileSettings of all files are read
+    private boolean isTransactionMacFilePresent = false; // true when a Transaction MAC file is present in an application
 
     public enum CommunicationSettings {
         Plain, MACed, Full
@@ -876,6 +886,105 @@ public class DesfireEv3 {
             } else {
                 apdu = wrapMessage(CREATE_CYCLIC_RECORD_FILE_COMMAND, commandParameter);
             }
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            log(methodName, "SUCCESS");
+            return true;
+        } else {
+            log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            errorCodeReason = "FAILURE";
+            return false;
+        }
+    }
+
+    /**
+     * create a Transaction MAC file in selected application using file Number
+     * Note: the created TransactionMAC file gets a DISABLED Commit ReaderId option
+     * Note: the file can be read as a Standard file with a file length of 12 bytes
+     * @param fileNumber            | in range 0..31
+     * @param communicationSettings | Plain mode only
+     * @param communicationSettings | deprecated: Plain, MACed or Full Note: Please do not use MACed as there are no methods in this class to handle that communication type
+     * @param tmacAccessRights      | Read & Write access key, CAR ke, Read key, Write key
+     *                              | Note: there are special meaning in the context of a
+     *                              | e.g. '0xF01F'
+     * @param transactionMacKey     | a 16 bytes long AES key for encryption of Transaction MAC data
+     *                              | Note: the key version of this key is fixed to '0x00'
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+
+    public boolean createATransactionMacFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] tmacAccessRights, byte[] transactionMacKey) {
+        final String methodName = "createATransactionMacFile";
+        logData = "";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "communicationSettings: " + communicationSettings.toString());
+        log(methodName, printData("tmacAccessRights", tmacAccessRights));
+        log(methodName, printData("transactionMacKey", transactionMacKey));
+        errorCode = new byte[2];
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false;
+        if (!checkKey(transactionMacKey)) return false;
+        /*
+        if ((fileSize < 1) || (fileSize > MAXIMUM_FILE_SIZE)) {
+            log(methodName, "fileSize is not in range 1..MAXIMUM_FILE_SIZE, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "fileSize is not in range 1..MAXIMUM_FILE_SIZE";
+            return false;
+        }
+         */
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+
+        // modifying the tmacAccessRights - disabling Commit ReaderId option
+        byte[] tmacAccessRightsModified = modifyTmacAccessRights(tmacAccessRights);
+        if (tmacAccessRightsModified == null) {
+            log(methodName, "tmacAccessRights are invalid, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "tmacAccessRights are invalid";
+            return false;
+        }
+
+        byte commSettings = (byte) 0;
+        if (communicationSettings == CommunicationSettings.MACed) {
+            log(methodName, "CommunicationSettings.Plain allowed only, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "tmacAccessRights are invalid";
+            return false;
+        };
+        if (communicationSettings == CommunicationSettings.Full) {
+            log(methodName, "CommunicationSettings.Plain allowed only, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "tmacAccessRights are invalid";
+            return false;
+        }
+        if (communicationSettings == CommunicationSettings.Plain) commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        //if (communicationSettings == CommunicationSettings.MACed) commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
+        //if (communicationSettings == CommunicationSettings.Full) commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
+
+        byte tmacKeyOption = (byte) 0x02; // fixed to AES
+        byte tmacKeyVersion = (byte) 0x00; // fixed
+        // build the command string
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(commSettings);
+        baos.write(tmacAccessRightsModified, 0, tmacAccessRightsModified.length);
+        baos.write(tmacKeyOption);
+        baos.write(transactionMacKey, 0, transactionMacKey.length);
+        baos.write(tmacKeyVersion);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+        try {
+            apdu = wrapMessage(CREATE_TRANSACTION_MAC_FILE_COMMAND, commandParameter);
             response = sendData(apdu);
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
@@ -3773,7 +3882,7 @@ public class DesfireEv3 {
      */
 
     // todo clean code
-    public boolean createTransactionMacFileEv2(byte fileNumber, byte[] key) {
+    public boolean createTransactionMacFileEv2(byte fileNumber, byte[] transactionMacAccessRights, byte[] key) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 83 - 85
         // this is based on the creation of a TransactionMac file on a DESFire Light card
 
@@ -3812,7 +3921,7 @@ public class DesfireEv3 {
         }
 
         byte TMACKeyOption = (byte) 0x02; // AES
-        byte TMACKeyVersion = (byte) 0x00;
+        byte TMACKeyVersion = (byte) 0x00; // fixed
 
         // IV_Input (IV_Label || TI || CmdCounter || Padding)
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
@@ -3867,8 +3976,9 @@ public class DesfireEv3 {
         ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
         baosCmdHeader.write(fileNumber);
         baosCmdHeader.write(FILE_COMMUNICATION_SETTINGS_PLAIN);
-        baosCmdHeader.write(ACCESS_RIGHTS_RW_CAR_TMAC);
-        baosCmdHeader.write(ACCESS_RIGHTS_R_W_TMAC);
+        baosCmdHeader.write(transactionMacAccessRights, 0, transactionMacAccessRights.length);
+        //baosCmdHeader.write(ACCESS_RIGHTS_RW_CAR_TMAC);
+        //baosCmdHeader.write(ACCESS_RIGHTS_R_W_TMAC);
         baosCmdHeader.write(TMACKeyOption);
         byte[] cmdHeader = baosCmdHeader.toByteArray();
         log(methodName, printData("cmdHeader", cmdHeader));
@@ -3973,11 +4083,17 @@ public class DesfireEv3 {
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
         // sanity checks
+
+        // as the TMAC file was created as Plain communication the authentication was done using
+        // authenticateAesLegacy meaning n authenticateEv2FirstSuccess
+        /*
         if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
             Log.d(TAG, "missing successful authentication with EV2First or EV2NonFirst, aborted");
             System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
             return false;
         }
+
+         */
         if (fileNumber < 0) {
             Log.e(TAG, methodName + " fileNumber is < 0, aborted");
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
@@ -4387,9 +4503,8 @@ public class DesfireEv3 {
                 FileSettings fileSettings = new FileSettings(fileId, fileSettingsByte);
                 if (fileSettings != null) {
                     APPLICATION_ALL_FILE_SETTINGS[fileId] = fileSettings;
-                    // todo check if this file is a TransactionMac file
-
-
+                    // check if this file is a TransactionMac file
+                    if (checkIsTransactionMacFileType(fileId)) isTransactionMacFilePresent = true;
                 }
             }
         }
@@ -6536,6 +6651,32 @@ fileSize: 128
         return true;
     }
 
+    // note: this does not check if in application creation all keys got created
+    private byte[] modifyTmacAccessRights(byte[] tmacAccessRights) {
+        // keys are RW || CAR || R || W
+        if ((tmacAccessRights == null) || (tmacAccessRights.length != 2)) {
+            log("checkTmacAccessRights", "tmacAccessRights are NULL or not of length 2, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "accessRights are NULL or not of length 2";
+            return null;
+        }
+        // the write key is RFU so the write key is fixed to 'F'
+        byte r_w_key = tmacAccessRights[1];
+        char r_key = Utils.byteToUpperNibble(r_w_key);
+        char w_key = Utils.byteToLowerNibble(r_w_key);
+        byte r_w_key_new = Utils.nibblesToByte(r_key, 'F');
+        // I'm disabling the TMAC ReaderId Option
+        byte rw_car_key = tmacAccessRights[0];
+        char rw_key = Utils.byteToUpperNibble(rw_car_key);
+        char car_key = Utils.byteToLowerNibble(rw_car_key);
+        byte rw_car_key_new = Utils.nibblesToByte('F', car_key);
+        byte[] dataReturned = new byte[2];
+        dataReturned[0] = rw_car_key_new;
+        dataReturned[1] = r_w_key_new;
+        return dataReturned;
+    }
+
     private boolean checkKeyNumber(int keyNumber) {
         String methodName = "checkKeyNumber";
         if (keyNumber < 0) {
@@ -6653,17 +6794,18 @@ fileSize: 128
         FileSettings fileSettings;
         try {
             fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+            log(methodName, "fileNumber is a " + fileSettings.getFileTypeName());
+            if (fileSettings.getFileType() == FileSettings.TRANSACTION_MAC_FILE_TYPE) {
+                log(methodName, "Transaction MAC file detected");
+                return true;
+            } else {
+                return false;
+            }
         } catch (NullPointerException e) {
             Log.e(TAG, methodName + " could not read fileSettings, aborted");
             log(methodName, "could not read fileSettings");
             errorCode = RESPONSE_FAILURE_MISSING_GET_FILE_SETTINGS.clone();
             errorCodeReason = "could not read fileSettings, aborted";
-            return false;
-        }
-        log(methodName, "fileNumber is a " + fileSettings.getFileTypeName());
-        if (fileSettings.getFileType() == FileSettings.TRANSACTION_MAC_FILE_TYPE) {
-            return true;
-        } else {
             return false;
         }
     }
@@ -6774,6 +6916,7 @@ fileSize: 128
         SesAuthMACKey = null; // filled by authenticateAesEv2First
         CmdCounter = 0; // filled / resetted by authenticateAesEv2First
         TransactionIdentifier = null; // resetted by authenticateAesEv2First
+        isTransactionMacFilePresent = false;
     }
 
     private void invalidateAllDataNonFirst() {
@@ -6854,6 +6997,10 @@ fileSize: 128
 
     public static FileSettings[] getApplicationAllFileSettings() {
         return APPLICATION_ALL_FILE_SETTINGS;
+    }
+
+    public boolean isTransactionMacFilePresent() {
+        return isTransactionMacFilePresent;
     }
 
     /**

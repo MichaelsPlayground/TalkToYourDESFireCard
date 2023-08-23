@@ -52,6 +52,25 @@ public class VersionInfo {
 
     // Source: https://github.com/skjolber/external-nfc-api/blob/d1cf337dbfca6d34b6a71fd951e60fb467ea2f01/core/src/main/java/com/github/skjolber/nfc/service/desfire/VersionInfo.java
 
+    /**
+     * A short identification overview:
+     * HardwareType of (lower nibble):
+     * 0xX1 = MIFARE DESFire
+     * 0xX2 = MIFARE Plus
+     * 0xX3 = MIFARE Ultralight
+     * 0x04 = NTAG 4xx
+     * 0xX5 = RFU
+     * 0xX6 = RFU
+     * 0xX7 = NTAG I2C
+     * 0x08 = MIFARE DESFire Light
+     *
+     * HardwareType of (upper nibble):
+     * 0x0X = MIFARE native IC
+     * 0x8X = Implementation
+     * 0x9X = Applet on a Java  card
+     * 0xAX = MIFARE 2GO
+     */
+
     public VersionInfo(byte[] bytes) throws IOException {
         if(bytes.length < 7 + 7 + uid.length + batchNumber.length + 2) {
             throw new IllegalArgumentException();

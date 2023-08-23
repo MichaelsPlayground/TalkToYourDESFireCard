@@ -113,6 +113,24 @@ public class Utils {
         //return String.format("0x%02X", input);
     }
 
+    public static char byteToUpperNibble(Byte input) {
+        final char[] hexArray = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+        int v = input & 0xFF; // Cast byte to int, treating as unsigned value
+        return hexArray[v >>> 4]; // Select hex character from upper nibble
+    }
+
+    public static char byteToLowerNibble(Byte input) {
+        final char[] hexArray = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+        int v = input & 0xFF; // Cast byte to int, treating as unsigned value
+        return hexArray[v & 0x0F]; // Select hex character from lower nibble
+    }
+
+    public static byte nibblesToByte(char upperNibble, char lowerNibble) {
+        String data = String.valueOf(upperNibble) + String.valueOf(lowerNibble);
+        byte[] byteArray = hexStringToByteArray(data);
+        return byteArray[0];
+    }
+
     public static byte[] hexStringToByteArray(String s) {
         try {
             int len = s.length();
@@ -126,6 +144,40 @@ public class Utils {
             return null;
         }
     }
+
+
+/*
+    public static int byteToInt(byte b) {
+        return (int) b & 0xFF;
+    }
+    public static byte intToByte(int i) { return (byte) (i & 0xff);}
+*/
+/*
+see https://stackoverflow.com/questions/7401550/how-to-convert-int-to-unsigned-byte-and-back
+
+Java 8 provides Byte.toUnsignedInt to convert byte to int by unsigned conversion.
+In Oracle's JDK this is simply implemented as return ((int) x) & 0xff;
+because HotSpot already understands how to optimize this pattern, but it could be
+intrinsified on other VMs. More importantly, no prior knowledge is needed to
+understand what a call to toUnsignedInt(foo) does.
+
+In total, Java 8 provides methods to convert byte and short to unsigned int and long,
+and int to unsigned long. A method to convert byte to unsigned short was deliberately
+omitted because the JVM only provides arithmetic on int and long anyway.
+
+To convert an int back to a byte, just use a cast: (byte)someInt. The resulting
+narrowing primitive conversion will discard all but the last 8 bits.
+
+A byte is always signed in Java. You may get its unsigned value by binary-anding it with 0xFF, though:
+
+int i = 234;
+byte b = (byte) i;
+System.out.println(b); // -22
+int i2 = b & 0xFF;
+System.out.println(i2); // 234
+ */
+
+
 
     public static String getDec(byte[] bytes) {
         long result = 0;

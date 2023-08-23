@@ -75,6 +75,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private LinearLayout llSectionMenue1;
     private Button applicationSelect, fileSelect;
+    private boolean isTransactionFilePresent = false; // tries to detect a TMAC file when selecting application or files
 
     /**
      * section for Data file - can be Standard or Backup files
@@ -311,6 +312,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     // see Mifare DESFire Light Features and Hints AN12343.pdf, page 83-84
     private final byte[] TRANSACTION_MAC_KEY_AES = Utils.hexStringToByteArray("F7D23E0C44AFADE542BFDF2DC5C6AE02"); // taken from Mifare DESFire Light Features and Hints AN12343.pdf, pages 83-84
+    private final byte[] TRANSACTION_MAC_ACCESS_RIGHTS_DISABLED_COMMIT_READER_ID = Utils.hexStringToByteArray("F01F");
+    private final byte[] TRANSACTION_MAC_ACCESS_RIGHTS_ENABLED_COMMIT_READER_ID = Utils.hexStringToByteArray("101F");
 
     // proximity check keys
     private final byte VC_CONFIGURATION_KEY_NUMBER = (byte) 0x20;
@@ -656,6 +659,24 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         applicationSelected.setText(applicationList[which]);
                         selectedApplicationId = Utils.hexStringToByteArray(applicationList[which]);
                         invalidateEncryptionKeys();
+
+                        // try to read all fileIds and fileSettings within this application
+                        Log.d(TAG, "getAllFileIds and allFileSettings");
+                        allFileIds = desfireEv3.getAllFileIds();
+                        allFileSettings = desfireEv3.getAllFileSettings();
+                        byte[] responseCode = desfireEv3.getErrorCode();
+                        if ((allFileIds == null) || (allFileIds.length == 0)) {
+                            writeToUiAppend(output, "no file IDs found, aborted");
+                            writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                            return;
+                        }
+                        if ((allFileSettings == null) || (allFileSettings.length == 0)) {
+                            writeToUiAppend(output, "no file settings found, aborted");
+                            writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                            return;
+                        }
+                        isFileListRead = true;
+                        if (desfireEv3.isTransactionMacFilePresent()) isTransactionFilePresent = true;
                     }
                 });
                 // create and show the alert dialog
@@ -696,6 +717,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         return;
                     }
                     isFileListRead = true;
+                    if (desfireEv3.isTransactionMacFilePresent()) isTransactionFilePresent = true;
                 } else {
                     Log.d(TAG, "getAllFileIds and allFileSettings SKIPPED");
                 }
@@ -772,14 +794,16 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     }
                 });
 
-                // todo check for Transaction MAC file in this application
-
-                String tmacWarningMessage = "SERIOUS WARNING\n\n" +
-                        "This application does contain a Transaction MAC file.\n" +
-                        "This file does need a changed COMMIT command that is not available at the moment " +
-                        "within the DesfireEv3 class.\n\n" +
-                        "ALL write commands to a Backup, Value or Record file will FAIL !";
-                showDialog(MainActivity.this, tmacWarningMessage);
+                // Transaction MAC file is present in this application
+                if (isTransactionFilePresent) {
+                    Log.d(TAG, "The application contains a Transaction MAC file");
+                    String tmacWarningMessage = "SERIOUS WARNING\n\n" +
+                            "This application does contain a Transaction MAC file.\n" +
+                            "This file does need a changed COMMIT command that is not available at the moment " +
+                            "within the DesfireEv3 class.\n\n" +
+                            "ALL write commands to a Backup, Value or Record file will FAIL !";
+                    showDialog(MainActivity.this, tmacWarningMessage);
+                }
 
                 // create and show the alert dialog
                 AlertDialog dialog = builder.create();
@@ -923,8 +947,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
 
                 byte[] responseData = new byte[2];
-                //boolean success = desfireEv3.writeToADataFile(fileIdByte, 0, fullDataToWrite);
-                boolean success = desfireEv3.writeToADataFileRawMac(fileIdByte, 0, fullDataToWrite);
+                boolean success = desfireEv3.writeToADataFile(fileIdByte, 0, fullDataToWrite);
                 responseData = desfireEv3.getErrorCode();
 
                 if (success) {
@@ -1451,8 +1474,31 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 writeToUiAppend(output, printData("using a predefined TMAC key", TRANSACTION_MAC_KEY_AES));
                 writeToUiAppend(output, "Note: you need to authenticate with the Application Master Key first !");
 
+                /*
+                // plain creation, not working
+                boolean successAuth = desfireEv3.authenticateAesLegacy(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+                if (!successAuth) {
+                    writeToUiAppend(output, logString + " could not authenticate with the DEFAULT AES Application Master Key, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
                 byte[] responseData = new byte[2];
-                boolean success = desfireEv3.createTransactionMacFileEv2(fileIdByte, TRANSACTION_MAC_KEY_AES);
+                boolean success = desfireEv3.createATransactionMacFile(fileIdByte, DesfireEv3.CommunicationSettings.Plain, TRANSACTION_MAC_ACCESS_RIGHTS, TRANSACTION_MAC_KEY_AES);
+                 */
+
+                // Full version
+                boolean successAuth = desfireEv3.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+                if (!successAuth) {
+                    writeToUiAppend(output, logString + " could not authenticate with the DEFAULT AES Application Master Key, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte[] responseData = new byte[2];
+                // this is the disabled Commit ReadId option
+                //boolean success = desfireEv3.createTransactionMacFileEv2(fileIdByte, TRANSACTION_MAC_ACCESS_RIGHTS_DISABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
+                // this is the enabled Commit ReadId option
+                boolean success = desfireEv3.createTransactionMacFileEv2(fileIdByte, TRANSACTION_MAC_ACCESS_RIGHTS_ENABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
+
                 responseData = desfireEv3.getErrorCode();
 
                 if (success) {
@@ -1483,7 +1529,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 writeToUiAppend(output, "Note: you need to authenticate with the Application Master Key first !");
 
                 byte[] responseData = new byte[2];
-                boolean success = desfireEv3.deleteTransactionMacFileEv2(fileIdByte);
+                //boolean success = desfireEv3.deleteTransactionMacFileEv2(fileIdByte);
+                boolean success = desfireEv3.deleteFile(fileIdByte);
                 responseData = desfireEv3.getErrorCode();
 
                 if (success) {
