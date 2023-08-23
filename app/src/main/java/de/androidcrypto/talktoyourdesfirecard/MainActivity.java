@@ -1566,7 +1566,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
                 byte fileIdByte = Byte.parseByte(selectedFileId);
-                int fileSizeInt = selectedFileSettings.getFileSizeInt();
 
                 // pre-check if fileNumber is existing
                 boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
@@ -1601,7 +1600,18 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + printData(" data", result));
                     writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + " data: " + new String(result, StandardCharsets.UTF_8));
                     // todo the result is transaction counter (4 bytes, LSB) || Encrypted [last used] transaction MAC
-                    // todo: split and decrypt
+                    // todo: split and decrypt page 64 and some more pages
+                    if (result.length == 12) {
+                        byte[] tmc = Arrays.copyOfRange(result, 0, 3); // todo THIS IS WRONG, use to 4 instead
+                        byte[] tmacEnc = Arrays.copyOfRange(result, 4, 12);
+                        int tmacInt = Utils.intFrom3ByteArrayInversed(tmc); // todo THIS IS WRONG, should be intFrom4ByteArrayInversed
+                        writeToUiAppend(output, "TMAC counter: " + tmacInt + printData(" tmacEnc", tmacEnc));
+
+                    }
+
+
+
+                    // see Mifare DESFire Light Features and Hints AN12343.pdf
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     vibrateShort();
                 }
