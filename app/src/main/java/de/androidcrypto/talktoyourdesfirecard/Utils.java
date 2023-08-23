@@ -302,6 +302,10 @@ System.out.println(i2); // 234
         return bytes[3] << 24 | (bytes[2] & 0xFF) << 16 | (bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF);
     }
 
+    public static int intFrom4ByteArrayInversed(byte[] bytes) {
+        return bytes[3] << 24 | (bytes[2] & 0xFF) << 16 | (bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF);
+    }
+
     /**
      * splits a byte array in chunks
      *

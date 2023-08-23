@@ -1600,14 +1600,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 } else {
                     writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + printData(" data", result));
-                    writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + " data: " + new String(result, StandardCharsets.UTF_8));
-                    // todo the result is transaction counter (4 bytes, LSB) || Encrypted [last used] transaction MAC
+                    // todo the result is transaction counter (4 bytes, LSB) || Encrypted [last used] transaction MAC = TMV
                     // todo: split and decrypt page 64 and some more pages
                     if (result.length == 12) {
-                        byte[] tmc = Arrays.copyOfRange(result, 0, 3); // todo THIS IS WRONG, use to 4 instead
+                        byte[] tmc = Arrays.copyOfRange(result, 0, 4);
                         byte[] tmacEnc = Arrays.copyOfRange(result, 4, 12);
-                        int tmacInt = Utils.intFrom3ByteArrayInversed(tmc); // todo THIS IS WRONG, should be intFrom4ByteArrayInversed
-                        writeToUiAppend(output, "TMAC counter: " + tmacInt + printData(" tmacEnc", tmacEnc));
+                        int tmcInt = Utils.intFrom4ByteArrayInversed(tmc);
+                        writeToUiAppend(output, "TMAC counter: " + tmcInt + printData(" tmacEnc", tmacEnc));
 
                     }
 

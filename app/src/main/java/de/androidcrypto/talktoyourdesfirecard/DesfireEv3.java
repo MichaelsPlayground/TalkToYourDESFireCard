@@ -2342,9 +2342,9 @@ public class DesfireEv3 {
     public byte[] readFromATransactionMacFile(byte fileNumber) {
         byte[] receivedData = readFromADataFileRawPlain(fileNumber, 0, 12);
         if (receivedData.length == 12) {
-            byte[] tmc = Arrays.copyOfRange(receivedData, 0, 3); // todo THIS IS WRONG, use to 4 instead
+            byte[] tmc = Arrays.copyOfRange(receivedData, 0, 4);
             byte[] tmacEnc = Arrays.copyOfRange(receivedData, 4, 12);
-            int tmacInt = Utils.intFrom3ByteArrayInversed(tmc); // todo THIS IS WRONG, should be intFrom4ByteArrayInversed
+            int tmacInt = Utils.intFrom4ByteArrayInversed(tmc);
             Log.d(TAG, "TMAC counter: " + tmacInt + printData(" tmacEnc", tmacEnc));
             // example after a writeRecord operation
             // responseTmcv length: 12 data: 04000000c2e11a34e0513de7
