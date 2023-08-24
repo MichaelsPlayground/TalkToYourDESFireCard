@@ -113,6 +113,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private LinearLayout llSectionTransactionMacFile;
     private Button fileTransactionMacCreate, fileTransactionMacDelete, fileTransactionRead;
 
+    /**
+     * section for Transaction Timer
+    */
+
+    private Button applicationTransactionTimerEnable, applicationTransactionTimerDisable, applicationTransactionTimerAuth0;
 
     // old ones
 
@@ -437,6 +442,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileTransactionMacDelete = findViewById(R.id.btnTransactionMacFileDelete);
         fileTransactionRead = findViewById(R.id.btnTransactionMacFileRead);
 
+        // transaction timer workflow
+        applicationTransactionTimerEnable = findViewById(R.id.btnApplicationTransactionTimerEnable);
+        applicationTransactionTimerDisable = findViewById(R.id.btnApplicationTransactionTimerDisable);
+        applicationTransactionTimerAuth0 = findViewById(R.id.btnApplicationTransactionTimerAuth0);
+
+
         // application handling
         applicationCreate = findViewById(R.id.btnCreateApplication);
 
@@ -677,6 +688,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         }
                         isFileListRead = true;
                         if (desfireEv3.isTransactionMacFilePresent()) isTransactionFilePresent = true;
+
+                        // for some actions we do need active authentication
+                        llSectionAuthentication.setVisibility(View.VISIBLE);
                     }
                 });
                 // create and show the alert dialog
@@ -1632,6 +1646,110 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     // see Mifare DESFire Light Features and Hints AN12343.pdf
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     vibrateShort();
+                }
+            }
+        });
+
+        /**
+         * section for Transaction Timer feature
+         */
+
+        applicationTransactionTimerEnable.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "enable Transaction Timer";
+                writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+
+                // don't forget to authenticate with Application Master Key
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireEv3.enableTransactionTimerFull();
+
+
+                /*
+                byte[] result = desfireEv3.readFromATransactionMacFile(fileIdByte);
+                responseData = desfireEv3.getErrorCode();
+                if (result == null) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkResponseMoreData(responseData)) {
+                        writeToUiAppend(output, "the file is too long to read, sorry");
+                    }
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + printData(" data", result));
+                    // todo the result is transaction counter (4 bytes, LSB) || Encrypted [last used] transaction MAC = TMV
+                    // todo: split and decrypt page 64 and some more pages
+                    if (result.length == 12) {
+                        byte[] tmc = Arrays.copyOfRange(result, 0, 4);
+                        byte[] tmacEnc = Arrays.copyOfRange(result, 4, 12);
+                        int tmcInt = Utils.intFrom4ByteArrayInversed(tmc);
+                        writeToUiAppend(output, "TMAC counter: " + tmcInt + printData(" tmacEnc", tmacEnc));
+
+                    }
+
+                    // see Mifare DESFire Light Features and Hints AN12343.pdf
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }
+
+                 */
+            }
+        });
+
+        applicationTransactionTimerDisable.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "enable Transaction Timer";
+                writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+
+                // this is a complete run to ENABLE the feature
+                // select Master Application
+                boolean success = desfireEv3.selectApplicationByAid(DesfireEv3.MASTER_APPLICATION_IDENTIFIER);
+                writeToUiAppend(output, "selectMasterApplication success: " + success);
+
+                // auth with Master Application Key
+                // I know they are wrong named but it should work
+                success = desfireEv3.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+                writeToUiAppend(output, "authenticate with Master Application Key success: " + success);
+
+                // set configuration on Master Application level
+                success = desfireEv3.enableTransactionTimerFull();
+                writeToUiAppend(output, "enableTransactionTimerFull success: " + success);
+
+            }
+        });
+
+        applicationTransactionTimerAuth0.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "authenticate EV2 First with DEFAULT AES key number 0x00 = application master key";
+                writeToUiAppend(output, logString);
+                // the method runs all outputs
+                //boolean success = authAesEv3(Constants.APPLICATION_KEY_MASTER_NUMBER, Constants.APPLICATION_KEY_MASTER_AES_DEFAULT);
+                boolean success = desfireEv3.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
                 }
             }
         });
