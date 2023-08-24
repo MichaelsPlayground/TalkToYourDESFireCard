@@ -143,8 +143,10 @@ public class FileSettings {
             accessRightsR =  (accessRightsRW >> 4) & 0x0f;
             accessRightsW =  accessRightsRW & 0x0f;
 
+            // todo need to analyze accessRightsRw - if the key is 'F' / 15 then the CommitReaderId feature is disabled, '0' to 'E' (0..14) is enabled and auth necessary with this  key !
+
             position ++;
-            tmKeyOption = completeResponse[position]; // need to differentiate later, but at the moment only bit 1-0 are set to 10b = AES
+            tmKeyOption = completeResponse[position]; // todo need to differentiate later, but at the moment only bit 1-0 are set to 10b = AES
             position ++;
             tmKeyVersion = completeResponse[position];
             // the next steps depend on the length

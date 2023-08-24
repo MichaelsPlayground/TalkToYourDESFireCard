@@ -1322,8 +1322,23 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     if (commMode == (byte) 0x03) {
                         // Full enciphered
                         //success = desfireEv3.commitTransactionFull();
-                        // todo this is hardcoded when working with TransactionMAC files
-                        success = desfireEv3.commitTransactionFullReturnTmv();
+
+                        if (desfireEv3.isTransactionMacFilePresent()) {
+                            if (desfireEv3.isTransactionMacCommitReaderId()) {
+                                // this  is hardcoded when working with TransactionMAC files AND enabled CommitReaderId feature
+                                writeToUiAppend(output, "A TransactionMAC file is present with ENABLED CommitReaderId");
+                                //success = desfireEv3.commitTransactionReaderIdFullReturnTmv();
+                                success = desfireEv3.commitTMACTransactionEv2();
+                            } else {
+                                // todo this is hardcoded when working with TransactionMAC files
+                                writeToUiAppend(output, "A TransactionMAC file is present with DISBLED CommitReaderId");
+                                success = desfireEv3.commitTransactionFullReturnTmv();
+                            }
+                        } else {
+                            // no transaction mac file is present
+                            writeToUiAppend(output, "A TransactionMAC file is NOT present");
+                            success = desfireEv3.commitTransactionFull();
+                        }
                     }
                     if (commMode == (byte) 0x01) {
                         // MACed
@@ -1501,7 +1516,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 //boolean success = desfireEv3.createATransactionMacFileFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, TRANSACTION_MAC_ACCESS_RIGHTS_DISABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
                 // this is the enabled Commit ReadId option
                 //boolean success = desfireEv3.createTransactionMacFileEv2(fileIdByte, TRANSACTION_MAC_ACCESS_RIGHTS_ENABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
-                boolean success = desfireEv3.createATransactionMacFileFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, TRANSACTION_MAC_ACCESS_RIGHTS_ENABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
+
+                // this is the one with (hard coded) disabled CommitReaderId feature
+                //boolean success = desfireEv3.createATransactionMacFileFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, TRANSACTION_MAC_ACCESS_RIGHTS_ENABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
+                // this one can enable the feature
+                boolean success = desfireEv3.createATransactionMacFileExtendedFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, TRANSACTION_MAC_KEY_AES, 1, 2, 1, true);
 
                 responseData = desfireEv3.getErrorCode();
 
@@ -1609,8 +1628,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         writeToUiAppend(output, "TMAC counter: " + tmcInt + printData(" tmacEnc", tmacEnc));
 
                     }
-
-
 
                     // see Mifare DESFire Light Features and Hints AN12343.pdf
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
