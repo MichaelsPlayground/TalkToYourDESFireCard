@@ -2600,6 +2600,20 @@ public class DesfireEv3 {
             // TMAC counter: 4 tmacEnc length: 8 data: c2e11a34e0513de7
             // todo last step is to calculate the TMV
 
+            // example: write To Record file
+            // data: length: 256 data: 323032332e30382e32342032333a33333a3032000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebec
+            // 2023.08.24 23:33:02?? !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~�������������������������������������������������������������������������������������������������������������
+            // TMAC counter: 3 tmacEnc length: 8 data: be8f8ae89f4dc8d4
+            // length: 12 data: 03000000 be8f8ae89f4dc8d4
+
+            /*
+MIFARE DESFire Light contactless application IC MF2DLHX0.pdf page 46
+WriteRecord command TMI update
+TMI = TMI || Cmd || FileNo || Offset || Length || ZeroPadding || Data
+Note that ZeroPadding for the WriteRecord command is actually adding 8 zero bytes after the command parameter fields so that those and the
+padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no padding is needed at the end of the TMI.
+             */
+
 
         }
 
