@@ -111,7 +111,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     private LinearLayout llSectionTransactionMacFile;
-    private Button fileTransactionMacCreate, fileTransactionMacDelete, fileTransactionRead;
+    private Button fileTransactionMacCreate, fileTransactionMacDelete, fileTransactionMacRead;
 
     /**
      * section for Transaction Timer
@@ -440,7 +440,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         // transaction mac file workflow
         fileTransactionMacCreate = findViewById(R.id.btnTransactionMacFileCreate);
         fileTransactionMacDelete = findViewById(R.id.btnTransactionMacFileDelete);
-        fileTransactionRead = findViewById(R.id.btnTransactionMacFileRead);
+        fileTransactionMacRead = findViewById(R.id.btnTransactionMacFileRead);
 
         // transaction timer workflow
         applicationTransactionTimerEnable = findViewById(R.id.btnApplicationTransactionTimerEnable);
@@ -807,7 +807,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         vibrateShort();
                     }
                 });
-
+/*
                 // Transaction MAC file is present in this application
                 if (isTransactionFilePresent) {
                     Log.d(TAG, "The application contains a Transaction MAC file");
@@ -818,7 +818,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                             "ALL write commands to a Backup, Value or Record file will FAIL !";
                     showDialog(MainActivity.this, tmacWarningMessage);
                 }
-
+*/
                 // create and show the alert dialog
                 AlertDialog dialog = builder.create();
                 dialog.show();
@@ -1533,8 +1533,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 // this is the one with (hard coded) disabled CommitReaderId feature
                 //boolean success = desfireEv3.createATransactionMacFileFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, TRANSACTION_MAC_ACCESS_RIGHTS_ENABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
-                // this one can enable the feature
-                boolean success = desfireEv3.createATransactionMacFileExtendedFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, TRANSACTION_MAC_KEY_AES, 1, 2, 1, true);
+                // this one can enable the feature commitReadId
+                boolean success = desfireEv3.createATransactionMacFileExtendedFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, 1, 2, 1, true, TRANSACTION_MAC_KEY_AES);
 
                 responseData = desfireEv3.getErrorCode();
 
@@ -1586,7 +1586,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
-        fileTransactionRead.setOnClickListener(new View.OnClickListener() {
+        fileTransactionMacRead.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 clearOutputFields();
@@ -1613,6 +1613,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 boolean isTransactionMacFile = desfireEv3.checkIsTransactionMacFileType(fileIdByte);
                 if (!isTransactionMacFile) {
                     writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is NOT a TransactionMAC file, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
                     return;
                 }
 
@@ -1633,16 +1634,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 } else {
                     writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + printData(" data", result));
-                    // todo the result is transaction counter (4 bytes, LSB) || Encrypted [last used] transaction MAC = TMV
-                    // todo: split and decrypt page 64 and some more pages
+                    // todo: verify tmacEnc page 64 and some more pages
                     if (result.length == 12) {
                         byte[] tmc = Arrays.copyOfRange(result, 0, 4);
                         byte[] tmacEnc = Arrays.copyOfRange(result, 4, 12);
                         int tmcInt = Utils.intFrom4ByteArrayInversed(tmc);
                         writeToUiAppend(output, "TMAC counter: " + tmcInt + printData(" tmacEnc", tmacEnc));
-
                     }
-
                     // see Mifare DESFire Light Features and Hints AN12343.pdf
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     vibrateShort();

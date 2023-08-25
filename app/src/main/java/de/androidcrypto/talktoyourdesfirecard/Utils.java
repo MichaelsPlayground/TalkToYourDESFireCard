@@ -230,6 +230,11 @@ System.out.println(i2); // 234
                 (byte) (value >> 8)};
     }
 
+    public static int intFrom2ByteArrayInversed(byte[] bytes) {
+        return  ((bytes[1] & 0xFF) << 8 ) |
+                ((bytes[0] & 0xFF) << 0 );
+    }
+
     // bytes are signed value, e.g. 0x83 would - without this method - return -125
     public static int intFromByteUnsigned(byte value) {
         return Byte.toUnsignedInt(value);

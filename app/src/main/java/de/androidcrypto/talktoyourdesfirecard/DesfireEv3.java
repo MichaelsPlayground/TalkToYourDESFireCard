@@ -3,6 +3,7 @@ package de.androidcrypto.talktoyourdesfirecard;
 import static de.androidcrypto.talktoyourdesfirecard.DesfireAuthenticateEv2.intTo2ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.byteArrayLength4InversedToInt;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
+import static de.androidcrypto.talktoyourdesfirecard.Utils.intFrom4ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo3ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo4ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
@@ -1245,7 +1246,7 @@ public class DesfireEv3 {
  */
     }
 
-    public boolean createATransactionMacFileExtendedFull(byte fileNumber, CommunicationSettings communicationSettings, byte[] transactionMacKey, int commitReaderIdAuthKeyNumber, int changeAccessRightsKeyNumber, int readAccessKeyNumber , boolean enableCommitReaderId) {
+    public boolean createATransactionMacFileExtendedFull(byte fileNumber, CommunicationSettings communicationSettings, int commitReaderIdAuthKeyNumber, int changeAccessRightsKeyNumber, int readAccessKeyNumber , boolean enableCommitReaderId, byte[] transactionMacKey) {
         //public boolean createTransactionMacFileEv2(byte fileNumber, byte[] transactionMacAccessRights, byte[] key) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 83 - 85
         // this is based on the creation of a TransactionMac file on a DESFire Light card
@@ -1275,11 +1276,11 @@ public class DesfireEv3 {
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
         log(methodName, "communicationSettings: " + communicationSettings.toString());
-        log(methodName, printData("transactionMacKey", transactionMacKey));
         log(methodName, "commitReaderIdAuthKeyNumber: " + commitReaderIdAuthKeyNumber);
         log(methodName, "changeAccessRightsKeyNumber: " + changeAccessRightsKeyNumber);
         log(methodName, "readAccessKeyNumber: " + readAccessKeyNumber);
         log(methodName, "enableCommitReaderId" + enableCommitReaderId);
+        log(methodName, printData("transactionMacKey", transactionMacKey));
         errorCode = new byte[2];
         // sanity checks
         if (!checkFileNumber(fileNumber)) return false;
@@ -2605,6 +2606,19 @@ public class DesfireEv3 {
             // 2023.08.24 23:33:02?? !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~�������������������������������������������������������������������������������������������������������������
             // TMAC counter: 3 tmacEnc length: 8 data: be8f8ae89f4dc8d4
             // length: 12 data: 03000000 be8f8ae89f4dc8d4
+            // The 8-byte Transaction MAC Value (TMV) is computed over the Transaction MAC Input (TMI). This input depends on the commands
+            // executed during the transaction, see Section 10.3.4. The applied key is SesTMMACKey, defined in Section 10.3.2.3.
+            // The TMV is calculated as follows:
+            //         TMV = MACtTM(SesTMMACKey, TMI)
+            // using the MAC algorithm of the Secure Messaging with zero byte IV, see Section 9.1.3.
+            // Initiating a Transaction MAC calculation consists of the following steps:
+            // • Set TMI to the empty byte string.
+            // • Set TMRICur to the empty byte string.
+            // Once a Transaction MAC calculation is ongoing, the Transaction MAC Input TMI gets updated on each following data manipulation
+            // command targeting a file of any file type within the application, except TransactionMAC file itself.
+
+
+
 
             /*
 MIFARE DESFire Light contactless application IC MF2DLHX0.pdf page 46
@@ -2619,6 +2633,36 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         return receivedData;
     }
+
+    private byte[] getSesTMMACKey(byte[] tmc, byte[] uid) {
+
+        // status: INCOMPLETE
+
+        // see MIFARE DESFire Light contactless application IC MF2DLHX0.pdf page 42
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        // the text is: a 1-byte label, distinguishing the purpose of the key: 31h for MACing and 32h for encryption
+        // the vector is described as: SV1 = 5Ah||00h||01h||00h||80h||(TMC+1)||UID
+        // so is 5A or 31 correct ?
+        byte macLabel = (byte) 0x5A;
+        //a 2-byte counter, fixed to 0001h as only 128-bit keys are generated.
+        byte[] counterLabel = new byte[]{(byte) 0x00, (byte) 0x01};
+        // a 2-byte length, fixed to 0080h as only 128-bit keys are generated.
+        byte[] lengthLabel = new byte[]{(byte) 0x00, (byte) 0x80};
+        byte[] c;
+        baos.write(macLabel);
+        baos.write(counterLabel, 0, counterLabel.length);
+        baos.write(lengthLabel, 0, lengthLabel.length);
+        int tmcOld = intFrom4ByteArrayInversed(tmc);
+        byte[] tmcNew = Utils.intTo2ByteArrayInversed(tmcOld + 1);
+        baos.write(tmcNew, 0, tmcNew.length);
+        baos.write(uid, 0, uid.length);
+        byte[] sv1 = baos.toByteArray();
+        Log.d(TAG, "getSesTMMACKey " + printData("sv1", sv1));
+        return sv1;
+    }
+
+
 
     /**
      * Read data from a Data file in Communication mode Plain, beginning at offset position and length of data.

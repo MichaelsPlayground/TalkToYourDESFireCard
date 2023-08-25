@@ -48,9 +48,14 @@ public class FileSettings {
     private int recordsExistingInt;
     // the following variables are available for transaction mac files
     private byte tmkFileOption;
+    private boolean isExcludeUnauthenticatedOperationsFromTMI = false;
+    private boolean isEnabledTmcLimitConfiguration = false;
+    private boolean isEnabledCommitReaderIdFeature = false;
     private byte tmKeyOption;
     private byte tmKeyVersion;
+    private boolean isAppTransactionMACKeyTypeAes = false;
     private byte[] tmcLimit; // is optional and present if Bit5 of FileOption set. Length is depending on AES mode (4 byte) or LRP mde (2 byte)
+    private int tmcLimitInt;
     // section for sdm enriched file settings
     private boolean isNonStandardFileOption = false; // is set to true when fileOptions > 3
     private boolean isSdmEnabled = false;
@@ -120,9 +125,9 @@ public class FileSettings {
         // todo some sub fields are not not read out, see 'need to differentiate later'
         if (fileType == (byte) 0x05) {
             // transaction mac file
-
+            analyzeTransactionMacFileSettings(position);
+/*
             // fixed fileSize data
-            //
             fileSizeInt = 12; // default
             fileSize = intTo3ByteArrayInversed(fileSizeInt);
 
@@ -166,6 +171,8 @@ public class FileSettings {
                 tmcLimit = Arrays.copyOfRange(completeResponse, position, position + 4);
                 return;
             }
+
+ */
             return;
         }
 
@@ -241,6 +248,96 @@ public class FileSettings {
             case (byte) 0x05: return TRANSACTION_MAC_FILE_TYPE_NAME;
             default: return "Unknown";
         }
+    }
+
+    private void analyzeTransactionMacFileSettings(int position) {
+        // fixed fileSize data
+        fileSizeInt = 12; // default
+        fileSize = intTo3ByteArrayInversed(fileSizeInt);
+
+        tmkFileOption = completeResponse[position];
+        boolean fileOptionBit0 = testBit(tmkFileOption, 0);
+        // communication settings: if bit0 is unset: Plain, No protection: message is transmitted in plain text
+        // communication settings: if bit0 is set:   MACed or FullEnciphered, depending on bit1
+        boolean fileOptionBit1 = testBit(tmkFileOption, 1); // communication settings
+        // communication settings: if bit1 is unset: MACed, MAC protection for integrity and authenticity
+        // communication settings: if bit1 is set:   FullEnciphered, Full protection for integrity, authenticity and confidentiality, also referred to as "Full Protection" mode
+        // new value for communication settings
+        if (!fileOptionBit0) {
+            // plain mode
+            communicationSettings = (byte) 0x00;
+            communicationSettingsName = COMMUNICATION_SETTING_NAME_PLAIN;
+        } else {
+            // MACed or FullEnciphered
+            if (!fileOptionBit1) {
+                communicationSettings = (byte) 0x01;
+                communicationSettingsName = COMMUNICATION_SETTING_NAME_CMACED;
+            } else {
+                communicationSettings = (byte) 0x03;
+                communicationSettingsName = COMMUNICATION_SETTING_NAME_ENCRYPTED;
+            }
+        }
+        // analyzing the other bits
+        // bits 2-3 and 6-7 are RFU
+        boolean fileOptionBit4 = testBit(tmkFileOption, 4); // Exclude unauthenticated operations from TMI, 1b = enabled, 0b = disabled
+        if (fileOptionBit4) {
+            isExcludeUnauthenticatedOperationsFromTMI = true;
+        } else {
+            isExcludeUnauthenticatedOperationsFromTMI = false;
+        }
+        boolean fileOptionBit5 = testBit(tmkFileOption, 5); // TMCLimit configuration, 1b = enabled, 0b = disabled
+        if (fileOptionBit5) {
+            isEnabledTmcLimitConfiguration  = true;
+        } else {
+            isEnabledTmcLimitConfiguration = false;
+        }
+        position ++;
+        accessRightsRwCar = completeResponse[position];
+        position ++;
+        accessRightsRW = completeResponse[position];
+        // get the values vor RW, Car, R and W
+        // lowNibble = yourByte & 0x0f; highNibble = (yourByte >> 4) & 0x0f;
+        // You can also do: lowNibble = yourByte & 0x0f; highNibble = yourByte >>> 4;
+        accessRightsRw = (accessRightsRwCar >> 4) & 0x0f;
+        accessRightsCar = accessRightsRwCar & 0x0f;
+        accessRightsR =  (accessRightsRW >> 4) & 0x0f;
+        accessRightsW =  accessRightsRW & 0x0f;
+        // analyze accessRightsRw - if the key is 'F' / 15 then the CommitReaderId feature is disabled, '0' to 'E' (0..14) is enabled and auth necessary with this  key !
+        if (accessRightsRW == 15) {
+            isEnabledCommitReaderIdFeature = false;
+        } else {
+            isEnabledCommitReaderIdFeature = true;
+        }
+        position ++;
+        tmKeyOption = completeResponse[position]; // at the moment only bit 1-0 are set to 10b = AES
+        // bytes 2-7 are RFU
+        if ((testBit(tmKeyOption, 0) == false) && (testBit(tmKeyOption, 1) == true)) {
+            isAppTransactionMACKeyTypeAes = true;
+        } else {
+            isAppTransactionMACKeyTypeAes = false;
+        }
+        position ++;
+        tmKeyVersion = completeResponse[position];
+        // the next steps depend on the length
+        int completeResponseLength = completeResponse.length;
+        if (completeResponseLength == 6) {
+            // we are done
+            return;
+        }
+        position ++;
+        if (completeResponseLength == 8) {
+            // LRP mode, tmcLimit is 2 bytes long, I assume the limit is LSB coded
+            tmcLimit = Arrays.copyOfRange(completeResponse, position, position + 2);
+            tmcLimitInt = Utils.intFrom2ByteArrayInversed(tmcLimit);
+            return;
+        }
+        if (completeResponseLength == 10) {
+            // AES mode, tmcLimit is 4 bytes long, I assume the limit is LSB coded
+            tmcLimit = Arrays.copyOfRange(completeResponse, position, position + 4);
+            tmcLimitInt = Utils.intFrom4ByteArrayInversed(tmcLimit);
+            return;
+        }
+
     }
 
     /**
@@ -445,11 +542,16 @@ public class FileSettings {
         }
         if (fileType == (byte) 0x05) {
             sb.append("fileSize: ").append(byteArrayLength3InversedToInt(fileSize)).append("\n");
-            sb.append("fileOption: ").append(tmkFileOption).append("\n");
+            sb.append("tmkFileOption: ").append(tmkFileOption).append("\n");
+            sb.append("Exclude_Unauthenticated_Operations_From_TMI: " + isExcludeUnauthenticatedOperationsFromTMI).append("\n");
+            sb.append("Enabled_Tmc_Limit_Configuration: " + isEnabledTmcLimitConfiguration).append("\n");
             sb.append("tmKeyOption: ").append(tmKeyOption).append("\n");
+            sb.append("Enabled_Commit_Reader_Id_Feature: " + isEnabledCommitReaderIdFeature).append("\n");
+            sb.append("App_Transaction_MAC_Key_Type_Aes: " + isAppTransactionMACKeyTypeAes).append("\n");
             sb.append("tmKeyVersion: ").append(tmKeyVersion).append("\n");
             sb.append("tmcLimit: ").append(bytesToHexNpeUpperCase(tmcLimit)).append("\n");
-            sb.append("don't rely on communicationSettings and tmcLimit !").append("\n");
+            sb.append("tmcLimit: ").append(tmcLimitInt).append("\n");
+            //sb.append("don't rely on communicationSettings and tmcLimit !").append("\n"); // should be correct now
         }
         if (isNonStandardFileOption) {
             sb.append("non standard fileOption found").append("\n");
@@ -603,6 +705,30 @@ public class FileSettings {
 
     public int getRecordsExistingInt() {
         return recordsExistingInt;
+    }
+
+    public byte getTmkFileOption() {
+        return tmkFileOption;
+    }
+
+    public boolean isExcludeUnauthenticatedOperationsFromTMI() {
+        return isExcludeUnauthenticatedOperationsFromTMI;
+    }
+
+    public boolean isEnabledTmcLimitConfiguration() {
+        return isEnabledTmcLimitConfiguration;
+    }
+
+    public boolean isEnabledCommitReaderIdFeature() {
+        return isEnabledCommitReaderIdFeature;
+    }
+
+    public boolean isAppTransactionMACKeyTypeAes() {
+        return isAppTransactionMACKeyTypeAes;
+    }
+
+    public int getTmcLimitInt() {
+        return tmcLimitInt;
     }
 
     public boolean isNonStandardFileOption() {
