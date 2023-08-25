@@ -232,6 +232,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button getCardUidDes, getCardUidAes; // get cardUID * encrypted
     private Button getTagVersion, formatPicc;
 
+    private Button test; // for tests of any kind
+
     /**
      * section for visualizing DES authentication
      */
@@ -586,6 +588,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         getTagVersion = findViewById(R.id.btnGetTagVersion);
         formatPicc = findViewById(R.id.btnFormatPicc);
 
+        test = findViewById(R.id.btnTest);
+
         // visualize DES authentication
         selectApplicationDesVisualizing = findViewById(R.id.btnDesVisualizeAuthSelect);
         authDesVisualizing = findViewById(R.id.btnDesVisualizeAuthAuthenticate);
@@ -608,6 +612,21 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileStandardFileId.setText(String.valueOf((int) STANDARD_FILE_FREE_ACCESS_ID)); // preset is FREE ACCESS
 
         allLayoutsInvisible(); // except select application & file
+
+        /**
+         * section for tests
+         */
+
+        test.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "Test";
+                writeToUiAppend(output, logString);
+                desfireEv3.test();
+            }
+        });
+
 
         /**
          * select application and file

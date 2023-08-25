@@ -2110,12 +2110,13 @@
                     android:orientation="horizontal">
 
                     <Button
-                        android:id="@+id/btnXXX3"
+                        android:id="@+id/btnTest"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
-                        android:text="xxx" />
+                        android:backgroundTint="@color/light_background_red"
+                        android:text="Test" />
 
                     <Button
                         android:id="@+id/btnWriteStandardFileOld"

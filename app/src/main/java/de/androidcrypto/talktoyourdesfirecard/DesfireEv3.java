@@ -279,6 +279,43 @@ public class DesfireEv3 {
     }
 
     /**
+     * just for testing
+     */
+
+    public void test() {
+        String methodName = "test";
+        // testing the decryption of Decrypted Response Data = (TMRI)
+        // see Mifare DESFire Light Features and Hints AN12343.pdf page 64
+        byte[] SesAuthEncKeyTest = Utils.hexStringToByteArray("78240CC5596B751D90023827B0B7E73D");
+        byte[] TiTest = Utils.hexStringToByteArray("2D0611EC");
+        byte[] commandCounterLsbTest = Utils.intTo2ByteArrayInversed(2);
+        byte[] EncryptedResponseDataTest = Utils.hexStringToByteArray("A1963F1BB9FC916A8B15B2DC58002531");
+        byte[] DecryptedResponseExpTest = Utils.hexStringToByteArray("BDD40ED9F434F9DDCBF5821299CD2119");
+        byte[] DecryptedResponseTest;
+
+        byte[] paddingReader = hexStringToByteArray("0000000000000000");
+        byte[] startingIvReader = new byte[16];
+        ByteArrayOutputStream decryptBaosReader = new ByteArrayOutputStream();
+        decryptBaosReader.write(IV_LABEL_DEC, 0, IV_LABEL_DEC.length); // (byte) 0x5A, (byte) 0xA5
+        decryptBaosReader.write(TiTest, 0, TiTest.length);
+        decryptBaosReader.write(commandCounterLsbTest, 0, commandCounterLsbTest.length);
+        decryptBaosReader.write(paddingReader, 0, paddingReader.length);
+        byte[] ivInputResponseReader = decryptBaosReader.toByteArray();
+        log(methodName, printData("ivInputResponseReader", ivInputResponseReader));
+        byte[] ivResponseReader = AES.encrypt(startingIvReader, SesAuthEncKeyTest, ivInputResponseReader);
+        log(methodName, printData("ivResponseReader", ivResponseReader));
+        DecryptedResponseTest = AES.decrypt(ivResponseReader, SesAuthEncKeyTest, EncryptedResponseDataTest);
+        log(methodName, printData("DecryptedResponse   Test", DecryptedResponseTest));
+        log(methodName, printData("DecryptedResponseExpTest", DecryptedResponseExpTest));
+        log(methodName, "decryptedData is previous TMRI (latest TransactionMAC Reader ID");
+
+
+
+
+    }
+
+
+    /**
      * For CommitReaderId method we do need a ReaderId as value. If we do not set an individual ReaderId
      * the DEFAULT ReaderId is used. This  method overwrites the DEFAULT with the individual ReaderId.
      * @param transactionMacReaderId
@@ -5181,7 +5218,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         log(methodName, printData("encryptedData", encryptedData));
 
         // start decrypting the data
-        boolean isTestMode = true;
+        boolean isTestMode = false;
         // IV_Input_Response = 0x5A || 0xA5 || TI || CmdCtr || 0x0000000000000000 (8 bytes padding)
         byte[] commandCounterLsb2Reader = intTo2ByteArrayInversed(CmdCounter);
         byte[] paddingReader = hexStringToByteArray("0000000000000000");
