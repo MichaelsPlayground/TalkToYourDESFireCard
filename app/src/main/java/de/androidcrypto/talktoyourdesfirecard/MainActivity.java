@@ -1323,9 +1323,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
                     return;
                 }
-                if (selectedFileSettings.getFileType() == FileSettings.STANDARD_FILE_TYPE) {
-                    vibrateShort();
-                } else {
+                if ((selectedFileSettings.getFileType() == FileSettings.LINEAR_RECORD_FILE_TYPE) || (selectedFileSettings.getFileType() == FileSettings.CYCLIC_RECORD_FILE_TYPE)) {
                     // it is a Record file where we need to submit a commit command to confirm the write
                     writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Record file, run COMMIT");
                     byte commMode = selectedFileSettings.getCommunicationSettings();
@@ -1345,13 +1343,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                                 success = desfireEv3.commitTMACTransactionEv2();
                             } else {
                                 // todo this is hardcoded when working with TransactionMAC files
-                                writeToUiAppend(output, "A TransactionMAC file is present with DISBLED CommitReaderId");
+                                writeToUiAppend(output, "A TransactionMAC file is present with DISABLED CommitReaderId");
                                 success = desfireEv3.commitTransactionFullReturnTmv();
                             }
                         } else {
                             // no transaction mac file is present
-                            writeToUiAppend(output, "A TransactionMAC file is NOT present");
-                            success = desfireEv3.commitTransactionFull();
+                            writeToUiAppend(output, "A TransactionMAC file is NOT present, running regular commitTransaction");
+                            //success = desfireEv3.commitTransactionFull();
+                            success = desfireEv3.commitTransactionWithoutTmacFull();
+                            Log.d(TAG, desfireEv3.getLogData());
                         }
                     }
                     if (commMode == (byte) 0x01) {
@@ -7601,8 +7601,8 @@ posMacInpOffset:  75
         }
         if (commMode == (byte) 0x01) {
             // MACed
-            Log.e(TAG, "The selected file has the Communication Mode MACed that is not supported");
-            writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The selected file has the Communication Mode MACed that is not supported, sorry", COLOR_RED);
+            //Log.e(TAG, "The selected file has the Communication Mode MACed that is not supported");
+            //writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The selected file has the Communication Mode MACed that is not supported, sorry", COLOR_RED);
             success = desfireEv3.authenticateAesEv2First(keyNumber, keyForAuthentication);
             //return false;
         }
@@ -7610,6 +7610,7 @@ posMacInpOffset:  75
         if (success) {
             Log.d(TAG, methodName + " SUCCESS");
             writeToUiAppend(output, methodName + " SUCCESS");
+            writeToUiAppendBorderColor(errorCode, errorCodeLayout, methodName + " SUCCESS", COLOR_GREEN);
             /*
             SES_AUTH_ENC_KEY = desfireEv3.getSesAuthENCKey();
             SES_AUTH_MAC_KEY = desfireEv3.getSesAuthMACKey();
