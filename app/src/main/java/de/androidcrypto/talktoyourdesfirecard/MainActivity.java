@@ -1340,7 +1340,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                                 // this  is hardcoded when working with TransactionMAC files AND enabled CommitReaderId feature
                                 writeToUiAppend(output, "A TransactionMAC file is present with ENABLED CommitReaderId");
                                 //success = desfireEv3.commitTransactionReaderIdFullReturnTmv();
-                                success = desfireEv3.commitTMACTransactionEv2();
+                                //success = desfireEv3.commitTMACTransactionEv2();
+                                success = desfireEv3.commitTransactionFull(true);
                             } else {
                                 // todo this is hardcoded when working with TransactionMAC files
                                 writeToUiAppend(output, "A TransactionMAC file is present with DISABLED CommitReaderId");
