@@ -111,7 +111,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     private LinearLayout llSectionTransactionMacFile;
-    private Button fileTransactionMacCreate, fileTransactionMacDelete, fileTransactionMacRead;
+    private Button fileTransactionMacCreate, fileTransactionMacCreateReaderId, fileTransactionMacDelete, fileTransactionMacRead;
 
     /**
      * section for Transaction Timer
@@ -443,6 +443,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
         // transaction mac file workflow
         fileTransactionMacCreate = findViewById(R.id.btnTransactionMacFileCreate);
+        fileTransactionMacCreateReaderId = findViewById(R.id.btnTransactionMacFileCreateReaderId);
         fileTransactionMacDelete = findViewById(R.id.btnTransactionMacFileDelete);
         fileTransactionMacRead = findViewById(R.id.btnTransactionMacFileRead);
 
@@ -1594,7 +1595,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             @Override
             public void onClick(View view) {
                 clearOutputFields();
-                String logString = "create a TransactionMAC file";
+                String logString = "create a TransactionMAC file Disabled Commit ReaderId";
                 writeToUiAppend(output, logString);
 
                 byte fileIdByte = DesfireEv3.TRANSACTION_MAC_FILE_NUMBER;
@@ -1609,6 +1610,44 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 // this is the file creation with enabled Commit Reader Id option
                 //boolean success = desfireEv3.createATransactionMacFileExtendedFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, 1, 2, 1, true, TRANSACTION_MAC_KEY_AES);
+
+                responseData = desfireEv3.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
+            }
+        });
+
+        fileTransactionMacCreateReaderId.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "create a TransactionMAC file Enabled Commit ReaderId";
+                writeToUiAppend(output, logString);
+
+                byte fileIdByte = DesfireEv3.TRANSACTION_MAC_FILE_NUMBER;
+                writeToUiAppend(output, "using a pre defined fileNumber: " + fileIdByte);
+                writeToUiAppend(output, printData("using a predefined TMAC key", TRANSACTION_MAC_KEY_AES));
+                writeToUiAppend(output, "Note: you need to authenticate with the Application Master Key and EV2-type first !");
+
+                byte[] responseData = new byte[2];
+
+                // this is the file creation with disabled Commit Reader Id option
+                //boolean success = desfireEv3.createATransactionMacFileFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, 2, 1, TRANSACTION_MAC_KEY_AES);
+
+                // this is the file creation with enabled Commit Reader Id option
+                boolean success = desfireEv3.createATransactionMacFileExtendedFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, 1, 2, 1, true, TRANSACTION_MAC_KEY_AES);
 
                 responseData = desfireEv3.getErrorCode();
 

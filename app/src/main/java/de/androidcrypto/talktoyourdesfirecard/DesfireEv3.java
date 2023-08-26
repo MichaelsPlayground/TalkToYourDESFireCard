@@ -3037,6 +3037,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         log(methodName, printData("cmdHeader", cmdHeader));
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader || CmdData )
+        byte[] macInput = getMacInput(READ_DATA_FILE_SECURE_COMMAND, cmdHeader);
+/*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -3046,6 +3048,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         baosMacInput.write(cmdHeader, 0, cmdHeader.length);
         byte[] macInput = baosMacInput.toByteArray();
+
+ */
         log(methodName, printData("macInput", macInput));
 
         // MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -3187,6 +3191,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         log(methodName, printData("cmdHeader", cmdHeader));
 
         // MAC_Input
+        byte[] macInput = getMacInput(READ_DATA_FILE_SECURE_COMMAND, cmdHeader);
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -3196,6 +3202,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         baosMacInput.write(cmdHeader, 0, cmdHeader.length);
         byte[] macInput = baosMacInput.toByteArray();
+        */
+
         log(methodName, printData("macInput", macInput));
 
         // generate the MAC (CMAC) with the SesAuthMACKey
@@ -3419,6 +3427,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         if (!checkIsoDep()) return -1;
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader ( = File number) )
+        byte[] macInput = getMacInput(GET_VALUE_COMMAND, new byte[]{fileNumber});
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -3428,6 +3438,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         baosMacInput.write(fileNumber);
         byte[] macInput = baosMacInput.toByteArray();
+        */
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -3511,6 +3522,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         if (!checkIsoDep()) return -1;
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader ( = File number) )
+        byte[] macInput = getMacInput(GET_VALUE_COMMAND, new byte[]{fileNumber});
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -3520,6 +3533,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         baosMacInput.write(fileNumber);
         byte[] macInput = baosMacInput.toByteArray();
+        */
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -3770,6 +3784,14 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         }
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader ( = File number || changeValueLength) )
+        byte[] changeValueBytes = intTo4ByteArrayInversed(changeValue);
+        byte[] macInput;
+        if (isCredit) {
+            macInput = getMacInput(CREDIT_VALUE_FILE_COMMAND, new byte[]{fileNumber}, changeValueBytes);
+        } else {
+            macInput = getMacInput(DEBIT_VALUE_FILE_COMMAND, new byte[]{fileNumber}, changeValueBytes);
+        }
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         byte[] changeValueBytes = intTo4ByteArrayInversed(changeValue);
         log(methodName, printData("changeValueBytes", changeValueBytes));
@@ -3786,6 +3808,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInput.write(fileNumber);
         baosMacInput.write(changeValueBytes, 0, changeValueBytes.length);
         byte[] macInput = baosMacInput.toByteArray();
+        */
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -3919,6 +3942,14 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         // CmdHeader = FileNo
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted CmdData )
+        byte[] macInput;
+        if (isCredit) {
+            macInput = getMacInput(CREDIT_VALUE_FILE_COMMAND, new byte[]{fileNumber}, encryptedData);
+        } else {
+            macInput = getMacInput(DEBIT_VALUE_FILE_COMMAND, new byte[]{fileNumber}, encryptedData);
+        }
+
+        /*
         ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
         if (isCredit) {
             baosMacInput.write(CREDIT_VALUE_FILE_COMMAND); // 0x0C
@@ -3930,6 +3961,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInput.write(fileNumber);
         baosMacInput.write(encryptedData, 0, encryptedData.length);
         byte[] macInput = baosMacInput.toByteArray();
+        */
         log(methodName, printData("macInput", macInput));
 
         // generate the MAC (CMAC) with the SesAuthMACKey
@@ -4187,6 +4219,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // MAC_Input
         //(Ins || CmdCounter || TI || CmdHeader || CmdData )
+        byte[] macInput = getMacInput(WRITE_RECORD_FILE_SECURE_COMMAND,cmdHeader, data);
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
         baosMacInput.write(WRITE_RECORD_FILE_SECURE_COMMAND); // 0x8D
@@ -4195,6 +4229,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInput.write(cmdHeader, 0, cmdHeader.length);
         baosMacInput.write(data, 0, data.length);
         byte[] macInput = baosMacInput.toByteArray();
+        */
         log(methodName, printData("macInput", macInput));
 
         // MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -4347,6 +4382,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         log(methodName, printData("cmdHeader", cmdHeader));
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted CmdData )
+        byte[] macInput = getMacInput(WRITE_RECORD_FILE_SECURE_COMMAND,cmdHeader, encryptedData);
+        /*
         ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
         baosMacInput.write(WRITE_RECORD_FILE_SECURE_COMMAND); // 0x8B
         baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
@@ -4354,6 +4391,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInput.write(cmdHeader, 0, cmdHeader.length);
         baosMacInput.write(encryptedData, 0, encryptedData.length);
         byte[] macInput = baosMacInput.toByteArray();
+
+         */
         log(methodName, printData("macInput", macInput));
 
         // generate the MAC (CMAC) with the SesAuthMACKey
@@ -4613,6 +4652,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         log(methodName, printData("cmdHeader", cmdHeader));
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader || CmdData )
+        byte[] macInput = getMacInput(READ_RECORD_FILE_COMMAND, cmdHeader);
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -4622,6 +4663,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         baosMacInput.write(cmdHeader, 0, cmdHeader.length);
         byte[] macInput = baosMacInput.toByteArray();
+        */
         log(methodName, printData("macInput", macInput));
 
         // MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -4738,6 +4780,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         log(methodName, printData("cmdHeader", cmdHeader));
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader )
+        byte[] macInput = getMacInput(READ_RECORD_FILE_COMMAND, cmdHeader);
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -4747,6 +4791,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         baosMacInput.write(cmdHeader, 0, cmdHeader.length);
         byte[] macInput = baosMacInput.toByteArray();
+
+         */
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -4844,8 +4890,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
     /**
      * section for transaction MAC files
      */
-
-
 
 
     // todo clean code
@@ -5380,34 +5424,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return false;
         }
 
-        /*
-        // verifying the received MAC
-        // MAC_Input (RC || CmdCounter || TI || Encrypted Response Data)
-        byte[] commandCounterLsb3Reader = intTo2ByteArrayInversed(CmdCounter);
-        ByteArrayOutputStream responseMacBaosReader = new ByteArrayOutputStream();
-        responseMacBaosReader.write((byte) 0x00); // response code 00 means success
-        responseMacBaosReader.write(commandCounterLsb3Reader, 0, commandCounterLsb3Reader.length);
-        responseMacBaosReader.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        responseMacBaosReader.write(encryptedData, 0, encryptedData.length);
-        byte[] macInput2Reader = responseMacBaosReader.toByteArray();
-        log(methodName, printData("macInput2Reader", macInput2Reader));
-        byte[] responseMACCalculatedReader = calculateDiverseKey(SesAuthMACKey, macInput2Reader);
-        log(methodName, printData("responseMACTruncatedReceivedReader  ", responseMACTruncatedReceivedReader));
-        log(methodName, printData("responseMACCalculatedReader", responseMACCalculatedReader));
-        byte[] responseMACTruncatedCalculatedReader = truncateMAC(responseMACCalculatedReader);
-        log(methodName, printData("responseMACTruncatedCalculatedReader", responseMACTruncatedCalculatedReader));
-        // compare the responseMAC's
-        if (Arrays.equals(responseMACTruncatedCalculatedReader, responseMACTruncatedReceivedReader)) {
-            Log.d(TAG, "responseMAC SUCCESS");
-            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
-            //return true; proceed when true
-        } else {
-            Log.d(TAG, "responseMAC FAILURE");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
-            return false;
-        }
-        return true;
-        */
     }
 
     private byte[] getMacInput(byte command, byte[] options) {

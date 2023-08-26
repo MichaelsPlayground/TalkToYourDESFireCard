@@ -725,7 +725,15 @@
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
-                        android:text="create" />
+                        android:text="cr" />
+
+                    <Button
+                        android:id="@+id/btnTransactionMacFileCreateReaderId"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="cr RdrId" />
 
                     <Button
                         android:id="@+id/btnTransactionMacFileDelete"
@@ -733,7 +741,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="delete" />
+                        android:text="del" />
 
                     <Button
                         android:id="@+id/btnTransactionMacFileRead"
