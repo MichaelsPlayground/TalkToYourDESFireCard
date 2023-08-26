@@ -1013,8 +1013,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     }
                     if (commMode == (byte) 0x01) {
                         // MACed
-                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The selected file has the Communication Mode MACed that is not supported, sorry", COLOR_RED);
-                        return;
+                        success = desfireEv3.commitTransactionFull();
                     }
                     responseData = desfireEv3.getErrorCode();
                     if (success) {

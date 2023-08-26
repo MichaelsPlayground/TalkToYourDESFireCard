@@ -2255,14 +2255,7 @@ public class DesfireEv3 {
 
         // MAC_Input
         //(Ins || CmdCounter || TI || CmdHeader || CmdData )
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(WRITE_DATA_FILE_SECURE_COMMAND); // 0x8D
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
-        baosMacInput.write(data, 0, data.length);
-        byte[] macInput = baosMacInput.toByteArray();
+        byte[] macInput = getMacInput(WRITE_DATA_FILE_SECURE_COMMAND, cmdHeader, data);
         log(methodName, printData("macInput", macInput));
 
         // MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -2448,13 +2441,8 @@ public class DesfireEv3 {
         log(methodName, printData("cmdHeader", cmdHeader));
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted CmdData )
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(WRITE_DATA_FILE_SECURE_COMMAND); // 0x8D
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
-        baosMacInput.write(encryptedData, 0, encryptedData.length);
-        byte[] macInput = baosMacInput.toByteArray();
+        byte[] macInput = getMacInput(WRITE_DATA_FILE_SECURE_COMMAND, cmdHeader, encryptedData);
+
         log(methodName, printData("macInput", macInput));
 
         // generate the MAC (CMAC) with the SesAuthMACKey
@@ -5091,18 +5079,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         byte COMMIT_TRANSACTION_OPTION = (byte) 0x00; // 01 meaning TMC and TMV to be returned in the R-APDU, 00 = no TMC and TMV is returned in the R-APDU, fixed
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader (=Option) )
-        /*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(COMMIT_TRANSACTION_COMMAND); // 0xC7
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(COMMIT_TRANSACTION_OPTION);
-        byte[] macInput = baosMacInput.toByteArray();
-
-         */
         byte[] macInput = getMacInput(COMMIT_TRANSACTION_COMMAND, new byte[]{COMMIT_TRANSACTION_OPTION});
         log(methodName, printData("macInput", macInput));
         // c707002c2b4e8e00
@@ -5213,18 +5189,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         }
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader (=Option) )
-/*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(COMMIT_TRANSACTION_COMMAND); // 0xC7
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        //baosMacInput.write(COMMIT_TRANSACTION_OPTION);
-        baosMacInput.write(COMMIT_TRANSACTION_OPTION_ENABLED);
-        byte[] macInput = baosMacInput.toByteArray();
- */
         byte[] macInput = getMacInput(COMMIT_TRANSACTION_COMMAND, new byte[]{commitTransactionOptionEnabledReturnTmcv});
         log(methodName, printData("macInput", macInput));
 
@@ -5459,6 +5423,28 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         if ((options != null) && (options.length > 0)) {
             baosMacInput.write(options, 0, options.length);
+        }
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+        return macInput;
+    }
+
+    private byte[] getMacInput(byte command, byte[] options, byte[] data) {
+        String methodName = "getMacInput";
+        log(methodName, "started", true);
+        log(methodName, printData("options", options));
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(command);
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        if ((options != null) && (options.length > 0)) {
+            baosMacInput.write(options, 0, options.length);
+        }
+        if ((data != null) && (data.length > 0)) {
+            baosMacInput.write(data, 0, data.length);
         }
         byte[] macInput = baosMacInput.toByteArray();
         log(methodName, printData("macInput", macInput));
