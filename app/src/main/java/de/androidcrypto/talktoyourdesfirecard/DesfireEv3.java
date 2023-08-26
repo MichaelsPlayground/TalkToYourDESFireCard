@@ -5020,6 +5020,75 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
      * section for committing a transaction
      */
 
+    public boolean commitReaderIdPlain(byte[] readerId) {
+        String logData = "";
+        final String methodName = "commitReaderIdPlain";
+        log(methodName, "started", true);
+
+        // status: NOT WORKING
+
+        // todo sanity checks
+
+        boolean isEnabledCommitReaderIdFeature = transactionMacFileSettings.isEnabledCommitReaderIdFeature();
+        if (!isEnabledCommitReaderIdFeature) {
+            Log.e(TAG, "Commit ReaderId feature is not enabled, aborted");
+            errorCode = RESPONSE_FAILURE;
+            errorCodeReason = "Commit ReaderId feature is not enabled";
+            return false;
+        }
+        byte[] response;
+        byte[] apdu;
+        try {
+            apdu = wrapMessage(COMMIT_READER_ID_SECURE_COMMAND, readerId);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS");
+            return true;
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+
+
+        /*
+        if (!isTransactionMacFilePresent) {
+            if (isEnabledReturnTmcv) {
+                log(methodName, "As no TransactionMAC file is present in the application the enabled ReturnTmcv setting is discarded");
+            }
+            return commitTransactionWithoutTmacFull();
+        } else {
+            // tmac file is  present
+            // check for commitReaderId option
+            boolean isEnabledCommitReaderIdFeature = transactionMacFileSettings.isEnabledCommitReaderIdFeature();
+            if (!isEnabledCommitReaderIdFeature) {
+                log(methodName, "A TransactionMAC file is present in the application wit DISABLED Commit Reader Id Feature");
+                return commitTransactionWithTmacFull(isEnabledReturnTmcv);
+            } else {
+                log(methodName, "A TransactionMAC file is present in the application with ENABLED Commit Reader Id Feature");
+                // before sending the CommitTransaction command we need to send a CommitReaderId command
+                boolean successCommitReaderId = commitReaderIdFull();
+                if (!successCommitReaderId) {
+                    log(methodName, "commitReaderId FAILURE"); // commitReaderId updated the errorCodes
+                    return false;
+                }
+                return commitTransactionWithTmacFull(isEnabledReturnTmcv);
+            }
+        }
+         */
+
+
+    }
+
     public boolean commitTransactionPlain() {
         // status: not working after authentication with authenticateEv2First/NonFirst
         String logData = "";
@@ -5085,7 +5154,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             } else {
                 log(methodName, "A TransactionMAC file is present in the application with ENABLED Commit Reader Id Feature");
                 // before sending the CommitTransaction command we need to send a CommitReaderId command
-                boolean successCommitReaderId = commitReaderId();
+                boolean successCommitReaderId = commitReaderIdFull();
                 if (!successCommitReaderId) {
                     log(methodName, "commitReaderId FAILURE"); // commitReaderId updated the errorCodes
                     return false;
@@ -5317,8 +5386,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
     }
 
-    private boolean commitReaderId() {
-        final String methodName = "commitReaderId";
+    private boolean commitReaderIdFull() {
+        final String methodName = "commitReaderIdFull";
         log(methodName, "started", true);
 
         // sanity checks

@@ -1006,6 +1006,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     byte commMode = selectedFileSettings.getCommunicationSettings();
                     if (commMode == (byte) 0x00) {
                         // Plain
+                        // if a Transaction MAC is available and has the Commit ReaderId feature enabled...
+                        // todo check for that
+                        success = desfireEv3.commitReaderIdPlain(desfireEv3.getTransactionMacReaderId());
+                        Log.e(TAG, "commitReaderIdPlain success: " + success);
+                        if (!success) return;
+
                         success = desfireEv3.commitTransactionPlain();
                     }
                     if (commMode == (byte) 0x03) {
