@@ -93,8 +93,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private LinearLayout llSectionRecordFiles;
     private Button fileRecordRead, fileRecordWrite;
-    
-    
+
     
     /**
      * section for authentication
@@ -105,6 +104,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button authM0D, authM0C; // Master Application key
     private Button authA0DLeg, authA0CLeg, authA0DEv2, authA0CEv2; // application master key, legacy or EV2First auth
     private Button authA1D, authA1C, authA2D, authA2C, authA3D, authA3C, authA4D, authA4C; // application keys
+
+    /**
+     * section for key handling
+     */
+
+    private Button changeKeyA1ToC, changeKeyA1ToD;
+
     /**
      * section for Transaction MAC file
      * note: this is visible always for create and delte of the file
@@ -440,6 +446,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         authA2C = findViewById(R.id.btnAuthA2C);
         authA3C = findViewById(R.id.btnAuthA3C);
         authA4C = findViewById(R.id.btnAuthA4C);
+
+        // change key workflow
+        changeKeyA1ToC = findViewById(R.id.btnChangeKeyA1ToC);
+        changeKeyA1ToD = findViewById(R.id.btnChangeKeyA1ToD);
 
         // transaction mac file workflow
         fileTransactionMacCreate = findViewById(R.id.btnTransactionMacFileCreate);
@@ -1590,6 +1600,55 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 writeToUiAppend(output, logString);
                 // the method runs all outputs
                 boolean success = authAesEv3(Constants.APPLICATION_KEY_W_NUMBER, Constants.APPLICATION_KEY_W_AES);
+            }
+        });
+
+        /**
+         * section for keys
+         */
+
+        changeKeyA1ToC.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "change key to CHANGED for AES key number 0x01 = read & write access key";
+                writeToUiAppend(output, logString);
+
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+
+                byte keyVersion = (byte) 0x01;
+                boolean success = desfireEv3.changeApplicationKeyFull(Constants.APPLICATION_KEY_RW_NUMBER, keyVersion, Constants.APPLICATION_KEY_RW_AES, Constants.APPLICATION_KEY_RW_AES_DEFAULT);
+                byte[] responseData = desfireEv3.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, logString + " keyVersion " + keyVersion + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " keyVersion " + keyVersion + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a APPLICATION MASTER KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
+            }
+        });
+
+        changeKeyA1ToD.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "change key to DEFAULT for AES key number 0x01 = read & write access key";
+                writeToUiAppend(output, logString);
+                byte keyVersion = (byte) 0x01;
+                boolean success = changeApplicationKey(Constants.APPLICATION_KEY_RW_NUMBER, keyVersion, Constants.APPLICATION_KEY_RW_AES_DEFAULT, Constants.APPLICATION_KEY_RW_AES);
+
             }
         });
 
@@ -7766,6 +7825,64 @@ posMacInpOffset:  75
             return false;
         }
     }
+
+    /**
+     * section for keys
+     */
+
+    private boolean changeApplicationKey(byte keyNumber, byte keyVersion, byte[] keyNew, byte[] keyOld) {
+        final String methodName = "changeApplicationKey";
+        Log.d(TAG, methodName);
+        writeToUiAppend(output, methodName);
+        if (selectedApplicationId == null) {
+            writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
+            return false;
+        }
+
+        boolean success = desfireEv3.changeApplicationKeyFull(keyNumber, keyVersion, keyNew, keyOld);
+        byte[] responseData = desfireEv3.getErrorCode();
+
+        if (success) {
+            writeToUiAppend(output, methodName + " keyVersion " + keyVersion + " SUCCESS");
+            writeToUiAppendBorderColor(errorCode, errorCodeLayout, methodName + " SUCCESS", COLOR_GREEN);
+            vibrateShort();
+            return true;
+        } else {
+            writeToUiAppend(output, methodName + " keyVersion " + keyVersion + " FAILURE with error " + EV3.getErrorCode(responseData));
+            if (checkAuthenticationError(responseData)) {
+                writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a APPLICATION MASTER KEY ?");
+            }
+            writeToUiAppendBorderColor(errorCode, errorCodeLayout, methodName + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+            writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+            return false;
+        }
+    }
+
+    /*
+    if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+
+                byte keyVersion = (byte) 0x01;
+                boolean success = desfireEv3.changeApplicationKeyFull(Constants.APPLICATION_KEY_RW_NUMBER, keyVersion, Constants.APPLICATION_KEY_RW_AES, Constants.APPLICATION_KEY_RW_AES_DEFAULT);
+                byte[] responseData = desfireEv3.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, logString + " keyVersion " + keyVersion + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " keyVersion " + keyVersion + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a APPLICATION MASTER KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
+     */
 
     /**
      * section for LRP authentication with EV2

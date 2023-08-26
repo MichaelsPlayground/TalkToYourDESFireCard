@@ -254,7 +254,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
-                        android:backgroundTint="#F85252"
+                        android:backgroundTint="#FFAB00"
                         android:text="read" />
 
                     <Button
@@ -263,7 +263,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:backgroundTint="#F85252"
+                        android:backgroundTint="#FFAB00"
                         android:text="write" />
 
                     <Button
@@ -315,6 +315,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
+                        android:backgroundTint="#FFAB00"
                         android:layout_weight="1"
                         android:text="read" />
 
@@ -323,6 +324,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
+                        android:backgroundTint="#FFAB00"
                         android:layout_weight="1"
                         android:text="credit" />
 
@@ -331,6 +333,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
+                        android:backgroundTint="#FFAB00"
                         android:layout_weight="1"
                         android:text="debit" />
 
@@ -374,6 +377,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
+                        android:backgroundTint="#FFAB00"
                         android:layout_weight="1"
                         android:text="read" />
 
@@ -382,6 +386,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
+                        android:backgroundTint="#FFAB00"
                         android:layout_weight="1"
                         android:text="write" />
 
@@ -684,6 +689,46 @@
                         android:text="changed" />
 
                 </LinearLayout>
+
+            </LinearLayout>
+
+            <com.google.android.material.divider.MaterialDivider
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:dividerInsetEnd="8dp"
+                app:dividerInsetStart="8dp" />
+
+            <TextView
+                android:id="@+id/tvChangeKey"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="10dp"
+                android:text="change key section"
+                android:textAlignment="center"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnChangeKeyA1ToC"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginRight="8dp"
+                    android:layout_weight="1"
+                    android:text="01 -> Cha" />
+
+                <Button
+                    android:id="@+id/btnChangeKeyA1ToD"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="8dp"
+                    android:layout_weight="1"
+                    android:text="01 -> Def" />
 
             </LinearLayout>
 
