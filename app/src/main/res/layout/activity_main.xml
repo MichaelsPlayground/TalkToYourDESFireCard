@@ -460,19 +460,19 @@
                     android:orientation="horizontal">
 
                     <TextView
-                        android:id="@+id/tvAuthA0"
+                        android:id="@+id/tvAuthA0Leg"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
                         android:gravity="center_horizontal"
-                        android:text="0 App Master"
+                        android:text="0 Master Leg"
                         android:textSize="16sp"
                         android:textStyle="normal" />
 
                     <Button
-                        android:id="@+id/btnAuthA0D"
+                        android:id="@+id/btnAuthA0DLeg"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
@@ -481,7 +481,7 @@
                         android:text="default" />
 
                     <Button
-                        android:id="@+id/btnAuthA0C"
+                        android:id="@+id/btnAuthA0CLeg"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="1dp"
@@ -490,6 +490,51 @@
                         android:text="changed" />
 
                 </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvAuthA0Ev2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:gravity="center_horizontal"
+                        android:text="0 Master EV2"
+                        android:textSize="16sp"
+                        android:textStyle="normal" />
+
+                    <Button
+                        android:id="@+id/btnAuthA0DEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:text="default" />
+
+                    <Button
+                        android:id="@+id/btnAuthA0CEv2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="1dp"
+                        android:layout_marginRight="1dp"
+                        android:layout_weight="1"
+                        android:text="changed" />
+
+                </LinearLayout>
+
+                <com.google.android.material.divider.MaterialDivider
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp"
+                    app:dividerInsetEnd="16dp"
+                    app:dividerInsetStart="16dp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"

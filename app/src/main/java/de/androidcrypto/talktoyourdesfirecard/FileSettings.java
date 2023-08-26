@@ -174,67 +174,71 @@ public class FileSettings {
 
  */
             return;
-        }
+        } else {
 
-        communicationSettings = completeResponse[position];
-        position ++;
-        if (communicationSettings == (byte) 0x00) communicationSettingsName = COMMUNICATION_SETTING_NAME_PLAIN;
-        if (communicationSettings == (byte) 0x01) communicationSettingsName = COMMUNICATION_SETTING_NAME_CMACED;
-        if (communicationSettings == (byte) 0x03) communicationSettingsName = COMMUNICATION_SETTING_NAME_ENCRYPTED;
-        accessRightsRwCar = completeResponse[position];
-        position ++;
-        accessRightsRW = completeResponse[position];
-        position ++;
-        // get the values vor RW, Car, R and W
-        // lowNibble = yourByte & 0x0f; highNibble = (yourByte >> 4) & 0x0f;
-        // You can also do: lowNibble = yourByte & 0x0f; highNibble = yourByte >>> 4;
-        accessRightsRw = (accessRightsRwCar >> 4) & 0x0f;
-        accessRightsCar = accessRightsRwCar & 0x0f;
-        accessRightsR =  (accessRightsRW >> 4) & 0x0f;
-        accessRightsW =  accessRightsRW & 0x0f;
+            communicationSettings = completeResponse[position];
+            position++;
+            if (communicationSettings == (byte) 0x00)
+                communicationSettingsName = COMMUNICATION_SETTING_NAME_PLAIN;
+            if (communicationSettings == (byte) 0x01)
+                communicationSettingsName = COMMUNICATION_SETTING_NAME_CMACED;
+            if (communicationSettings == (byte) 0x03)
+                communicationSettingsName = COMMUNICATION_SETTING_NAME_ENCRYPTED;
+            accessRightsRwCar = completeResponse[position];
+            position++;
+            accessRightsRW = completeResponse[position];
+            position++;
+            // get the values vor RW, Car, R and W
+            // lowNibble = yourByte & 0x0f; highNibble = (yourByte >> 4) & 0x0f;
+            // You can also do: lowNibble = yourByte & 0x0f; highNibble = yourByte >>> 4;
+            accessRightsRw = (accessRightsRwCar >> 4) & 0x0f;
+            accessRightsCar = accessRightsRwCar & 0x0f;
+            accessRightsR = (accessRightsRW >> 4) & 0x0f;
+            accessRightsW = accessRightsRW & 0x0f;
 
-        fileSize = new byte[3];
-        fileSizeInt = 0; // default
-        if ((fileType == (byte) 0x00) || (fileType == (byte) 0x01)) {
-            // standard and backup file
-            fileSize = Arrays.copyOfRange(completeResponse, position, position + 3);
-            fileSizeInt = byteArrayLength3InversedToInt(fileSize);
-            // enhancement for Secure Data Management (SDM) enriched content
-            if (communicationSettings > 3) {
-                // this is a SDM enriched getFileSettings respond because the fileOption
-                // (the byte where the communication settings are included) is 40 or something else
-                // we need to work on bit basis now to find out all options
-                isNonStandardFileOption = true;
-                // as more data may follow we are setting the position to the new value
-                position = position + 3; // position after fileSize
-                analyzeSdmEnrichedFileSettings(position);
-            } else {
-                // this is a regular getFileSettingsResponse, finishing
+            fileSize = new byte[3];
+            fileSizeInt = 0; // default
+            if ((fileType == (byte) 0x00) || (fileType == (byte) 0x01)) {
+                // standard and backup file
+                fileSize = Arrays.copyOfRange(completeResponse, position, position + 3);
+                fileSizeInt = byteArrayLength3InversedToInt(fileSize);
+                // enhancement for Secure Data Management (SDM) enriched content
+                if (communicationSettings > 3) {
+                    // this is a SDM enriched getFileSettings respond because the fileOption
+                    // (the byte where the communication settings are included) is 40 or something else
+                    // we need to work on bit basis now to find out all options
+                    isNonStandardFileOption = true;
+                    // as more data may follow we are setting the position to the new value
+                    position = position + 3; // position after fileSize
+                    analyzeSdmEnrichedFileSettings(position);
+                } else {
+                    // this is a regular getFileSettingsResponse, finishing
+                    return;
+                }
+            }
+            if (fileType == (byte) 0x02) {
+                // value file
+                valueMin = Arrays.copyOfRange(completeResponse, position, position + 4);
+                position += 4;
+                valueMax = Arrays.copyOfRange(completeResponse, position, position + 4);
+                position += 4;
+                valueLimitedCredit = Arrays.copyOfRange(completeResponse, position, position + 4);
+                position += 4;
+                valueLimitedCreditAvailable = completeResponse[position];
                 return;
             }
-        }
-        if (fileType == (byte) 0x02) {
-            // value file
-            valueMin = Arrays.copyOfRange(completeResponse, position, position + 4);
-            position += 4;
-            valueMax = Arrays.copyOfRange(completeResponse, position, position + 4);
-            position += 4;
-            valueLimitedCredit = Arrays.copyOfRange(completeResponse, position, position + 4);
-            position += 4;
-            valueLimitedCreditAvailable = completeResponse[position];
-            return;
-        }
-        if ((fileType == (byte) 0x03) || (fileType == (byte) 0x04)) {
-            // linear record and cyclic record file
-            recordSize = Arrays.copyOfRange(completeResponse, position, position + 3);
-            recordSizeInt = byteArrayLength3InversedToInt(recordSize);
-            position += 3;
-            recordsMax = Arrays.copyOfRange(completeResponse, position, position + 3);
-            recordsMaxInt = byteArrayLength3InversedToInt(recordsMax);
-            position += 3;
-            recordsExisting = Arrays.copyOfRange(completeResponse, position, position + 3);
-            recordsExistingInt = byteArrayLength3InversedToInt(recordsExisting);
-            return;
+            if ((fileType == (byte) 0x03) || (fileType == (byte) 0x04)) {
+                // linear record and cyclic record file
+                recordSize = Arrays.copyOfRange(completeResponse, position, position + 3);
+                recordSizeInt = byteArrayLength3InversedToInt(recordSize);
+                position += 3;
+                recordsMax = Arrays.copyOfRange(completeResponse, position, position + 3);
+                recordsMaxInt = byteArrayLength3InversedToInt(recordsMax);
+                position += 3;
+                recordsExisting = Arrays.copyOfRange(completeResponse, position, position + 3);
+                recordsExistingInt = byteArrayLength3InversedToInt(recordsExisting);
+                return;
+            }
         }
     }
 
@@ -303,7 +307,7 @@ public class FileSettings {
         accessRightsR =  (accessRightsRW >> 4) & 0x0f;
         accessRightsW =  accessRightsRW & 0x0f;
         // analyze accessRightsRw - if the key is 'F' / 15 then the CommitReaderId feature is disabled, '0' to 'E' (0..14) is enabled and auth necessary with this  key !
-        if (accessRightsRW == 15) {
+        if (accessRightsRw == 15) {
             isEnabledCommitReaderIdFeature = false;
         } else {
             isEnabledCommitReaderIdFeature = true;
@@ -337,7 +341,6 @@ public class FileSettings {
             tmcLimitInt = Utils.intFrom4ByteArrayInversed(tmcLimit);
             return;
         }
-
     }
 
     /**
@@ -526,20 +529,24 @@ public class FileSettings {
         sb.append("accessRights CAR: ").append(accessRightsCar).append("\n");
         sb.append("accessRights R:   ").append(accessRightsR).append("\n");
         sb.append("accessRights W:   ").append(accessRightsW).append("\n");
+        // standard or backup file
         if ((fileType == (byte) 0x00) || (fileType == (byte) 0x01)) {
             sb.append("fileSize: ").append(byteArrayLength3InversedToInt(fileSize)).append("\n");
         }
+        // value file
         if (fileType == (byte) 0x02) {
             sb.append("valueMin: ").append(byteArrayLength4InversedToInt(valueMin)).append("\n");
             sb.append("valueMax: ").append(byteArrayLength4InversedToInt(valueMax)).append("\n");
             sb.append("valueLimitedCredit: ").append(byteArrayLength4InversedToInt(valueLimitedCredit)).append("\n");
             sb.append("valueLimitedCreditAvailable: ").append(byteToHex(valueLimitedCreditAvailable)).append("\n");
         }
+        // linear or cyclic record file
         if ((fileType == (byte) 0x03) || (fileType == (byte) 0x04)) {
             sb.append("recordSize: ").append(recordSizeInt).append("\n");
             sb.append("recordsMax: ").append(recordsMaxInt).append("\n");
             sb.append("recordsExisting: ").append(recordsExistingInt).append("\n");
         }
+        // transaction mac file
         if (fileType == (byte) 0x05) {
             sb.append("fileSize: ").append(byteArrayLength3InversedToInt(fileSize)).append("\n");
             sb.append("tmkFileOption: ").append(tmkFileOption).append("\n");
@@ -553,6 +560,7 @@ public class FileSettings {
             sb.append("tmcLimit: ").append(tmcLimitInt).append("\n");
             //sb.append("don't rely on communicationSettings and tmcLimit !").append("\n"); // should be correct now
         }
+        // standard file with extended file options, e.g. Secure Dynamic Messaging
         if (isNonStandardFileOption) {
             sb.append("non standard fileOption found").append("\n");
             sb.append("sdmFileOption: ").append(byteToHex(sdmFileOption)).append("\n");

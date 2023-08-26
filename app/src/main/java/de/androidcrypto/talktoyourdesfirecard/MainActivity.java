@@ -103,8 +103,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private LinearLayout llSectionAuthentication;
     private Button authM0D, authM0C; // Master Application key
-    private Button authA0D, authA0C, authA1D, authA1C, authA2D, authA2C, authA3D, authA3C, authA4D, authA4C; // application keys  
-
+    private Button authA0DLeg, authA0CLeg, authA0DEv2, authA0CEv2; // application master key, legacy or EV2First auth
+    private Button authA1D, authA1C, authA2D, authA2C, authA3D, authA3C, authA4D, authA4C; // application keys
     /**
      * section for Transaction MAC file
      * note: this is visible always for create and delte of the file
@@ -428,12 +428,14 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         llSectionAuthentication = findViewById(R.id.llSectionAuthentication);
         authM0D = findViewById(R.id.btnAuthM0D);
         authM0C = findViewById(R.id.btnAuthM0C);
-        authA0D = findViewById(R.id.btnAuthA0D);
+        authA0DLeg = findViewById(R.id.btnAuthA0DLeg);
+        authA0DEv2 = findViewById(R.id.btnAuthA0DEv2);
         authA1D = findViewById(R.id.btnAuthA1D);
         authA2D = findViewById(R.id.btnAuthA2D);
         authA3D = findViewById(R.id.btnAuthA3D);
         authA4D = findViewById(R.id.btnAuthA4D);
-        authA0C = findViewById(R.id.btnAuthA0C);
+        authA0CLeg = findViewById(R.id.btnAuthA0CLeg);
+        authA0CEv2 = findViewById(R.id.btnAuthA0CEv2);
         authA1C = findViewById(R.id.btnAuthA1C);
         authA2C = findViewById(R.id.btnAuthA2C);
         authA3C = findViewById(R.id.btnAuthA3C);
@@ -1348,38 +1350,36 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     byte commMode = selectedFileSettings.getCommunicationSettings();
                     if (commMode == (byte) 0x00) {
                         // Plain
+                        // todo this fails when a Transaction file with enabled Commit ReadId option
                         success = desfireEv3.commitTransactionPlain();
                     }
-                    if (commMode == (byte) 0x03) {
-                        // Full enciphered
-                        //success = desfireEv3.commitTransactionFull();
+                    if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03)) {
+                        // MACed or Full enciphered
 
                         if (desfireEv3.isTransactionMacFilePresent()) {
                             if (desfireEv3.isTransactionMacCommitReaderId()) {
                                 // this  is hardcoded when working with TransactionMAC files AND enabled CommitReaderId feature
                                 writeToUiAppend(output, "A TransactionMAC file is present with ENABLED CommitReaderId");
-                                //success = desfireEv3.commitTransactionReaderIdFullReturnTmv();
-                                //success = desfireEv3.commitTMACTransactionEv2();
                                 success = desfireEv3.commitTransactionFull(true);
                             } else {
-                                // todo this is hardcoded when working with TransactionMAC files
                                 writeToUiAppend(output, "A TransactionMAC file is present with DISABLED CommitReaderId");
                                 success = desfireEv3.commitTransactionFullReturnTmv();
                             }
                         } else {
                             // no transaction mac file is present
                             writeToUiAppend(output, "A TransactionMAC file is NOT present, running regular commitTransaction");
-                            //success = desfireEv3.commitTransactionFull();
                             success = desfireEv3.commitTransactionWithoutTmacFull();
                             Log.d(TAG, desfireEv3.getLogData());
                         }
                     }
+                    /*
                     if (commMode == (byte) 0x01) {
                         // MACed
                         success = desfireEv3.commitTransactionFull();
                         //writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The selected file has the Communication Mode MACed that is not supported, sorry", COLOR_RED);
                         //return;
                     }
+                    */
                     responseData = desfireEv3.getErrorCode();
                     if (success) {
                         writeToUiAppend(output, "data is written to Record file number " + fileIdByte);
@@ -1396,30 +1396,108 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
 
         /**
-         * section for authentication using authenticationEv2First in DESFire EV3 class
+         * section for authentication using Legacy authenticationEv2First in DESFire EV3 class
          */
 
-        authA0D.setOnClickListener(new View.OnClickListener() {
+        // there are 2 authentication methods for the Application Master Key (0x00) because this can be run without selecting a file before
+
+        authA0DLeg.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "authenticate Legacy with DEFAULT AES key number 0x00 = application master key";
+                writeToUiAppend(output, logString);
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireEv3.authenticateAesLegacy(Constants.APPLICATION_KEY_MASTER_NUMBER, Constants.APPLICATION_KEY_MASTER_AES_DEFAULT);
+                responseData = desfireEv3.getErrorCode();
+                if (success) {
+                    Log.d(TAG, logString + " SUCCESS");
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+            }
+        });
+
+        authA0DEv2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 clearOutputFields();
                 String logString = "authenticate EV2 First with DEFAULT AES key number 0x00 = application master key";
                 writeToUiAppend(output, logString);
-                // the method runs all outputs
-                boolean success = authAesEv3(Constants.APPLICATION_KEY_MASTER_NUMBER, Constants.APPLICATION_KEY_MASTER_AES_DEFAULT);
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireEv3.authenticateAesEv2First(Constants.APPLICATION_KEY_MASTER_NUMBER, Constants.APPLICATION_KEY_MASTER_AES_DEFAULT);
+                responseData = desfireEv3.getErrorCode();
+                if (success) {
+                    Log.d(TAG, logString + " SUCCESS");
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
             }
         });
 
-        authA0C.setOnClickListener(new View.OnClickListener() {
+        authA0CLeg.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "authenticate Legacy with CHANGED AES key number 0x00 = application master key";
+                writeToUiAppend(output, logString);
+                byte[] responseData = new byte[2];
+                boolean success = desfireEv3.authenticateAesLegacy(Constants.APPLICATION_KEY_MASTER_NUMBER, Constants.APPLICATION_KEY_MASTER_AES);
+                responseData = desfireEv3.getErrorCode();
+                if (success) {
+                    Log.d(TAG, logString + " SUCCESS");
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+            }
+        });
+
+        authA0CEv2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 clearOutputFields();
                 String logString = "authenticate EV2 First with CHANGED AES key number 0x00 = application master key";
                 writeToUiAppend(output, logString);
-                // the method runs all outputs
-                boolean success = authAesEv3(Constants.APPLICATION_KEY_MASTER_NUMBER, Constants.APPLICATION_KEY_MASTER_AES);
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireEv3.authenticateAesEv2First(Constants.APPLICATION_KEY_MASTER_NUMBER, Constants.APPLICATION_KEY_MASTER_AES);
+                responseData = desfireEv3.getErrorCode();
+                if (success) {
+                    Log.d(TAG, logString + " SUCCESS");
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
             }
         });
+
+        // the application keys 1..4
+        // the authentication method is choosen by the selected file communication type
 
         authA1D.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1523,38 +1601,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte fileIdByte = DesfireEv3.TRANSACTION_MAC_FILE_NUMBER;
                 writeToUiAppend(output, "using a pre defined fileNumber: " + fileIdByte);
                 writeToUiAppend(output, printData("using a predefined TMAC key", TRANSACTION_MAC_KEY_AES));
-                writeToUiAppend(output, "Note: you need to authenticate with the Application Master Key first !");
+                writeToUiAppend(output, "Note: you need to authenticate with the Application Master Key and EV2-type first !");
 
-                /*
-                // plain creation, not working
-                boolean successAuth = desfireEv3.authenticateAesLegacy(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
-                if (!successAuth) {
-                    writeToUiAppend(output, logString + " could not authenticate with the DEFAULT AES Application Master Key, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
-                    return;
-                }
                 byte[] responseData = new byte[2];
-                boolean success = desfireEv3.createATransactionMacFile(fileIdByte, DesfireEv3.CommunicationSettings.Plain, TRANSACTION_MAC_ACCESS_RIGHTS, TRANSACTION_MAC_KEY_AES);
-                 */
 
-                // Full version
-                boolean successAuth = desfireEv3.authenticateAesEv2First(APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
-                if (!successAuth) {
-                    writeToUiAppend(output, logString + " could not authenticate with the DEFAULT AES Application Master Key, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
-                    return;
-                }
-                byte[] responseData = new byte[2];
-                // this is the disabled Commit ReadId option
-                //boolean success = desfireEv3.createTransactionMacFileEv2(fileIdByte, TRANSACTION_MAC_ACCESS_RIGHTS_DISABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
-                //boolean success = desfireEv3.createATransactionMacFileFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, TRANSACTION_MAC_ACCESS_RIGHTS_DISABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
-                // this is the enabled Commit ReadId option
-                //boolean success = desfireEv3.createTransactionMacFileEv2(fileIdByte, TRANSACTION_MAC_ACCESS_RIGHTS_ENABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
+                // this is the file creation with disabled Commit Reader Id option
+                boolean success = desfireEv3.createATransactionMacFileFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, 2, 1, TRANSACTION_MAC_KEY_AES);
 
-                // this is the one with (hard coded) disabled CommitReaderId feature
-                //boolean success = desfireEv3.createATransactionMacFileFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, TRANSACTION_MAC_ACCESS_RIGHTS_ENABLED_COMMIT_READER_ID, TRANSACTION_MAC_KEY_AES);
-                // this one can enable the feature commitReadId
-                boolean success = desfireEv3.createATransactionMacFileExtendedFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, 1, 2, 1, true, TRANSACTION_MAC_KEY_AES);
+                // this is the file creation with enabled Commit Reader Id option
+                //boolean success = desfireEv3.createATransactionMacFileExtendedFull(fileIdByte, DesfireEv3.CommunicationSettings.Plain, 1, 2, 1, true, TRANSACTION_MAC_KEY_AES);
 
                 responseData = desfireEv3.getErrorCode();
 
@@ -1583,10 +1638,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 byte fileIdByte = DesfireEv3.TRANSACTION_MAC_FILE_NUMBER;
                 writeToUiAppend(output, "using a pre defined fileNumber: " + fileIdByte);
                 writeToUiAppend(output, printData("using a predefined TMAC key", TRANSACTION_MAC_KEY_AES));
-                writeToUiAppend(output, "Note: you need to authenticate with the Application Master Key first !");
+                writeToUiAppend(output, "Note: DO NOT authenticate with the Application Master Key first !");
 
                 byte[] responseData = new byte[2];
-                //boolean success = desfireEv3.deleteTransactionMacFileEv2(fileIdByte);
                 boolean success = desfireEv3.deleteFile(fileIdByte);
                 responseData = desfireEv3.getErrorCode();
 
@@ -7567,19 +7621,6 @@ posMacInpOffset:  75
      * section for AES authentication with EV3
      */
 
-/*
-
-
-                boolean success = authAesEv3(output, APPLICATION_KEY_MASTER_NUMBER, APPLICATION_KEY_MASTER_AES_DEFAULT);
-                if (success) {
-                    writeToUiAppend(output, logString + " SUCCESS");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    vibrateShort();
-                }  else {
-
-                }
- */
-
     /**
      * Checks for the communication mode of the selected file number:
      * case Plain: uses authenticateAesLegacy method (no encryption needed)
@@ -7631,17 +7672,6 @@ posMacInpOffset:  75
             Log.d(TAG, methodName + " SUCCESS");
             writeToUiAppend(output, methodName + " SUCCESS");
             writeToUiAppendBorderColor(errorCode, errorCodeLayout, methodName + " SUCCESS", COLOR_GREEN);
-            /*
-            SES_AUTH_ENC_KEY = desfireEv3.getSesAuthENCKey();
-            SES_AUTH_MAC_KEY = desfireEv3.getSesAuthMACKey();
-            TRANSACTION_IDENTIFIER = desfireEv3.getTransactionIdentifier();
-            CMD_COUNTER = desfireEv3.getCmdCounter();
-            writeToUiAppend(output, printData("SES_AUTH_ENC_KEY", SES_AUTH_ENC_KEY));
-            writeToUiAppend(output, printData("SES_AUTH_MAC_KEY", SES_AUTH_MAC_KEY));
-            writeToUiAppend(output, printData("TRANSACTION_IDENTIFIER", TRANSACTION_IDENTIFIER));
-            writeToUiAppend(output, "CMD_COUNTER: " + CMD_COUNTER);
-            writeToUiAppendBorderColor(errorCode, errorCodeLayout, methodName + " SUCCESS", COLOR_GREEN);
-             */
             vibrateShort();
             return true;
         } else {
