@@ -42,7 +42,7 @@ import de.androidcrypto.talktoyourdesfirecard.nfcjlib.CRC32;
  * - read, credit or debit a value in a Value file in communication modes Plain, MACed and Full enciphered (*3)
  * - create and delete (*2) a Record file (Linear or Cyclic Record file) with communication mode Plain, MACed or Full enciphered
  * - write to and read from a Record file in communication modes Plain, MACed and Full enciphered (*3)
- *
+ * <p>
  * supported service methods:
  * - getVersion (version of the attached PICC)
  * - getFreeMemory of the PICC
@@ -52,8 +52,8 @@ import de.androidcrypto.talktoyourdesfirecard.nfcjlib.CRC32;
  * - changeApplicationKey (but not the MasterApplicationKey)
  * - changeApplicationSettings (but not for the  MasterApplication to avoid any damage of the tag)
  * - changeFileSettings
- *
- *
+ * <p>
+ * <p>
  * For DESFire EV3 only:
  * It contains all commands that are necessary to enable the Secret Unique NFC (SUN) feature that is
  * based on Secure Dynamic Messaging (SDM) that is available on DESFire EV3 tags only:
@@ -62,33 +62,32 @@ import de.androidcrypto.talktoyourdesfirecard.nfcjlib.CRC32;
  * - writeNdefContainer
  * - createStandardFileIso (adding an ISO fileNumber and ISO fileName with communication mode Plain only
  * - write a NDEF message containing an URL/Link record with communication mode Plain only
- *
+ * <p>
  * General behaviour of the class:
  * - this class is using (application) access key based reading and writing methods. Although it is allowed
- *   to use the value '0xE' (decimal 14) meaning 'free access without key' all read and write methods will
- *   always check for a preceding authentication with a Read&Write, Read and/or Write access key. So if you
- *   change the access key rights to '0xE' you cannot read or write from/to a file anymore with this class
- *
+ * to use the value '0xE' (decimal 14) meaning 'free access without key' all read and write methods will
+ * always check for a preceding authentication with a Read&Write, Read and/or Write access key. So if you
+ * change the access key rights to '0xE' you cannot read or write from/to a file anymore with this class
+ * <p>
  * (*1): using fixed application settings '0x0f' meaning Application master key authentication is necessary to change any key (default),
- *       the configuration is changeable if authenticated with the application master key (default setting)
- *       CreateFile / DeleteFile is permitted also without application master key authentication (default setting)
- *       GetFileIDs, GetFileSettings and GetKeySettings commands succeed independently of a preceding application master key authentication (default setting)
- *       Application master key is changeable (authentication with the current application master key necessary, default setting)
- *       You change this later using changeApplicationSettings
- *       The number of AES application keys is fixed to 5 to support the different access key rights that are set to (access rights can be changed later):
- *       key number 0 = Application Master Key
- *       key number 1 = Read & Write Access key
- *       key number 2 = Change Access rights key (CAR)
- *       key number 3 = Read Access key
- *       key number 4 = Write Access key
+ * the configuration is changeable if authenticated with the application master key (default setting)
+ * CreateFile / DeleteFile is permitted also without application master key authentication (default setting)
+ * GetFileIDs, GetFileSettings and GetKeySettings commands succeed independently of a preceding application master key authentication (default setting)
+ * Application master key is changeable (authentication with the current application master key necessary, default setting)
+ * You change this later using changeApplicationSettings
+ * The number of AES application keys is fixed to 5 to support the different access key rights that are set to (access rights can be changed later):
+ * key number 0 = Application Master Key
+ * key number 1 = Read & Write Access key
+ * key number 2 = Change Access rights key (CAR)
+ * key number 3 = Read Access key
+ * key number 4 = Write Access key
  * (*2): A deletion of an application or file does NOT release the (memory) space on the tag, that does happen on formatting the PICC only
  * (*3): by reading of the fileSettings the method automatically detects and selects the communication mode
- *
+ * <p>
  * Not supported commands so far:
  * - working with Transaction MAC files
  * - authentication using LRP ('authenticateLrpEV2First' and 'authenticateLrpEV2NonFirst')
  * - change MasterApplicationKey (not supported to avoid any damage of the tag)
- *
  */
 
 // todo do not run some tasks after authentication (e.g. deleteFile won't run as the PICC is in authenticated state)
@@ -96,7 +95,6 @@ import de.androidcrypto.talktoyourdesfirecard.nfcjlib.CRC32;
 public class DesfireEv3 {
 
     private static final String TAG = DesfireEv3.class.getName();
-
 
 
     private final IsoDep isoDep;
@@ -130,7 +128,7 @@ public class DesfireEv3 {
     public static final byte LINEAR_RECORD_FILE_TYPE = (byte) 0x03;
     public static final byte CYCLIC_RECORD_FILE_TYPE = (byte) 0x04;
     public static final byte TRANSACTION_MAC_FILE_TYPE = (byte) 0x05;
-    
+
     public static final byte[] NDEF_APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("010000"); // this is the AID for NDEF application
     public static final byte[] NDEF_ISO_APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("10E1"); // this is the ISO AID for NDEF application
     public static final byte[] NDEF_APPLICATION_DF_NAME = Utils.hexStringToByteArray("D2760000850101"); // this is the Data File name for NDEF application
@@ -315,6 +313,7 @@ public class DesfireEv3 {
     /**
      * For CommitReaderId method we do need a ReaderId as value. If we do not set an individual ReaderId
      * the DEFAULT ReaderId is used. This  method overwrites the DEFAULT with the individual ReaderId.
+     *
      * @param transactionMacReaderId
      * @return true on success
      */
@@ -340,6 +339,7 @@ public class DesfireEv3 {
     /**
      * create a new application using 5 AES keys
      * This uses a fixed Application Master Key Settings value of 0x0F which is default value
+     *
      * @param applicationIdentifier   | length 3
      * @param numberOfApplicationKeys | range 1..14
      * @return true on success
@@ -354,7 +354,8 @@ public class DesfireEv3 {
         //log(methodName, "communicationSettings: " + communicationSettings.toString());
         log(methodName, "numberOfApplicationKeys: " + numberOfApplicationKeys);
         // sanity checks
-        if (!checkApplicationIdentifier(applicationIdentifier)) return false; // logFile and errorCode are updated
+        if (!checkApplicationIdentifier(applicationIdentifier))
+            return false; // logFile and errorCode are updated
         if ((numberOfApplicationKeys < 1) || (numberOfApplicationKeys > 14)) {
             log(methodName, "numberOfApplicationKeys is not in range 1..14, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
@@ -401,6 +402,7 @@ public class DesfireEv3 {
     /**
      * create a new application including ISO application identifier and ISO Data File Name using AES keys
      * This uses a fixed Application Master Key Settings value of 0x0F which is default value
+     *
      * @param applicationIdentifier   | length 3
      * @param applicationDfName       | length in range 1..16
      * @param numberOfApplicationKeys | range 1..14
@@ -418,7 +420,8 @@ public class DesfireEv3 {
         //log(methodName, "communicationSettings: " + communicationSettings.toString());
         log(methodName, "numberOfApplicationKeys: " + numberOfApplicationKeys);
         // sanity checks
-        if (!checkApplicationIdentifier(applicationIdentifier)) return false; // logFile and errorCode are updated
+        if (!checkApplicationIdentifier(applicationIdentifier))
+            return false; // logFile and errorCode are updated
         if ((isoApplicationIdentifier == null) || (isoApplicationIdentifier.length != 2)) {
             log(methodName, "isoApplicationIdentifier is NULL or not of length 2, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
@@ -477,6 +480,7 @@ public class DesfireEv3 {
 
     /**
      * select an application by it's application identifier (AID)
+     *
      * @param applicationIdentifier | length 3
      * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
@@ -489,7 +493,8 @@ public class DesfireEv3 {
         log(methodName, printData("applicationIdentifier", applicationIdentifier));
         errorCode = new byte[2];
         // sanity checks
-        if (!checkApplicationIdentifier(applicationIdentifier)) return false; // logFile and errorCode are updated
+        if (!checkApplicationIdentifier(applicationIdentifier))
+            return false; // logFile and errorCode are updated
         if (!checkIsoDep()) return false; // logFile and errorCode are updated
 
         byte[] apdu;
@@ -524,6 +529,7 @@ public class DesfireEv3 {
     /**
      * deletes the selected application without any further confirmation
      * Note: this command requires a preceding authentication with Application Master key
+     *
      * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
      */
@@ -534,7 +540,8 @@ public class DesfireEv3 {
         log(methodName, "started", true);
         errorCode = new byte[2];
         // sanity checks
-        if (!checkApplicationIdentifier(selectedApplicationId)) return false; // logFile and errorCode are updated
+        if (!checkApplicationIdentifier(selectedApplicationId))
+            return false; // logFile and errorCode are updated
         if (!checkAuthentication()) return false; // logFile and errorCode are updated
         if (!checkIsoDep()) return false; // logFile and errorCode are updated
         byte[] apdu;
@@ -586,7 +593,9 @@ public class DesfireEv3 {
         byte[] applicationListBytes = getData(response);
         applicationIdList = divideArray(applicationListBytes, 3);
         return applicationIdList;
-    };
+    }
+
+    ;
 
 
     /**
@@ -594,9 +603,9 @@ public class DesfireEv3 {
      */
 
 
-
     /**
      * create a Standard file in selected application using file Number
+     *
      * @param fileNumber            | in range 0..31
      * @param communicationSettings | Plain, MACed or Full Note: Please do not use MACed as there are no methods in this class to handle that communication type
      * @param accessRights          | Read & Write access key, CAR ke, Read key, Write key
@@ -612,6 +621,7 @@ public class DesfireEv3 {
 
     /**
      * create a Backup file in selected application using file Number
+     *
      * @param fileNumber            | in range 0..31
      * @param communicationSettings | Plain, MACed or Full Note: Please do not use MACed as there are no methods in this class to handle that communication type
      * @param accessRights          | Read & Write access key, CAR ke, Read key, Write key
@@ -626,6 +636,7 @@ public class DesfireEv3 {
 
     /**
      * create a Standard file in selected application using file Number and ISO fileId
+     *
      * @param fileNumber            | in range 0..31
      * @param isoFileId
      * @param communicationSettings | Plain, MACed or Full
@@ -665,9 +676,12 @@ public class DesfireEv3 {
         if (!checkIsoDep()) return false; // logFile and errorCode are updated
 
         byte commSettings = (byte) 0;
-        if (communicationSettings == CommunicationSettings.Plain) commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
-        if (communicationSettings == CommunicationSettings.MACed) commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
-        if (communicationSettings == CommunicationSettings.Full) commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
+        if (communicationSettings == CommunicationSettings.Plain)
+            commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        if (communicationSettings == CommunicationSettings.MACed)
+            commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
+        if (communicationSettings == CommunicationSettings.Full)
+            commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
         // add 0x40 for pre-enabled SDM
         if (preEnableSdm) {
             commSettings = (byte) (commSettings | (byte) 0x40);
@@ -708,6 +722,7 @@ public class DesfireEv3 {
 
     /**
      * create a Data file in selected application using file Number, this should be called from createStandardFile or createBackupFile
+     *
      * @param fileNumber            | in range 0..31
      * @param communicationSettings | Plain, MACed or Full
      * @param accessRights          | Read & Write access key, CAR ke, Read key, Write key
@@ -742,13 +757,17 @@ public class DesfireEv3 {
             return false;
         }
          */
-        if (!isStandardFile) preEnableSdm = false; // SDM feature is available in Standard files only
+        if (!isStandardFile)
+            preEnableSdm = false; // SDM feature is available in Standard files only
         if (!checkIsoDep()) return false; // logFile and errorCode are updated
 
         byte commSettings = (byte) 0;
-        if (communicationSettings == CommunicationSettings.Plain) commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
-        if (communicationSettings == CommunicationSettings.MACed) commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
-        if (communicationSettings == CommunicationSettings.Full) commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
+        if (communicationSettings == CommunicationSettings.Plain)
+            commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        if (communicationSettings == CommunicationSettings.MACed)
+            commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
+        if (communicationSettings == CommunicationSettings.Full)
+            commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
         // add 0x40 for pre-enabled SDM
         if (preEnableSdm) {
             commSettings = (byte) (commSettings | (byte) 0x40);
@@ -832,9 +851,12 @@ public class DesfireEv3 {
         if (!checkIsoDep()) return false;
 
         byte commSettings = (byte) 0;
-        if (communicationSettings == CommunicationSettings.Plain) commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
-        if (communicationSettings == CommunicationSettings.MACed) commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
-        if (communicationSettings == CommunicationSettings.Full) commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
+        if (communicationSettings == CommunicationSettings.Plain)
+            commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        if (communicationSettings == CommunicationSettings.MACed)
+            commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
+        if (communicationSettings == CommunicationSettings.Full)
+            commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
 
         byte[] minimumValueByte = Utils.intTo4ByteArrayInversed(minimumValue);
         byte[] maximumValueByte = Utils.intTo4ByteArrayInversed(maximumValue);
@@ -891,6 +913,7 @@ public class DesfireEv3 {
         log(methodName, "maximumNumberOfRecords: " + maximumNumberOfRecords);
         return createARecordFile(fileNumber, communicationSettings, accessRights, recordSize, maximumNumberOfRecords, true);
     }
+
     public boolean createACyclicRecordFile(byte fileNumber, CommunicationSettings communicationSettings, byte[] accessRights, int recordSize, int maximumNumberOfRecords) {
         final String methodName = "createACyclicRecordFile";
         logData = "";
@@ -932,9 +955,12 @@ public class DesfireEv3 {
         }
         if (!checkIsoDep()) return false;
         byte commSettings = (byte) 0;
-        if (communicationSettings == CommunicationSettings.Plain) commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
-        if (communicationSettings == CommunicationSettings.MACed) commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
-        if (communicationSettings == CommunicationSettings.Full) commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
+        if (communicationSettings == CommunicationSettings.Plain)
+            commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        if (communicationSettings == CommunicationSettings.MACed)
+            commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
+        if (communicationSettings == CommunicationSettings.Full)
+            commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
 
         // build the command string
         byte[] recordSizeBytes = intTo3ByteArrayInversed(recordSize);
@@ -998,14 +1024,13 @@ public class DesfireEv3 {
      */
 
 
-
     /**
      * Create a Transaction MAC file in selected application using file Number
      * The execution is done using CommunicationMode.Full for security reasons (see below)
      * Note: the created Transaction MAC file has CommunicationMode.Plain
      * Note: the created Transaction MAC file gets a DISABLED Commit ReaderId option
      * Note: the file can be read as a Standard file with a file length of 12 bytes
-     *
+     * <p>
      * From datasheet  MIFARE DESFire Light contactless application IC MF2DLHX0.pdf page 84
      * As the TransactionMACKey, AppTransactionMACKey is updated at this command, it shall be
      * executed only in a secure environment.
@@ -1016,7 +1041,7 @@ public class DesfireEv3 {
      * @param readAccessKeyNumber         | this is the number of the Read Access Key
      * @param transactionMacKey           | a 16 bytes long AES key for encryption of Transaction MAC data
      *                                    | Note: the key version of this key is fixed to '0x00'
-     * @return                            | true on success
+     * @return | true on success
      * Note: check errorCode and errorCodeReason in case of failure
      */
 
@@ -1031,7 +1056,7 @@ public class DesfireEv3 {
      * The execution is done using CommunicationMode.Full for security reasons (see below)
      * Note: the created Transaction MAC file has CommunicationMode.Plain
      * Note: the file can be read as a Standard file with a file length of 12 bytes
-     *
+     * <p>
      * From datasheet  MIFARE DESFire Light contactless application IC MF2DLHX0.pdf page 84
      * As the TransactionMACKey, AppTransactionMACKey is updated at this command, it shall be
      * executed only in a secure environment.
@@ -1044,11 +1069,11 @@ public class DesfireEv3 {
      * @param enableCommitReaderId        | true for enabling the  Commit ReaderId feature
      * @param transactionMacKey           | a 16 bytes long AES key for encryption of Transaction MAC data
      *                                    | Note: the key version of this key is fixed to '0x00'
-     * @return                            | true on success
+     * @return | true on success
      * Note: check errorCode and errorCodeReason in case of failure
      */
 
-    public boolean createATransactionMacFileFull(byte fileNumber, CommunicationSettings communicationSettings, int commitReaderIdAuthKeyNumber, int changeAccessRightsKeyNumber, int readAccessKeyNumber , boolean enableCommitReaderId, byte[] transactionMacKey) {
+    public boolean createATransactionMacFileFull(byte fileNumber, CommunicationSettings communicationSettings, int commitReaderIdAuthKeyNumber, int changeAccessRightsKeyNumber, int readAccessKeyNumber, boolean enableCommitReaderId, byte[] transactionMacKey) {
         //public boolean createTransactionMacFileEv2(byte fileNumber, byte[] transactionMacAccessRights, byte[] key) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 83 - 85
         // this is based on the creation of a TransactionMac file on a DESFire Light card
@@ -1108,7 +1133,7 @@ public class DesfireEv3 {
             return false;
         }
         byte accessRightsRwCar = (byte) ((commitReaderIdAuthKeyNumber << 4) | (changeAccessRightsKeyNumber & 0x0F)); // Read & Write Access key = CommitReaderId key || Change Access Rights key
-        byte accessRightsRW = (byte) ((readAccessKeyNumber << 4) | (15 & 0x0F)) ;// Read Access key || Write Access = 15 = never (fixed)
+        byte accessRightsRW = (byte) ((readAccessKeyNumber << 4) | (15 & 0x0F));// Read Access key || Write Access = 15 = never (fixed)
         byte[] tmacAccessRights = new byte[2];
         tmacAccessRights[0] = accessRightsRwCar;
         tmacAccessRights[1] = accessRightsRW;
@@ -1119,14 +1144,16 @@ public class DesfireEv3 {
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
             errorCodeReason = "tmacAccessRights are invalid";
             return false;
-        };
+        }
+        ;
         if (communicationSettings == CommunicationSettings.Full) {
             log(methodName, "CommunicationSettings.Plain allowed only, aborted");
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
             errorCodeReason = "tmacAccessRights are invalid";
             return false;
         }
-        if (communicationSettings == CommunicationSettings.Plain) commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        if (communicationSettings == CommunicationSettings.Plain)
+            commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
         //if (communicationSettings == CommunicationSettings.MACed) commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
         //if (communicationSettings == CommunicationSettings.Full) commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
 
@@ -1266,7 +1293,7 @@ public class DesfireEv3 {
     }
 
     public boolean createATransactionMacFileFull(byte fileNumber, CommunicationSettings communicationSettings, byte[] tmacAccessRights, byte[] transactionMacKey) {
-    //public boolean createTransactionMacFileEv2(byte fileNumber, byte[] transactionMacAccessRights, byte[] key) {
+        //public boolean createTransactionMacFileEv2(byte fileNumber, byte[] transactionMacAccessRights, byte[] key) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 83 - 85
         // this is based on the creation of a TransactionMac file on a DESFire Light card
 
@@ -1319,14 +1346,16 @@ public class DesfireEv3 {
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
             errorCodeReason = "tmacAccessRights are invalid";
             return false;
-        };
+        }
+        ;
         if (communicationSettings == CommunicationSettings.Full) {
             log(methodName, "CommunicationSettings.Plain allowed only, aborted");
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
             errorCodeReason = "tmacAccessRights are invalid";
             return false;
         }
-        if (communicationSettings == CommunicationSettings.Plain) commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        if (communicationSettings == CommunicationSettings.Plain)
+            commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
         //if (communicationSettings == CommunicationSettings.MACed) commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
         //if (communicationSettings == CommunicationSettings.Full) commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
 
@@ -1392,6 +1421,9 @@ public class DesfireEv3 {
         log(methodName, printData("cmdHeader", cmdHeader));
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted Data))
+        byte[] macInput = getMacInput(CREATE_TRANSACTION_MAC_FILE_COMMAND, cmdHeader, encryptedData);
+
+        /*
         ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
         baosMacInput.write(CREATE_TRANSACTION_MAC_FILE_COMMAND); // 0xCE
         baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
@@ -1399,6 +1431,7 @@ public class DesfireEv3 {
         baosMacInput.write(cmdHeader, 0, cmdHeader.length);
         baosMacInput.write(encryptedData, 0, encryptedData.length);
         byte[] macInput = baosMacInput.toByteArray();
+        */
         log(methodName, printData("macInput", macInput));
 
         // generate the MAC (CMAC) with the SesAuthMACKey
@@ -1466,7 +1499,7 @@ public class DesfireEv3 {
 
     }
 
-    public boolean createATransactionMacFileExtendedFull(byte fileNumber, CommunicationSettings communicationSettings, int commitReaderIdAuthKeyNumber, int changeAccessRightsKeyNumber, int readAccessKeyNumber , boolean enableCommitReaderId, byte[] transactionMacKey) {
+    public boolean createATransactionMacFileExtendedFull(byte fileNumber, CommunicationSettings communicationSettings, int commitReaderIdAuthKeyNumber, int changeAccessRightsKeyNumber, int readAccessKeyNumber, boolean enableCommitReaderId, byte[] transactionMacKey) {
         //public boolean createTransactionMacFileEv2(byte fileNumber, byte[] transactionMacAccessRights, byte[] key) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 83 - 85
         // this is based on the creation of a TransactionMac file on a DESFire Light card
@@ -1526,7 +1559,7 @@ public class DesfireEv3 {
             return false;
         }
         byte accessRightsRwCar = (byte) ((commitReaderIdAuthKeyNumber << 4) | (changeAccessRightsKeyNumber & 0x0F)); // Read & Write Access key = CommitReaderId key || Change Access Rights key
-        byte accessRightsRW = (byte) ((readAccessKeyNumber << 4) | (15 & 0x0F)) ;// Read Access key || Write Access = 15 = never (fixed)
+        byte accessRightsRW = (byte) ((readAccessKeyNumber << 4) | (15 & 0x0F));// Read Access key || Write Access = 15 = never (fixed)
         byte[] tmacAccessRights = new byte[2];
         tmacAccessRights[0] = accessRightsRwCar;
         tmacAccessRights[1] = accessRightsRW;
@@ -1548,14 +1581,16 @@ public class DesfireEv3 {
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
             errorCodeReason = "tmacAccessRights are invalid";
             return false;
-        };
+        }
+        ;
         if (communicationSettings == CommunicationSettings.Full) {
             log(methodName, "CommunicationSettings.Plain allowed only, aborted");
             System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
             errorCodeReason = "tmacAccessRights are invalid";
             return false;
         }
-        if (communicationSettings == CommunicationSettings.Plain) commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        if (communicationSettings == CommunicationSettings.Plain)
+            commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
         //if (communicationSettings == CommunicationSettings.MACed) commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
         //if (communicationSettings == CommunicationSettings.Full) commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
 
@@ -1621,6 +1656,8 @@ public class DesfireEv3 {
         log(methodName, printData("cmdHeader", cmdHeader));
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted Data))
+        byte[] macInput = getMacInput(CREATE_TRANSACTION_MAC_FILE_COMMAND, cmdHeader, encryptedData);
+/*
         ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
         baosMacInput.write(CREATE_TRANSACTION_MAC_FILE_COMMAND); // 0xCE
         baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
@@ -1628,6 +1665,8 @@ public class DesfireEv3 {
         baosMacInput.write(cmdHeader, 0, cmdHeader.length);
         baosMacInput.write(encryptedData, 0, encryptedData.length);
         byte[] macInput = baosMacInput.toByteArray();
+
+ */
         log(methodName, printData("macInput", macInput));
 
         // generate the MAC (CMAC) with the SesAuthMACKey
@@ -1704,8 +1743,6 @@ public class DesfireEv3 {
         // TransactionMAC file should be configured for CommMode.Full. One can then use ReadData to
         // retrieve this information, instead of requesting it within the response of CommitTransaction.
         // see pages 40-48 (General overview as well)
-
-
 
         String logData = "";
         final String methodName = "createTransactionMacFileEv2";
@@ -1914,9 +1951,9 @@ public class DesfireEv3 {
      * NDEF container that points to the NDEF Data file with fileNumber 02 and isoFileId 0x04E1
      * For writing it uses the 'writeToStandardFileRawPlain' method and as the data is less than
      * MAXIMUM_MESSAGE_LENGTH there is no need for chunking the data
+     *
      * @param fileNumber
-     * @return
-     * Note: check errorCode and errorCodeReason in case of failure
+     * @return Note: check errorCode and errorCodeReason in case of failure
      */
 
     public boolean writeToStandardFileNdefContainerPlain(byte fileNumber) {
@@ -1938,7 +1975,8 @@ public class DesfireEv3 {
      * The maximum NDEF message length is 256 bytes so the URL needs to be some characters smaller
      * as there is an overhead for NDEF handling.
      * THe URL should point to a webserver that can handle SUN/SDM messages
-     * @param fileNumber    | in range 0..31
+     *
+     * @param fileNumber | in range 0..31
      * @param urlToWrite
      * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
@@ -1980,6 +2018,7 @@ public class DesfireEv3 {
     /**
      * writeToADataFile(byte fileNumber, byte[] data) - this is just a helper for
      * writeToADataFile(byte fileNumber, int offset, byte[] data)
+     *
      * @param fileNumber
      * @param data
      * @return
@@ -2003,6 +2042,7 @@ public class DesfireEv3 {
      * The data is written to the  beginning of the file (offset = 0)
      * If the data length exceeds the MAXIMUM_WRITE_MESSAGE_LENGTH the data will be written in chunks.
      * If the data length exceeds MAXIMUM_FILE_LENGTH the methods returns a FAILURE
+     *
      * @param fileNumber | in range 0..31 AND file is a Standard or Backup file
      * @param offset     | position to write the data, starting with 0
      * @param data
@@ -2112,6 +2152,7 @@ public class DesfireEv3 {
      * The method does not take care of the offset so 'offset + data.length <= file size' needs to obeyed
      * Do NOT CALL this method from outside this class but use one of the writeToStandardFile callers
      * as it uses the pre-read fileSettings
+     *
      * @param fileNumber | in range 0..31 AND file is a Standard or Backup file
      * @param data       | maximum of 40 bytes to avoid framing
      * @param offset     | offset in the file
@@ -2122,7 +2163,7 @@ public class DesfireEv3 {
         String logData = "";
         final String methodName = "writeToADataFileRawPlain";
         log(methodName, "started", true);
-        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + Utils.printData(" data", data) );
+        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + Utils.printData(" data", data));
 
         // sanity checks
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
@@ -2194,6 +2235,7 @@ public class DesfireEv3 {
      * The method does not take care of the offset so 'offset + data.length <= file size' needs to obeyed
      * Do NOT CALL this method from outside this class but use one of the writeToStandardFile callers
      * as it uses the pre-read fileSettings
+     *
      * @param fileNumber | in range 0..31 AND file is a Standard or Backup file
      * @param data       | maximum of 40 bytes to avoid framing
      * @param offset     | offset in the file
@@ -2207,7 +2249,7 @@ public class DesfireEv3 {
         String logData = "";
         final String methodName = "writeToADataFileRawMac";
         log(methodName, "started", true);
-        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + Utils.printData(" data", data) );
+        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + Utils.printData(" data", data));
 
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if ((data == null) || (data.length > MAXIMUM_WRITE_MESSAGE_LENGTH)) {
@@ -2326,6 +2368,7 @@ public class DesfireEv3 {
      * The method does not take care of the offset so 'offset + data.length <= file size' needs to obeyed
      * Do NOT CALL this method from outside this class but use one of the writeToStandardFile callers
      * as it uses the pre-read fileSettings
+     *
      * @param fileNumber | in range 0..31 AND file is a Standard or Backup file
      * @param data       | maximum of 40 bytes to avoid framing
      * @param offset     | offset in the file
@@ -2337,7 +2380,7 @@ public class DesfireEv3 {
         String logData = "";
         final String methodName = "writeToADataFileRawFull";
         log(methodName, "started", true);
-        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + Utils.printData(" data", data) );
+        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + Utils.printData(" data", data));
         // sanity checks
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if ((data == null) || (data.length > MAXIMUM_WRITE_MESSAGE_LENGTH)) {
@@ -2382,7 +2425,8 @@ public class DesfireEv3 {
 
         // Encrypting the Command Data
         // IV_Input (IV_Label || TI || CmdCounter || Padding)
-        // MAC_Input
+        byte[] ivInput = getIvInput();
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -2393,6 +2437,7 @@ public class DesfireEv3 {
         baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
         baosIvInput.write(padding1, 0, padding1.length);
         byte[] ivInput = baosIvInput.toByteArray();
+        */
         log(methodName, printData("ivInput", ivInput));
 
         // IV for CmdData = Enc(KSesAuthENC, IV_Input)
@@ -2512,7 +2557,7 @@ public class DesfireEv3 {
         String logData = "";
         final String methodName = "writeToADataFileRawFullTmac";
         log(methodName, "started", true);
-        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + Utils.printData(" data", data) );
+        log(methodName, "fileNumber: " + fileNumber + " offset: " + offset + Utils.printData(" data", data));
         // sanity checks
         if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
         if ((data == null) || (data.length > MAXIMUM_WRITE_MESSAGE_LENGTH)) {
@@ -2557,7 +2602,8 @@ public class DesfireEv3 {
 
         // Encrypting the Command Data
         // IV_Input (IV_Label || TI || CmdCounter || Padding)
-        // MAC_Input
+        byte[] ivInput = getIvInput();
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -2568,6 +2614,7 @@ public class DesfireEv3 {
         baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
         baosIvInput.write(padding1, 0, padding1.length);
         byte[] ivInput = baosIvInput.toByteArray();
+         */
         log(methodName, printData("ivInput", ivInput));
 
         // IV for CmdData = Enc(KSesAuthENC, IV_Input)
@@ -2617,6 +2664,8 @@ public class DesfireEv3 {
         log(methodName, printData("cmdHeader", cmdHeader));
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted CmdData )
+        byte[] macInput = getMacInput(WRITE_DATA_FILE_SECURE_COMMAND, cmdHeader, encryptedData);
+        /*
         ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
         baosMacInput.write(WRITE_DATA_FILE_SECURE_COMMAND); // 0x8D
         baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
@@ -2624,6 +2673,7 @@ public class DesfireEv3 {
         baosMacInput.write(cmdHeader, 0, cmdHeader.length);
         baosMacInput.write(encryptedData, 0, encryptedData.length);
         byte[] macInput = baosMacInput.toByteArray();
+        */
         log(methodName, printData("macInput", macInput));
 
         // generate the MAC (CMAC) with the SesAuthMACKey
@@ -2696,6 +2746,7 @@ public class DesfireEv3 {
      * If the comm mode is 'Full' it runs the Full path
      * If the data length exceeds the MAXIMUM_READ_MESSAGE_LENGTH the data will be read in chunks.
      * If the data length exceeds MAXIMUM_FILE_LENGTH the methods returns a FAILURE
+     *
      * @param fileNumber | in range 0..31 AND file is a Standard file
      * @param offset     | the position in file where the read is starting
      * @param length     | the length of data to get read
@@ -2748,7 +2799,8 @@ public class DesfireEv3 {
                 errorCode = RESPONSE_FAILURE_MISSING_AUTHENTICATION.clone();
                 errorCodeReason = "missing legacy authentication";
                 return null;
-            };
+            }
+            ;
         } else {
             if (!checkAuthentication()) return null;
         }
@@ -2800,7 +2852,8 @@ public class DesfireEv3 {
                 log(methodName, "could not successfully red, aborted");
                 System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
                 return null;
-            } {
+            }
+            {
                 // copy the dataToReadChunk in the complete data array
                 // in some circumstances some additional data like a CRC or MAC is appended - this needs to get stripped off
                 int realLength = (i * MAXIMUM_READ_MESSAGE_LENGTH) + dataToReadChunk.length;
@@ -2892,7 +2945,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
     }
 
 
-
     /**
      * Read data from a Data file in Communication mode Plain, beginning at offset position and length of data.
      * As the amount of data that can be send from PICC to reader is limited and the PICC will chunk the
@@ -2900,6 +2952,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
      * necessary commands to get all data.
      * DO NOT CALL this method from outside this class but use one of the ReadFromStandardFile callers
      * as it uses the pre-read fileSettings
+     *
      * @param fileNumber | in range 0..31
      * @param offset     | offset in the file
      * @param length     | length of data > 1
@@ -2972,6 +3025,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
      * data if exceeding this limit. The method denies if this limit is reached.
      * DO NOT CALL this method from outside this class but use one of the ReadFromStandardFile callers
      * as it uses the pre-read fileSettings
+     *
      * @param fileNumber | in range 0..31
      * @param offset     | offset in the file
      * @param length     | length of data > 1
@@ -2979,7 +3033,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
      * Note: check errorCode and errorCodeReason in case of failure
      */
 
-    private byte[] readFromADataFileRawMac(byte fileNumber, int offset, int length){
+    private byte[] readFromADataFileRawMac(byte fileNumber, int offset, int length) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 54 -55
 
         String logData = "";
@@ -3126,6 +3180,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
      * data if exceeding this limit. The method denies if this limit is reached.
      * DO NOT CALL this method from outside this class but use one of the ReadFromStandardFile callers
      * as it uses the pre-read fileSettings
+     *
      * @param fileNumber | in range 0..31
      * @param offset     | offset in the file
      * @param length     | length of data > 0
@@ -3297,6 +3352,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
     /**
      * read the value of a Value file in Communication modes Plain, MACed or Full enciphered
+     *
      * @param fileNumber | in range 0..31
      * @return the integer value or -1 on failure
      */
@@ -3341,7 +3397,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
                 errorCode = RESPONSE_FAILURE_MISSING_AUTHENTICATION.clone();
                 errorCodeReason = "missing legacy authentication";
                 return -1;
-            };
+            }
+            ;
         } else {
             if (!checkAuthentication()) return -1;
         }
@@ -3375,6 +3432,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
      * read the value of a Value file in Communication mode Plain
      * Note: There are no sanity checks on parameter, Communication mode or authentication status
      * so this method should be called by 'readFromAValueFile' only.
+     *
      * @param fileNumber | in range 0..31
      * @return the integer value or -1 on failure
      */
@@ -3417,6 +3475,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
      * read the value of a Value file in Communication mode MACed
      * Note: There are no sanity checks on parameter, Communication mode or authentication status
      * so this method should be called by 'readFromAValueFile' only.
+     *
      * @param fileNumber | in range 0..31
      * @return the integer value or -1 on failure
      */
@@ -3512,6 +3571,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
      * read the value of a Value file in Communication mode Full
      * Note: There are no sanity checks on parameter, Communication mode or authentication status
      * so this method should be called by 'readFromAValueFile' only.
+     *
      * @param fileNumber | in range 0..31
      * @return the integer value or -1 on failure
      */
@@ -3627,11 +3687,11 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
     /**
      * credits or debits the value of a Value file in Communication modes Plain, MACed or Full enciphered
-     * @param fileNumber   | in range 0..31
-     * @param changeValue  | minimum 1, maximum depending on fileSettings
-     * @param isCredit     | true for crediting, false for debiting
-     * @return             | true on success
      *
+     * @param fileNumber  | in range 0..31
+     * @param changeValue | minimum 1, maximum depending on fileSettings
+     * @param isCredit    | true for crediting, false for debiting
+     * @return | true on success
      */
 
     public boolean changeAValueFile(byte fileNumber, int changeValue, boolean isCredit) {
@@ -3665,7 +3725,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
                 errorCode = RESPONSE_FAILURE_MISSING_AUTHENTICATION.clone();
                 errorCodeReason = "missing legacy authentication";
                 return false;
-            };
+            }
+            ;
         } else {
             if (!checkAuthentication()) return false;
         }
@@ -3700,11 +3761,11 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
      * credits or debits the value of a Value file in Communication mode Plain.
      * Note: There are no sanity checks on parameter, Communication mode or authentication status
      * so this method should be called by 'changeAValueFile' only.
-     * @param fileNumber   | in range 0..31
-     * @param changeValue  | minimum 1, maximum depending on fileSettings
-     * @param isCredit     | true for crediting, false for debiting
-     * @return             | true on success
      *
+     * @param fileNumber  | in range 0..31
+     * @param changeValue | minimum 1, maximum depending on fileSettings
+     * @param isCredit    | true for crediting, false for debiting
+     * @return | true on success
      */
     private boolean changeAValueFileRawPlain(byte fileNumber, int changeValue, boolean isCredit) {
         String logData = "";
@@ -3755,11 +3816,11 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
      * credits or debits the value of a Value file in Communication mode MACed.
      * Note: There are no sanity checks on parameter, Communication mode or authentication status
      * so this method should be called by 'changeAValueFile' only.
-     * @param fileNumber   | in range 0..31
-     * @param changeValue  | minimum 1, maximum depending on fileSettings
-     * @param isCredit     | true for crediting, false for debiting
-     * @return             | true on success
      *
+     * @param fileNumber  | in range 0..31
+     * @param changeValue | minimum 1, maximum depending on fileSettings
+     * @param isCredit    | true for crediting, false for debiting
+     * @return | true on success
      */
 
     private boolean changeAValueFileRawMac(byte fileNumber, int changeValue, boolean isCredit) {
@@ -3877,11 +3938,11 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
      * credits or debits the value of a Value file in Communication mode Full enciphered.
      * Note: There are no sanity checks on parameter, Communication mode or authentication status
      * so this method should be called by 'changeAValueFile' only.
-     * @param fileNumber   | in range 0..31
-     * @param changeValue  | minimum 1, maximum depending on fileSettings
-     * @param isCredit     | true for crediting, false for debiting
-     * @return             | true on success
      *
+     * @param fileNumber  | in range 0..31
+     * @param changeValue | minimum 1, maximum depending on fileSettings
+     * @param isCredit    | true for crediting, false for debiting
+     * @return | true on success
      */
 
     private boolean changeAValueFileRawFull(byte fileNumber, int changeValue, boolean isCredit) {
@@ -3907,8 +3968,10 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return false;
         }
 
-        // encrypting the  command data
+        // encrypting the command data
         // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        byte[] ivInput = getIvInput();
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -3918,7 +3981,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
         baosIvInput.write(padding1, 0, padding1.length);
-        byte[] ivInput = baosIvInput.toByteArray();
+        byte[] ivInput = baosIvInput.toByteArray();*/
         log(methodName, printData("ivInput", ivInput));
 
         // IV for CmdData = Enc(KSesAuthENC, IV_Input)
@@ -4045,13 +4108,14 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
      * If the data length exceeds the MAXIMUM_WRITE_MESSAGE_LENGTH the data will be written in chunks.
      * If the data length exceeds MAXIMUM_FILE_LENGTH the methods returns a FAILURE
      * If the data length exceeds record size the data is truncated
+     *
      * @param fileNumber | in range 0..31 AND file is a Linear or Cyclic Record file
      * @param offset     | position to write the data, starting with 0
      * @param data
      * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
      */
-    public boolean writeToARecordFile (byte fileNumber, int offset, byte[] data) {
+    public boolean writeToARecordFile(byte fileNumber, int offset, byte[] data) {
         String logData = "";
         final String methodName = "writeToARecordFile";
         log(methodName, "started", true);
@@ -4196,7 +4260,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             errorCodeReason = "FAILURE";
             return false;
         }
-      }
+    }
 
     public boolean writeToARecordFileRawMac(byte fileNumber, int offset, byte[] data) {
         String logData = "";
@@ -4221,7 +4285,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // MAC_Input
         //(Ins || CmdCounter || TI || CmdHeader || CmdData )
-        byte[] macInput = getMacInput(WRITE_RECORD_FILE_SECURE_COMMAND,cmdHeader, data);
+        byte[] macInput = getMacInput(WRITE_RECORD_FILE_SECURE_COMMAND, cmdHeader, data);
         /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
@@ -4323,7 +4387,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // Encrypting the Command Data
         // IV_Input (IV_Label || TI || CmdCounter || Padding)
-        // MAC_Input
+        byte[] ivInput = getIvInput();
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -4334,6 +4399,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
         baosIvInput.write(padding1, 0, padding1.length);
         byte[] ivInput = baosIvInput.toByteArray();
+        */
         log(methodName, printData("ivInput", ivInput));
 
         // IV for CmdData = Enc(KSesAuthENC, IV_Input)
@@ -4384,7 +4450,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         log(methodName, printData("cmdHeader", cmdHeader));
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted CmdData )
-        byte[] macInput = getMacInput(WRITE_RECORD_FILE_SECURE_COMMAND,cmdHeader, encryptedData);
+        byte[] macInput = getMacInput(WRITE_RECORD_FILE_SECURE_COMMAND, cmdHeader, encryptedData);
         /*
         ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
         baosMacInput.write(WRITE_RECORD_FILE_SECURE_COMMAND); // 0x8B
@@ -4461,6 +4527,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
     /**
      * section for record files
+     *
      * @param fileNumber
      * @param offsetRecord
      * @param numberOfRecordsToRead
@@ -4518,7 +4585,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
                 errorCode = RESPONSE_FAILURE_MISSING_AUTHENTICATION.clone();
                 errorCodeReason = "missing legacy authentication";
                 return null;
-            };
+            }
+            ;
         } else {
             if (!checkAuthentication()) return null;
         }
@@ -4895,12 +4963,12 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
 
     // todo clean code
-    public boolean deleteTransactionMacFileEv2(byte fileNumber) {
+    public boolean deleteTransactionMacFile(byte fileNumber) {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 81 - 83
         // this is based on the creation of a TransactionMac file on a DESFire Light card
         // Cmd.DeleteTransactionMACFile
         String logData = "";
-        final String methodName = "deleteTransactionMacFileEv2";
+        final String methodName = "deleteTransactionMacFile";
         log(methodName, "started", true);
         log(methodName, "fileNumber: " + fileNumber);
         // sanity checks
@@ -4932,6 +5000,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         // CmdHeader, here just the fileNumber
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader = fileNumber)
+        byte[] macInput = getMacInput(DELETE_TRANSACTION_MAC_FILE_COMMAND, new byte[]{fileNumber});
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -4940,7 +5010,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
         baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         baosMacInput.write(fileNumber);
-        byte[] macInput = baosMacInput.toByteArray();
+        byte[] macInput = baosMacInput.toByteArray();*/
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -4991,13 +5061,26 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         // in Features and Hints is a 'short cutted' version what is done here
 
         // verifying the received Response MAC
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        if (verifyResponseMac(responseMACTruncatedReceived, null)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return true;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return false;
+        }
+
+ /*
         ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
         responseMacBaos.write((byte) 0x00); // response code 00 means success
         responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
         responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         byte[] macInput2 = responseMacBaos.toByteArray();
         log(methodName, printData("macInput2", macInput2));
-        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
         byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
         log(methodName, printData("responseMACCalculated", responseMACCalculated));
         byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
@@ -5013,9 +5096,9 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
             return false;
         }
+
+  */
     }
-
-
 
 
     /**
@@ -5123,6 +5206,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
      * On file types Backup, Value, Linear Record and Cyclic Record all write or change values tasks
      * are not final until the transaction was finished by a Commit Transaction.
      * This method is working in CommunicationMode Full only.
+     *
      * @param isEnabledReturnTmcv | if true the TransactionMAC counter and Value is returned after successful commit and written to internal variables
      *                            | This option is available when a TransactionMAC file is present in application
      * @return true on success
@@ -5172,6 +5256,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
      * This method is working in CommunicationMode Full only.
      * This method is called when NO Transaction MAC file is present in the selected application.
      * Please do no call this method from outside the library, use 'commitTransactionFull' instead
+     *
      * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
      */
@@ -5278,9 +5363,10 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
      * This method is working in CommunicationMode Full only.
      * This method is called when a Transaction MAC file is present in the selected application.
      * Please do no call this method from outside the library, use 'commitTransactionFull' instead
-     * @parameter sEnabledReturnTmcv | on success returns the TransactionMAC counter and Value to internal variables
+     *
      * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
+     * @parameter isEnabledReturnTmcv | on success returns the TransactionMAC counter and Value to internal variables
      */
 
     public boolean commitTransactionWithTmacFull(boolean isEnabledReturnTmcv) {
@@ -5372,8 +5458,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             responseMACTruncatedReceived = fullResponseData.clone();
         }
 
-        // todo publish responseTmcv
-
         if (verifyResponseMac(responseMACTruncatedReceived, transactionMacFileReturnedTmcv)) { // transactionMacFileReturnedTmcv is null in case NO TransactionMAC file is present or gets the TMC || TMV data
             log(methodName, methodName + " SUCCESS");
             errorCode = RESPONSE_OK.clone();
@@ -5398,9 +5482,9 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // Constructing the full CommitReaderID Command APDU
         log(methodName, printData("transactionMacReaderId", transactionMacReaderId));
-        byte[] READER_ID = hexStringToByteArray("28BF1982BE086FBC60A22DAEB66613EE"); // 16 bytes
+        //byte[] READER_ID = hexStringToByteArray("28BF1982BE086FBC60A22DAEB66613EE"); // 16 bytes
         byte[] iv0Reader = new byte[16];
-        log(methodName, printData("READER_ID", READER_ID));
+        //log(methodName, printData("READER_ID", READER_ID));
         log(methodName, printData("iv0Reader", iv0Reader));
 
         // MAC_Input (Ins || CmdCounter || TI || Data (= Reader ID) )
@@ -5497,6 +5581,12 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
     }
 
+    /**
+     * For operations in Communication.Mode MACed or Full we need to get a MacInput method
+     * @param command
+     * @param options
+     * @return
+     */
     private byte[] getMacInput(byte command, byte[] options) {
         String methodName = "getMacInput";
         log(methodName, "started", true);
@@ -5516,10 +5606,19 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         return macInput;
     }
 
+    /**
+     * For operations in Communication.Mode MACed or Full we need to get a MacInput method
+     * @param command
+     * @param options
+     * @param data
+     * @return
+     */
+
     private byte[] getMacInput(byte command, byte[] options, byte[] data) {
         String methodName = "getMacInput";
         log(methodName, "started", true);
         log(methodName, printData("options", options));
+        log(methodName, printData("data", data));
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -5537,6 +5636,31 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         log(methodName, printData("macInput", macInput));
         return macInput;
     }
+
+    /**
+     * For operations in Communication.Mode Full we need to get an IvInput method
+     * @return
+     */
+
+    private byte[] getIvInput() {
+        String methodName = "getIvInput";
+        log(methodName, "started", true);
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        log(methodName, printData("TransactionIdentifier", TransactionIdentifier));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(IV_LABEL_ENC, 0, IV_LABEL_ENC.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+        return ivInput;
+    }
+
 
     public boolean commitTransactionFull() {
         // see Mifare DESFire Light Features and Hints AN12343.pdf pages 61 - 65
@@ -5559,6 +5683,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         byte[] startingIv = new byte[16];
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader (=Option) )
+        byte[] macInput = getMacInput(COMMIT_TRANSACTION_COMMAND, new byte[]{COMMIT_TRANSACTION_OPTION});
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -5568,6 +5694,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         baosMacInput.write(COMMIT_TRANSACTION_OPTION);
         byte[] macInput = baosMacInput.toByteArray();
+        */
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -5666,6 +5793,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         byte[] startingIv = new byte[16];
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader (=Option) )
+        byte[] macInput = getMacInput(COMMIT_TRANSACTION_COMMAND, new byte[]{COMMIT_TRANSACTION_OPTION_ENABLED});
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -5675,7 +5804,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         //baosMacInput.write(COMMIT_TRANSACTION_OPTION);
         baosMacInput.write(COMMIT_TRANSACTION_OPTION_ENABLED);
-        byte[] macInput = baosMacInput.toByteArray();
+        byte[] macInput = baosMacInput.toByteArray();*/
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -5733,20 +5862,17 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         log(methodName, printData("fullResponseData", fullResponseData));
         byte[] responseMACTruncatedReceived = new byte[8];
-        byte[] responseTmcv = new byte[0];
         int fullResponseDataLength = fullResponseData.length;
         if (fullResponseDataLength > 8) {
             log(methodName, "the fullResponseData has a length of " + fullResponseDataLength + " bytes, so the TMC and TMV are included");
-            responseTmcv = Arrays.copyOfRange(fullResponseData, 0, (fullResponseDataLength - 8));
+            transactionMacFileReturnedTmcv = Arrays.copyOfRange(fullResponseData, 0, (fullResponseDataLength - 8));
             responseMACTruncatedReceived = Arrays.copyOfRange(fullResponseData, (fullResponseDataLength - 8), fullResponseDataLength);
-            log(methodName, printData("responseTmcv", responseTmcv));
+            log(methodName, printData("transactionMacFileReturnedTmcv", transactionMacFileReturnedTmcv));
         } else {
             responseMACTruncatedReceived = fullResponseData.clone();
         }
 
-        // todo publish responseTmcv
-
-        if (verifyResponseMac(responseMACTruncatedReceived, responseTmcv)) { // responseTmcv is null in case NO TransactionMAC file is present or gets the TMC || TMV data
+        if (verifyResponseMac(responseMACTruncatedReceived, transactionMacFileReturnedTmcv)) { // transactionMacFileReturnedTmcv is null in case NO TransactionMAC file is present or gets the TMC || TMV data
             log(methodName, methodName + " SUCCESS");
             errorCode = RESPONSE_OK.clone();
             errorCodeReason = methodName + " SUCCESS";
@@ -5784,6 +5910,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         byte[] startingIv = new byte[16];
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader (=Option) )
+        byte[] macInput = getMacInput(COMMIT_TRANSACTION_COMMAND, new byte[]{COMMIT_TRANSACTION_OPTION_ENABLED});
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -5793,7 +5921,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         //baosMacInput.write(COMMIT_TRANSACTION_OPTION);
         baosMacInput.write(COMMIT_TRANSACTION_OPTION_ENABLED);
-        byte[] macInput = baosMacInput.toByteArray();
+        byte[] macInput = baosMacInput.toByteArray();*/
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -5851,20 +5979,17 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         log(methodName, printData("fullResponseData", fullResponseData));
         byte[] responseMACTruncatedReceived = new byte[8];
-        byte[] responseTmcv = new byte[0];
         int fullResponseDataLength = fullResponseData.length;
         if (fullResponseDataLength > 8) {
             log(methodName, "the fullResponseData has a length of " + fullResponseDataLength + " bytes, so the TMC and TMV are included");
-            responseTmcv = Arrays.copyOfRange(fullResponseData, 0, (fullResponseDataLength - 8));
+            transactionMacFileReturnedTmcv = Arrays.copyOfRange(fullResponseData, 0, (fullResponseDataLength - 8));
             responseMACTruncatedReceived = Arrays.copyOfRange(fullResponseData, (fullResponseDataLength - 8), fullResponseDataLength);
-            log(methodName, printData("responseTmcv", responseTmcv));
+            log(methodName, printData("transactionMacFileReturnedTmcv", transactionMacFileReturnedTmcv));
         } else {
             responseMACTruncatedReceived = fullResponseData.clone();
         }
 
-        // todo publish responseTmcv
-
-        if (verifyResponseMac(responseMACTruncatedReceived, responseTmcv)) { // responseTmcv is null in case NO TransactionMAC file is present or gets the TMC || TMV data
+        if (verifyResponseMac(responseMACTruncatedReceived, transactionMacFileReturnedTmcv)) { // transactionMacFileReturnedTmcv is null in case NO TransactionMAC file is present or gets the TMC || TMV data
             log(methodName, methodName + " SUCCESS");
             errorCode = RESPONSE_OK.clone();
             errorCodeReason = methodName + " SUCCESS";
@@ -5910,6 +6035,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         log(methodName, printData("iv0Reader", iv0Reader));
 
         // MAC_Input (Ins || CmdCounter || TI || Data (= Reader ID) )
+        byte[] macInputReader = getMacInput(COMMIT_READER_ID_SECURE_COMMAND, READER_ID);
+        /*
         byte[] commandCounterLsb1Reader = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1Reader));
@@ -5918,7 +6045,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baosMacInputReader.write(commandCounterLsb1Reader, 0, commandCounterLsb1Reader.length);
         baosMacInputReader.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         baosMacInputReader.write(READER_ID, 0, READER_ID.length);
-        byte[] macInputReader = baosMacInputReader.toByteArray();
+        byte[] macInputReader = baosMacInputReader.toByteArray();*/
         log(methodName, printData("macInputReader", macInputReader));
 
         // MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -6147,7 +6274,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
     /*
      * WARNING: this is an experimental feature
      */
-
     public boolean enableTransactionTimerFull() {
 
         // see example in Mifare DESFire Light Features and Hints AN12343.pdf pages 12 ff
@@ -6330,7 +6456,8 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
      * Deletes (better deactivates) a file in the selected application permanently. The space for
      * the file is NOT released (only possible on formatting the PICC).
      * Note: Depending on the application master key settings, see chapter 4.3.2, a preceding
-     *       authentication with the application master key is required.
+     * authentication with the application master key is required.
+     *
      * @param fileNumber
      * @return true on success
      */
@@ -6341,7 +6468,8 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         log(methodName, "started", true);
         errorCode = new byte[2];
         // sanity checks
-        if (!checkApplicationIdentifier(selectedApplicationId)) return false; // logFile and errorCode are updated
+        if (!checkApplicationIdentifier(selectedApplicationId))
+            return false; // logFile and errorCode are updated
         if (checkAuthentication()) {
             // as the command won't run in authenticated state the  method denies to work further
             Log.e(TAG, methodName + " cannot run this command after authentication, aborted");
@@ -7399,7 +7527,7 @@ fileSize: 128
      * authenticateAesEv2First uses the EV2First authentication method with command 0x71
      *
      * @param keyNumber (00..14) but maximum is defined during application setup
-     * @param key   (AES key with length of 16 bytes)
+     * @param key       (AES key with length of 16 bytes)
      * @return TRUE when authentication was successful
      * <p>
      * Note: the authentication seems to work but the correctness of the SesAuthENCKey and SesAuthMACKey is NOT tested so far
@@ -7474,7 +7602,8 @@ fileSize: 128
         //byte[] iv0 = new byte[8];
         byte[] iv0 = new byte[16];
         if (debug) log(methodName, "step 02 iv0 is 16 zero bytes " + printData("iv0", iv0));
-        if (debug) log(methodName, "step 03 decrypt the encryptedRndB using AES.decrypt with key " + printData("key", key) + printData(" iv0", iv0));
+        if (debug)
+            log(methodName, "step 03 decrypt the encryptedRndB using AES.decrypt with key " + printData("key", key) + printData(" iv0", iv0));
         byte[] rndB = AES.decrypt(iv0, key, rndB_enc);
         if (debug) log(methodName, printData("rndB", rndB));
 
@@ -7498,7 +7627,8 @@ fileSize: 128
         if (debug) log(methodName, printData("iv1", iv1));
 
         // Encrypt RndAB_rot
-        if (debug) log(methodName, "step 08 encrypt rndArndB_leftRotated using AES.encrypt and iv1");
+        if (debug)
+            log(methodName, "step 08 encrypt rndArndB_leftRotated using AES.encrypt and iv1");
         byte[] rndArndB_leftRotated_enc = AES.encrypt(iv1, key, rndArndB_leftRotated);
         if (debug) log(methodName, printData("rndArndB_leftRotated_enc", rndArndB_leftRotated_enc));
 
@@ -7508,7 +7638,8 @@ fileSize: 128
             apdu = wrapMessage(MORE_DATA_COMMAND, rndArndB_leftRotated_enc);
             if (debug) log(methodName, "send rndArndB_leftRotated_enc " + printData("apdu", apdu));
             response = sendData(apdu);
-            if (debug) log(methodName, "send rndArndB_leftRotated_enc " + printData("response", response));
+            if (debug)
+                log(methodName, "send rndArndB_leftRotated_enc " + printData("response", response));
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "IOException: " + e.getMessage());
@@ -7601,7 +7732,7 @@ fileSize: 128
      * authenticateAesEv2NonFirst uses the EV2NonFirst authentication method with command 0x77
      *
      * @param keyNumber (00..14) but maximum is defined during application setup
-     * @param key   (AES key with length of 16 bytes)
+     * @param key       (AES key with length of 16 bytes)
      * @return TRUE when authentication was successful
      * <p>
      * Note: the authentication seems to work but the correctness of the SesAuthENCKey and SesAuthMACKey is NOT tested so far
@@ -7644,11 +7775,12 @@ fileSize: 128
             return false;
         }
         if (!checkKeyNumber(keyNumber)) return false;
-        if(!checkKey(key)) return false;
+        if (!checkKey(key)) return false;
         if (!checkIsoDep()) return false;
         invalidateAllData();
         if (debug) log(methodName, "step 01 get encrypted rndB from card");
-        if (debug) log(methodName, "This method is using the AUTHENTICATE_AES_EV2_NON_FIRST_COMMAND so it will work with AES-based application only");
+        if (debug)
+            log(methodName, "This method is using the AUTHENTICATE_AES_EV2_NON_FIRST_COMMAND so it will work with AES-based application only");
         // authenticate 1st part
         byte[] apdu;
         byte[] response = new byte[0];
@@ -7687,7 +7819,8 @@ fileSize: 128
         //byte[] iv0 = new byte[8];
         byte[] iv0 = new byte[16];
         if (debug) log(methodName, "step 02 iv0 is 16 zero bytes " + printData("iv0", iv0));
-        if (debug) log(methodName, "step 03 decrypt the encryptedRndB using AES.decrypt with key " + printData("key", key) + printData(" iv0", iv0));
+        if (debug)
+            log(methodName, "step 03 decrypt the encryptedRndB using AES.decrypt with key " + printData("key", key) + printData(" iv0", iv0));
         byte[] rndB = AES.decrypt(iv0, key, rndB_enc);
         if (debug) log(methodName, printData("rndB", rndB));
 
@@ -7711,7 +7844,8 @@ fileSize: 128
         if (debug) log(methodName, printData("iv1", iv1));
 
         // Encrypt RndAB_rot
-        if (debug) log(methodName, "step 08 encrypt rndArndB_leftRotated using AES.encrypt and iv1");
+        if (debug)
+            log(methodName, "step 08 encrypt rndArndB_leftRotated using AES.encrypt and iv1");
         byte[] rndArndB_leftRotated_enc = AES.encrypt(iv1, key, rndArndB_leftRotated);
         if (debug) log(methodName, printData("rndArndB_leftRotated_enc", rndArndB_leftRotated_enc));
 
@@ -7721,7 +7855,8 @@ fileSize: 128
             apdu = wrapMessage(MORE_DATA_COMMAND, rndArndB_leftRotated_enc);
             if (debug) log(methodName, "send rndArndB_leftRotated_enc " + printData("apdu", apdu));
             response = sendData(apdu);
-            if (debug) log(methodName, "send rndArndB_leftRotated_enc " + printData("response", response));
+            if (debug)
+                log(methodName, "send rndArndB_leftRotated_enc " + printData("response", response));
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "IOException: " + e.getMessage());
@@ -7800,11 +7935,12 @@ fileSize: 128
      * authenticateAesLegacy uses the legacy authentication method with command 0xAA
      * This method is good for authentication only - NOT FOR ENCRYPTION as no
      * session key will be generated.
+     *
      * @param keyNumber (00..13) but maximum is defined during application setup
-     * @param key   (AES key with length of 16 bytes)
+     * @param key       (AES key with length of 16 bytes)
      * @return TRUE when authentication was successful
      * <p>
-     *
+     * <p>
      * Note: the code was adopted from the nfcjlib written by Daniel Andrade
      * source: https://github.com/andrade/nfcjlib
      */
@@ -7853,7 +7989,8 @@ fileSize: 128
         //byte[] iv0 = new byte[8];
         byte[] iv0 = new byte[16];
         if (debug) log(methodName, "step 02 initial iv0 is 16 zero bytes " + printData("iv0", iv0));
-        if (debug) log(methodName, "step 03 decrypt the encryptedRndB using AES.decrypt with key " + printData("key", key) + printData(" iv0", iv0));
+        if (debug)
+            log(methodName, "step 03 decrypt the encryptedRndB using AES.decrypt with key " + printData("key", key) + printData(" iv0", iv0));
         byte[] rndB = AES.decrypt(iv0, key, rndB_enc);
         byte[] rndBSession = rndB.clone();
         if (debug) log(methodName, printData("rndB", rndB));
@@ -7879,7 +8016,8 @@ fileSize: 128
         if (debug) log(methodName, printData("iv1", iv1));
 
         // Encrypt RndAB_rot
-        if (debug) log(methodName, "step 08 encrypt rndArndB_leftRotated using AES.encrypt and iv1");
+        if (debug)
+            log(methodName, "step 08 encrypt rndArndB_leftRotated using AES.encrypt and iv1");
         byte[] rndArndB_leftRotated_enc = AES.encrypt(iv1, key, rndArndB_leftRotated);
         if (debug) log(methodName, printData("rndArndB_leftRotated_enc", rndArndB_leftRotated_enc));
 
@@ -7889,7 +8027,8 @@ fileSize: 128
             apdu = wrapMessage(MORE_DATA_COMMAND, rndArndB_leftRotated_enc);
             if (debug) log(methodName, "send rndArndB_leftRotated_enc " + printData("apdu", apdu));
             response = sendData(apdu);
-            if (debug) log(methodName, "send rndArndB_leftRotated_enc " + printData("response", response));
+            if (debug)
+                log(methodName, "send rndArndB_leftRotated_enc " + printData("response", response));
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "IOException: " + e.getMessage());
@@ -7911,7 +8050,8 @@ fileSize: 128
         if (debug) log(methodName, printData("rndA_leftRotated_enc", rndA_leftRotated_enc));
 
         //IV is now the last 16 bytes of RndAB_rot_enc
-        if (debug) log(methodName, "step 11 iv2 is now the last 16 bytes of rndArndB_leftRotated_enc: " + printData("rndArndB_leftRotated_enc", rndArndB_leftRotated_enc));
+        if (debug)
+            log(methodName, "step 11 iv2 is now the last 16 bytes of rndArndB_leftRotated_enc: " + printData("rndArndB_leftRotated_enc", rndArndB_leftRotated_enc));
         int rndArndB_leftRotated_encLength = rndArndB_leftRotated_enc.length;
         byte[] iv2 = Arrays.copyOfRange(rndArndB_leftRotated_enc,
                 rndArndB_leftRotated_encLength - 16, rndArndB_leftRotated_encLength);
@@ -8077,7 +8217,7 @@ fileSize: 128
         if (debug) log(methodName, printData("cmacOut ", cmac));
         return cmac;
     }
-    
+
     private byte[] getSesSDMFileReadENCKey(byte[] sdmFileReadKey, byte[] uid, byte[] sdmReadCounter) {
         // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 13 - 14
         // see NTAG 424 DNA NT4H2421Gx.pdf page 41
@@ -8134,7 +8274,7 @@ fileSize: 128
         secureRandom.nextBytes(value);
         return value;
     }
-    
+
     // rotate the array one byte to the left
     private byte[] rotateLeft(byte[] data) {
         log("rotateLeft", printData("data", data), true);
@@ -8232,6 +8372,8 @@ fileSize: 128
         // Encrypting the Command Data
 
         // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        byte[] ivInput = getIvInput();
+        /*
         byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
         log(methodName, "CmdCounter: " + CmdCounter);
         log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
@@ -8241,7 +8383,7 @@ fileSize: 128
         baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
         baosIvInput.write(padding1, 0, padding1.length);
-        byte[] ivInput = baosIvInput.toByteArray();
+        byte[] ivInput = baosIvInput.toByteArray();*/
         log(methodName, printData("ivInput", ivInput));
 
         // IV for CmdData = Enc(KSesAuthENC, IV_Input)
@@ -8296,13 +8438,15 @@ fileSize: 128
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader = keyNumber || Encrypted CmdData )
         // C40000BC354CD50180D40DB52D5D8CA136249A0A14154DBA1BE0D67C408AB24CF0F3D3B4FE333C6A
         // C4 0000 BC354CD5 01 80D40DB52D5D8CA136249A0A14154DBA1BE0D67C408AB24CF0F3D3B4FE333C6A
+        byte[] macInput = getMacInput(CHANGE_KEY_SECURE_COMMAND, new byte[]{keyNumber}, encryptedData);
+        /*
         ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
         baosMacInput.write(CHANGE_KEY_SECURE_COMMAND); // 0xC4
         baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
         baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
         baosMacInput.write(keyNumber);
         baosMacInput.write(encryptedData, 0, encryptedData.length);
-        byte[] macInput = baosMacInput.toByteArray();
+        byte[] macInput = baosMacInput.toByteArray();*/
         log(methodName, printData("macInput", macInput));
 
         // generate the MAC (CMAC) with the SesAuthMACKey
@@ -8403,6 +8547,7 @@ fileSize: 128
 
     /**
      * gets the technical data of the tapped tag
+     *
      * @return the VersionInfo
      */
     public VersionInfo getVersionInformation() {
@@ -8420,6 +8565,7 @@ fileSize: 128
     /**
      * checks that the tapped tag is of type DESFire EV1
      * As some commands do work on a DESFire EV1 tag only we need to check for that tag type
+     *
      * @return true on success
      */
     public boolean checkForDESFireEv1XX() {
@@ -8435,6 +8581,7 @@ fileSize: 128
     /**
      * checks that the tapped tag is of type DESFire EV2
      * As some commands do work on a DESFire EV2 tag only we need to check for that tag type
+     *
      * @return true on success
      */
     public boolean checkForDESFireEv2XX() {
@@ -8451,6 +8598,7 @@ fileSize: 128
      * checks that the tapped tag is of type DESFire EV3
      * As some commands do work on a DESFire EV3 tag only we need to check for that tag type
      * (e.g. enabling of the SUN/SDM feature)
+     *
      * @return true on success
      */
     public boolean checkForDESFireEv3() {
@@ -8471,6 +8619,7 @@ fileSize: 128
      * e.g. when reading of a Standard file and the amount of data exceeds the maximum data length the data
      * is chunked by the PICC. The method will read as long as '0xAF' status bytes appear. When all data is
      * read the PICC sends a '0x00' meaning success and all data is provided.
+     *
      * @param command
      * @return the full received data including the code '0x9100'
      */
@@ -8619,7 +8768,7 @@ fileSize: 128
         }
     }
 
-        private boolean checkResponseIso(@NonNull byte[] data) {
+    private boolean checkResponseIso(@NonNull byte[] data) {
         // simple sanity check
         if (data.length < 2) {
             return false;
@@ -8721,8 +8870,8 @@ fileSize: 128
         if (!checkFileNumber(fileNumber)) return false;
         FileSettings fileSettings;
         try {
-          fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
-          int fileSize = fileSettings.getFileSizeInt(); // if the file is not existing we get an NPE
+            fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+            int fileSize = fileSettings.getFileSizeInt(); // if the file is not existing we get an NPE
         } catch (NullPointerException e) {
             Log.d(TAG, "fileNumber " + fileNumber + " is not existing");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
@@ -8735,7 +8884,7 @@ fileSize: 128
 
     private boolean checkFileTypeStandard(byte fileNumber) {
         FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
-        if  (fileSettings.getFileType() == FileSettings.STANDARD_FILE_TYPE) {
+        if (fileSettings.getFileType() == FileSettings.STANDARD_FILE_TYPE) {
             return true;
         } else {
             Log.d(TAG, "fileType is not a Standard file type");
@@ -8745,7 +8894,7 @@ fileSize: 128
 
     private boolean checkFileTypeBackup(byte fileNumber) {
         FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
-        if  (fileSettings.getFileType() == FileSettings.BACKUP_FILE_TYPE) {
+        if (fileSettings.getFileType() == FileSettings.BACKUP_FILE_TYPE) {
             return true;
         } else {
             Log.d(TAG, "fileType is not a Backup file type");
@@ -8755,7 +8904,7 @@ fileSize: 128
 
     private boolean checkFileTypeValue(byte fileNumber) {
         FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
-        if  (fileSettings.getFileType() == FileSettings.VALUE_FILE_TYPE) {
+        if (fileSettings.getFileType() == FileSettings.VALUE_FILE_TYPE) {
             return true;
         } else {
             Log.d(TAG, "fileType is not a Value file type");
@@ -8765,7 +8914,7 @@ fileSize: 128
 
     private boolean checkFileTypeLinearRecord(byte fileNumber) {
         FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
-        if  (fileSettings.getFileType() == FileSettings.LINEAR_RECORD_FILE_TYPE) {
+        if (fileSettings.getFileType() == FileSettings.LINEAR_RECORD_FILE_TYPE) {
             return true;
         } else {
             Log.d(TAG, "fileType is not a Linear Record file type");
@@ -8775,7 +8924,7 @@ fileSize: 128
 
     private boolean checkFileTypeCyclicRecord(byte fileNumber) {
         FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
-        if  (fileSettings.getFileType() == FileSettings.CYCLIC_RECORD_FILE_TYPE) {
+        if (fileSettings.getFileType() == FileSettings.CYCLIC_RECORD_FILE_TYPE) {
             return true;
         } else {
             Log.d(TAG, "fileType is not a Cyclic Record file type");
@@ -8785,7 +8934,7 @@ fileSize: 128
 
     private boolean checkFileTypeTransactionMac(byte fileNumber) {
         FileSettings fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
-        if  (fileSettings.getFileType() == FileSettings.TRANSACTION_MAC_FILE_TYPE) {
+        if (fileSettings.getFileType() == FileSettings.TRANSACTION_MAC_FILE_TYPE) {
             return true;
         } else {
             Log.d(TAG, "fileType is not a Transaction MAC file type");
@@ -9181,14 +9330,16 @@ fileSize: 128
 
     // todo work on length = 0 = read complete file and set offset to 0 or
     //  length to fileSize-offset to read all remaining data ?
+
     /**
      * The method reads a byte array from a Standard file. The communication mode is read out from
      * 'getFileSettings command'. If the comm mode is 'Plain' it runs the Plain path, otherwise it
      * uses the 'Full' path. If the comm mode is 'MACed' the method ends a there is no method available
      * within this class to handle those files, sorry.
-     *
+     * <p>
      * If the data length exceeds the MAXIMUM_READ_MESSAGE_LENGTH the data will be read in chunks.
      * If the data length exceeds MAXIMUM_FILE_LENGTH the methods returns a FAILURE
+     *
      * @param fileNumber | in range 0..31 AND file is a Standard file
      * @param offset     | the position in file where the read is starting
      * @param length     | the length of data to get read
@@ -9295,7 +9446,8 @@ fileSize: 128
                 log(methodName, "could not successfully red, aborted");
                 System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
                 return null;
-            } {
+            }
+            {
                 // copy the dataToReadChunk in the complete data array
                 System.arraycopy(dataToReadChunk, 0, dataToRead, (i * MAXIMUM_READ_MESSAGE_LENGTH), dataToReadChunk.length);
             }
@@ -9309,6 +9461,7 @@ fileSize: 128
 
     /**
      * reads a Standard file in communication mode Plain from the beginning (offset = 0)
+     *
      * @param fileNumber
      * @param length
      * @return
@@ -9324,6 +9477,7 @@ fileSize: 128
      * necessary commands to get all data.
      * DO NOT CALL this method from outside this class but use one of the ReadFromStandardFile callers
      * as it uses the pre-read fileSettings
+     *
      * @param fileNumber | in range 0..31
      * @param offset     | offset in the file
      * @param length     | length of data > 1
@@ -9402,6 +9556,7 @@ fileSize: 128
      * data if exceeding this limit. The method denies if this limit is reached.
      * DO NOT CALL this method from outside this class but use one of the ReadFromStandardFile callers
      * as it uses the pre-read fileSettings
+     *
      * @param fileNumber | in range 0..31
      * @param offset     | offset in the file
      * @param length     | length of data > 1

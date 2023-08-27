@@ -75,7 +75,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private LinearLayout llSectionMenue1;
     private Button applicationSelect, fileSelect;
-    private boolean isTransactionFilePresent = false; // tries to detect a TMAC file when selecting application or files
+    private boolean isTransactionMacFilePresent = false; // tries to detect a TMAC file when selecting application or files
+    private boolean isCommitReaderIdEnabled = false;
 
     /**
      * section for Data file - can be Standard or Backup files
@@ -719,9 +720,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                             return;
                         }
                         isFileListRead = true;
-                        if (desfireEv3.isTransactionMacFilePresent()) isTransactionFilePresent = true;
+                        isTransactionMacFilePresent = desfireEv3.isTransactionMacFilePresent();
+                        isCommitReaderIdEnabled = desfireEv3.isTransactionMacCommitReaderId();
 
-                        // for some actions we do need active authentication
+                        // for some actions we do need active authentication and key changing
                         llSectionAuthentication.setVisibility(View.VISIBLE);
                     }
                 });
@@ -763,7 +765,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         return;
                     }
                     isFileListRead = true;
-                    if (desfireEv3.isTransactionMacFilePresent()) isTransactionFilePresent = true;
+                    isTransactionMacFilePresent = desfireEv3.isTransactionMacFilePresent();
+                    isCommitReaderIdEnabled = desfireEv3.isTransactionMacCommitReaderId();
                 } else {
                     Log.d(TAG, "getAllFileIds and allFileSettings SKIPPED");
                 }
@@ -839,18 +842,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         vibrateShort();
                     }
                 });
-/*
+
                 // Transaction MAC file is present in this application
-                if (isTransactionFilePresent) {
-                    Log.d(TAG, "The application contains a Transaction MAC file");
-                    String tmacWarningMessage = "SERIOUS WARNING\n\n" +
-                            "This application does contain a Transaction MAC file.\n" +
-                            "This file does need a changed COMMIT command that is not available at the moment " +
-                            "within the DesfireEv3 class.\n\n" +
-                            "ALL write commands to a Backup, Value or Record file will FAIL !";
-                    showDialog(MainActivity.this, tmacWarningMessage);
+                if ((isTransactionMacFilePresent) && (isCommitReaderIdEnabled)) {
+                    showDialogWarningCommitReaderId();
                 }
-*/
+
                 // create and show the alert dialog
                 AlertDialog dialog = builder.create();
                 dialog.show();
@@ -943,7 +940,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 } else {
                     writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + printData(" data", result));
-                    writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + " data: " + new String(result, StandardCharsets.UTF_8));
+                    writeToUiAppend(output, logString + " fileNumber: " + fileIdByte + " data: \n" + new String(result, StandardCharsets.UTF_8));
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     vibrateShort();
                 }
@@ -966,9 +963,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 byte fileIdByte = Byte.parseByte(selectedFileId);
                 int fileSizeInt = selectedFileSettings.getFileSizeInt();
-
-                // todo change as test
-                fileSizeInt = 32;
 
                 // pre-check if fileNumber is existing
                 boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
@@ -994,6 +988,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 byte[] responseData = new byte[2];
                 boolean success = desfireEv3.writeToADataFile(fileIdByte, 0, fullDataToWrite);
+
                 responseData = desfireEv3.getErrorCode();
 
                 if (success) {
@@ -1010,31 +1005,50 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 if (selectedFileSettings.getFileType() == FileSettings.STANDARD_FILE_TYPE) {
                     vibrateShort();
-                } else {
+                };
+
+                if (selectedFileSettings.getFileType() == FileSettings.BACKUP_FILE_TYPE) {
                     // it is a Backup file where we need to submit a commit command to confirm the write
                     writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Backup file, run COMMIT");
                     byte commMode = selectedFileSettings.getCommunicationSettings();
                     if (commMode == (byte) 0x00) {
                         // Plain
-                        // if a Transaction MAC is available and has the Commit ReaderId feature enabled...
-                        // todo check for that
-                        success = desfireEv3.commitReaderIdPlain(desfireEv3.getTransactionMacReaderId());
-                        Log.e(TAG, "commitReaderIdPlain success: " + success);
-                        if (!success) return;
-
+                        // this fails when a Transaction MAC file with enabled Commit ReaderId option is existent
                         success = desfireEv3.commitTransactionPlain();
                     }
-                    if (commMode == (byte) 0x03) {
-                        // Full enciphered
-                        success = desfireEv3.commitTransactionFull();
+                    if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03)) {
+                        // MACed or Full enciphered
+                        if (desfireEv3.isTransactionMacFilePresent()) {
+                            if (desfireEv3.isTransactionMacCommitReaderId()) {
+                                // this  is hardcoded when working with TransactionMAC files AND enabled CommitReaderId feature
+                                writeToUiAppend(output, "A TransactionMAC file is present with ENABLED CommitReaderId");
+                                success = desfireEv3.commitTransactionFull(true);
+                            } else {
+                                writeToUiAppend(output, "A TransactionMAC file is present with DISABLED CommitReaderId");
+                                success = desfireEv3.commitTransactionFullReturnTmv();
+                            }
+                        } else {
+                            // no transaction mac file is present
+                            writeToUiAppend(output, "A TransactionMAC file is NOT present, running regular commitTransaction");
+                            success = desfireEv3.commitTransactionWithoutTmacFull();
+                            Log.d(TAG, desfireEv3.getLogData());
+                        }
                     }
-                    if (commMode == (byte) 0x01) {
-                        // MACed
-                        success = desfireEv3.commitTransactionFull();
-                    }
+
                     responseData = desfireEv3.getErrorCode();
                     if (success) {
                         writeToUiAppend(output, "data is written to Backup file number " + fileIdByte);
+                        // return the Transaction MAC counter and value
+                        if (isTransactionMacFilePresent) {
+                            byte[] returnedTmacCV = desfireEv3.getTransactionMacFileReturnedTmcv();
+                            writeToUiAppend(output, printData("returned TMAC counter and value", returnedTmacCV));
+                            if (returnedTmacCV.length == 12) {
+                                byte[] tmc = Arrays.copyOfRange(returnedTmacCV, 0, 4);
+                                byte[] tmacEnc = Arrays.copyOfRange(returnedTmacCV, 4, 12);
+                                int tmcInt = Utils.intFrom4ByteArrayInversed(tmc);
+                                writeToUiAppend(output, "TMAC counter: " + tmcInt + printData(" tmacEnc", tmacEnc));
+                            }
+                        }
                         writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
                         vibrateShort();
                     } else {
@@ -1094,7 +1108,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
-
         fileValueCredit.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -1141,30 +1154,56 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
                     return;
                 }
-                // it is a Value file where we need to submit a commit command to confirm the write
-                writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Value file, run COMMIT");
-                byte commMode = selectedFileSettings.getCommunicationSettings();
-                if (commMode == (byte) 0x00) {
-                    // Plain
-                    success = desfireEv3.commitTransactionPlain();
-                }
-                if (commMode == (byte) 0x03) {
-                    // Full enciphered
-                    success = desfireEv3.commitTransactionFull();
-                }
-                if (commMode == (byte) 0x01) {
-                    // MACed
-                    success = desfireEv3.commitTransactionFull();
-                }
-                responseData = desfireEv3.getErrorCode();
-                if (success) {
-                    writeToUiAppend(output, "value  was changed on Value file number " + fileIdByte);
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
-                    vibrateShort();
-                } else {
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit" + " FAILURE with error code: " + EV3.getErrorCode(responseData), COLOR_RED);
-                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
-                    return;
+
+                if (selectedFileSettings.getFileType() == FileSettings.VALUE_FILE_TYPE) {
+                    // it is a Value file where we need to submit a commit command to confirm the write
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Value file, run COMMIT");
+                    byte commMode = selectedFileSettings.getCommunicationSettings();
+                    if (commMode == (byte) 0x00) {
+                        // Plain
+                        // this fails when a Transaction MAC file with enabled Commit ReaderId option is existent
+                        success = desfireEv3.commitTransactionPlain();
+                    }
+                    if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03)) {
+                        // MACed or Full enciphered
+                        if (desfireEv3.isTransactionMacFilePresent()) {
+                            if (desfireEv3.isTransactionMacCommitReaderId()) {
+                                // this  is hardcoded when working with TransactionMAC files AND enabled CommitReaderId feature
+                                writeToUiAppend(output, "A TransactionMAC file is present with ENABLED CommitReaderId");
+                                success = desfireEv3.commitTransactionFull(true);
+                            } else {
+                                writeToUiAppend(output, "A TransactionMAC file is present with DISABLED CommitReaderId");
+                                success = desfireEv3.commitTransactionFullReturnTmv();
+                            }
+                        } else {
+                            // no transaction mac file is present
+                            writeToUiAppend(output, "A TransactionMAC file is NOT present, running regular commitTransaction");
+                            success = desfireEv3.commitTransactionWithoutTmacFull();
+                            Log.d(TAG, desfireEv3.getLogData());
+                        }
+                    }
+
+                    responseData = desfireEv3.getErrorCode();
+                    if (success) {
+                        writeToUiAppend(output, "data is written to Value file number " + fileIdByte);
+                        // return the Transaction MAC counter and value
+                        if (isTransactionMacFilePresent) {
+                            byte[] returnedTmacCV = desfireEv3.getTransactionMacFileReturnedTmcv();
+                            writeToUiAppend(output, printData("returned TMAC counter and value", returnedTmacCV));
+                            if (returnedTmacCV.length == 12) {
+                                byte[] tmc = Arrays.copyOfRange(returnedTmacCV, 0, 4);
+                                byte[] tmacEnc = Arrays.copyOfRange(returnedTmacCV, 4, 12);
+                                int tmcInt = Utils.intFrom4ByteArrayInversed(tmc);
+                                writeToUiAppend(output, "TMAC counter: " + tmcInt + printData(" tmacEnc", tmacEnc));
+                            }
+                        }
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
+                        vibrateShort();
+                    } else {
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit" + " FAILURE with error code: " + EV3.getErrorCode(responseData), COLOR_RED);
+                        writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                        return;
+                    }
                 }
             }
         });
@@ -1215,30 +1254,56 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
                     return;
                 }
-                // it is a Value file where we need to submit a commit command to confirm the write
-                writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Value file, run COMMIT");
-                byte commMode = selectedFileSettings.getCommunicationSettings();
-                if (commMode == (byte) 0x00) {
-                    // Plain
-                    success = desfireEv3.commitTransactionPlain();
-                }
-                if (commMode == (byte) 0x03) {
-                    // Full enciphered
-                    success = desfireEv3.commitTransactionFull();
-                }
-                if (commMode == (byte) 0x01) {
-                    // MACed
-                    success = desfireEv3.commitTransactionFull();
-                }
-                responseData = desfireEv3.getErrorCode();
-                if (success) {
-                    writeToUiAppend(output, "value  was changed on Value file number " + fileIdByte);
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
-                    vibrateShort();
-                } else {
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit" + " FAILURE with error code: " + EV3.getErrorCode(responseData), COLOR_RED);
-                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
-                    return;
+
+                if (selectedFileSettings.getFileType() == FileSettings.VALUE_FILE_TYPE) {
+                    // it is a Value file where we need to submit a commit command to confirm the write
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Value file, run COMMIT");
+                    byte commMode = selectedFileSettings.getCommunicationSettings();
+                    if (commMode == (byte) 0x00) {
+                        // Plain
+                        // this fails when a Transaction MAC file with enabled Commit ReaderId option is existent
+                        success = desfireEv3.commitTransactionPlain();
+                    }
+                    if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03)) {
+                        // MACed or Full enciphered
+                        if (desfireEv3.isTransactionMacFilePresent()) {
+                            if (desfireEv3.isTransactionMacCommitReaderId()) {
+                                // this  is hardcoded when working with TransactionMAC files AND enabled CommitReaderId feature
+                                writeToUiAppend(output, "A TransactionMAC file is present with ENABLED CommitReaderId");
+                                success = desfireEv3.commitTransactionFull(true);
+                            } else {
+                                writeToUiAppend(output, "A TransactionMAC file is present with DISABLED CommitReaderId");
+                                success = desfireEv3.commitTransactionFullReturnTmv();
+                            }
+                        } else {
+                            // no transaction mac file is present
+                            writeToUiAppend(output, "A TransactionMAC file is NOT present, running regular commitTransaction");
+                            success = desfireEv3.commitTransactionWithoutTmacFull();
+                            Log.d(TAG, desfireEv3.getLogData());
+                        }
+                    }
+
+                    responseData = desfireEv3.getErrorCode();
+                    if (success) {
+                        writeToUiAppend(output, "data is written to Value file number " + fileIdByte);
+                        // return the Transaction MAC counter and value
+                        if (isTransactionMacFilePresent) {
+                            byte[] returnedTmacCV = desfireEv3.getTransactionMacFileReturnedTmcv();
+                            writeToUiAppend(output, printData("returned TMAC counter and value", returnedTmacCV));
+                            if (returnedTmacCV.length == 12) {
+                                byte[] tmc = Arrays.copyOfRange(returnedTmacCV, 0, 4);
+                                byte[] tmacEnc = Arrays.copyOfRange(returnedTmacCV, 4, 12);
+                                int tmcInt = Utils.intFrom4ByteArrayInversed(tmc);
+                                writeToUiAppend(output, "TMAC counter: " + tmcInt + printData(" tmacEnc", tmacEnc));
+                            }
+                        }
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
+                        vibrateShort();
+                    } else {
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit" + " FAILURE with error code: " + EV3.getErrorCode(responseData), COLOR_RED);
+                        writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                        return;
+                    }
                 }
             }
         });
@@ -1366,7 +1431,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     byte commMode = selectedFileSettings.getCommunicationSettings();
                     if (commMode == (byte) 0x00) {
                         // Plain
-                        // todo this fails when a Transaction file with enabled Commit ReadId option
+                        // this fails when a Transaction MAC file with enabled Commit ReaderId option is existent
                         success = desfireEv3.commitTransactionPlain();
                     }
                     if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03)) {
@@ -1388,17 +1453,21 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                             Log.d(TAG, desfireEv3.getLogData());
                         }
                     }
-                    /*
-                    if (commMode == (byte) 0x01) {
-                        // MACed
-                        success = desfireEv3.commitTransactionFull();
-                        //writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The selected file has the Communication Mode MACed that is not supported, sorry", COLOR_RED);
-                        //return;
-                    }
-                    */
+
                     responseData = desfireEv3.getErrorCode();
                     if (success) {
                         writeToUiAppend(output, "data is written to Record file number " + fileIdByte);
+                        // return the Transaction MAC counter and value
+                        if (isTransactionMacFilePresent) {
+                            byte[] returnedTmacCV = desfireEv3.getTransactionMacFileReturnedTmcv();
+                            writeToUiAppend(output, printData("returned TMAC counter and value", returnedTmacCV));
+                            if (returnedTmacCV.length == 12) {
+                                byte[] tmc = Arrays.copyOfRange(returnedTmacCV, 0, 4);
+                                byte[] tmacEnc = Arrays.copyOfRange(returnedTmacCV, 4, 12);
+                                int tmcInt = Utils.intFrom4ByteArrayInversed(tmc);
+                                writeToUiAppend(output, "TMAC counter: " + tmcInt + printData(" tmacEnc", tmacEnc));
+                            }
+                        }
                         writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
                         vibrateShort();
                     } else {
@@ -7090,6 +7159,21 @@ posMacInpOffset:  75
             }
         });
     }
+
+    /**
+     * section for dialogs
+     */
+
+    private void showDialogWarningCommitReaderId() {
+        String tmacWarningMessage = "SERIOUS WARNING\n\n" +
+                "This application does contain a Transaction MAC file with ENABLED Commit ReaderId feature.\n" +
+                "All WRITE operations to a Backup, Value, Linear or Cyclic Record file does need an additional COMMIT READER ID command.\n" +
+                "This command is available for communication modes MACed and Full ONLY.\n\n" +
+                "You CANNOT WRITE to Backup, Value, Linear or Cyclic Record files in PLAIN communication mode.\n\n" +
+                "ALL write commands to a Backup, Value or Record files in PLAIN communication will FAIL !";
+        showDialog(MainActivity.this, tmacWarningMessage);
+    }
+
 
     /**
      * section for application handling

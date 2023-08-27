@@ -129,10 +129,6 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
             return;
         }
 
-
-        // todo remove, just for testing
-        //success = desfireEv3.selectApplicationByAid(Constants.MASTER_APPLICATION_IDENTIFIER);
-
         // If there are any failures on creating the activity isn't ending because the application or file can exist
         writeToUiAppend("step 4: create a new application (\"A1A2A3\")");
         success = desfireEv3.createApplicationAes(Constants.APPLICATION_IDENTIFIER_AES, Constants.APPLICATION_NUMBER_OF_KEYS_DEFAULT);
@@ -160,6 +156,26 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
             //return;
         }
 
+        // other sorting
+        writeToUiAppend("step 6: create new file sets  for Standard, Backup, Value, Linear Record and Cyclic Record files in PLain, MACed and Full comm modes");
+        success = createStandardFileSet();
+        success = createBackupFileSet();
+        success = createValueFileSet();
+        success = createLinearRecordFileSet();
+        success = createCyclicRecordFileSet();
+        errorCode = desfireEv3.getErrorCode();
+        errorCodeReason = desfireEv3.getErrorCodeReason();
+        if (success) {
+            writeToUiAppendBorderColor("create a new file set Plain SUCCESS", COLOR_GREEN);
+        } else {
+            writeToUiAppendBorderColor("create a new file set Plain FAILURE with error code: "
+                    + EV3.getErrorCode(errorCode) + " = "
+                    + errorCodeReason + ", aborted", COLOR_RED);
+            //return;
+        }
+
+        /*
+        // old sorting
         writeToUiAppend("step 6: create a new file set Plain (Standard, Backup, Value, Linear Record and Cyclic Record files)");
         success = createFileSetPlain();
         errorCode = desfireEv3.getErrorCode();
@@ -198,11 +214,72 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
                     + errorCodeReason + ", aborted", COLOR_RED);
             //return;
         }
-
+        */
         writeToUiAppend(output, "");
         vibrateShort();
     }
 
+    private boolean createStandardFileSet() {
+        // create 3 Standard files with communication modes Plain, MACed and FUll
+        Log.d(TAG, "createStandardFileSet");
+        boolean createStandardFilePlain = desfireEv3.createAStandardFile(Constants.STANDARD_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
+        boolean createStandardFileMaced = desfireEv3.createAStandardFile(Constants.STANDARD_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
+        boolean createStandardFileFull = desfireEv3.createAStandardFile(Constants.STANDARD_FILE_FULL_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
+        Log.d(TAG, "createStandardFilePlain result: " + createStandardFilePlain);
+        Log.d(TAG, "createStandardFileMaced result: " + createStandardFileMaced);
+        Log.d(TAG, "createStandardFileFull result: " + createStandardFileFull);
+        return true;
+    }
+
+    private boolean createBackupFileSet() {
+        // create 3 Backup files with communication modes Plain, MACed and FUll
+        Log.d(TAG, "createBackupFileSet");
+        boolean createBackupFilePlain = desfireEv3.createABackupFile(Constants.BACKUP_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32);
+        boolean createBackupFileMaced = desfireEv3.createABackupFile(Constants.BACKUP_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32);
+        boolean createBackupFileFull = desfireEv3.createABackupFile(Constants.BACKUP_FILE_FULL_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32);
+        Log.d(TAG, "createBackupFilePlain result: " + createBackupFilePlain);
+        Log.d(TAG, "createBackupFileMaced result: " + createBackupFileMaced);
+        Log.d(TAG, "createBackupFileFull result: " + createBackupFileFull);
+        return true;
+    }
+
+    private boolean createValueFileSet() {
+        // create 3 Value files with communication modes Plain, MACed and FUll
+        Log.d(TAG, "createValueFileSet");
+        boolean createValueFilePlain = desfireEv3.createAValueFile(Constants.VALUE_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 0,10000, 0,false);
+        boolean createValueFileMaced = desfireEv3.createAValueFile(Constants.VALUE_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 0,10000, 0,false);
+        boolean createValueFileFull = desfireEv3.createAValueFile(Constants.VALUE_FILE_FULL_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 0,10000, 0,false);
+        Log.d(TAG, "createValueFilePlain result: " + createValueFilePlain);
+        Log.d(TAG, "createValueFileMaced result: " + createValueFileMaced);
+        Log.d(TAG, "createValueFileFull result: " + createValueFileFull);
+        return true;
+    }
+
+    private boolean createLinearRecordFileSet() {
+        // create 3 Linear Record files with communication modes Plain, MACed and FUll
+        Log.d(TAG, "createLinearRecordFileSet");
+        boolean createLinearRecordFilePlain = desfireEv3.createALinearRecordFile(Constants.LINEAR_RECORD_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
+        boolean createLinearRecordFileMaced = desfireEv3.createALinearRecordFile(Constants.LINEAR_RECORD_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
+        boolean createLinearRecordFileFull = desfireEv3.createALinearRecordFile(Constants.LINEAR_RECORD_FILE_FULL_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
+        Log.d(TAG, "createLinearRecordFilePlain result: " + createLinearRecordFilePlain);
+        Log.d(TAG, "createLinearRecordFileMaced result: " + createLinearRecordFileMaced);
+        Log.d(TAG, "createLinearRecordFileFull result: " + createLinearRecordFileFull);
+        return true;
+    }
+
+    private boolean createCyclicRecordFileSet() {
+        // create 3 Cyclic Record files with communication modes Plain, MACed and FUll
+        Log.d(TAG, "createCyclicRecordFileSet");
+        boolean createCyclicRecordFilePlain = desfireEv3.createACyclicRecordFile(Constants.CYCLIC_RECORD_FILE_PLAIN_NUMBER, DesfireEv3.CommunicationSettings.Plain, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
+        boolean createCyclicRecordFileMaced = desfireEv3.createACyclicRecordFile(Constants.CYCLIC_RECORD_FILE_MACED_NUMBER, DesfireEv3.CommunicationSettings.MACed, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
+        boolean createCyclicRecordFileFull = desfireEv3.createACyclicRecordFile(Constants.CYCLIC_RECORD_FILE_FULL_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
+        Log.d(TAG, "createCyclicRecordFilePlain result: " + createCyclicRecordFilePlain);
+        Log.d(TAG, "createCyclicRecordFileMaced result: " + createCyclicRecordFileMaced);
+        Log.d(TAG, "createCyclicRecordFileFull result: " + createCyclicRecordFileFull);
+        return true;
+    }
+    
+    
     private boolean createFileSetPlain() {
         // create 5 files with communication settings PLAIN
         Log.d(TAG, "createFileSetPlain"); // DesfireEv3.DesfireFileType.Standard, DesfireEv3.DesfireFileType.Backup, DesfireEv3.DesfireFileType.Value, DesfireEv3.DesfireFileType.LinearRecord, DesfireEv3.DesfireFileType.CyclicRecord
@@ -238,11 +315,11 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
     private boolean createFileSetFull() {
         // create 5 files with communication settings Full
         Log.d(TAG, "createFileSetEncrypted"); // DesfireEv3.DesfireFileType.Standard, DesfireEv3.DesfireFileType.Backup, DesfireEv3.DesfireFileType.Value, DesfireEv3.DesfireFileType.LinearRecord, DesfireEv3.DesfireFileType.CyclicRecord
-        boolean createStandardFile = desfireEv3.createAStandardFile(Constants.STANDARD_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
-        boolean createBackupFile = desfireEv3.createABackupFile(Constants.BACKUP_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32);
-        boolean createValueFile = desfireEv3.createAValueFile(Constants.VALUE_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT,0,10000, 0,false);
-        boolean createLinearRecordFile = desfireEv3.createALinearRecordFile(Constants.LINEAR_RECORD_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
-        boolean createCyclicRecordFile = desfireEv3.createACyclicRecordFile(Constants.CYCLIC_RECORD_FILE_ENCRYPTED_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
+        boolean createStandardFile = desfireEv3.createAStandardFile(Constants.STANDARD_FILE_FULL_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 256, false);
+        boolean createBackupFile = desfireEv3.createABackupFile(Constants.BACKUP_FILE_FULL_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32);
+        boolean createValueFile = desfireEv3.createAValueFile(Constants.VALUE_FILE_FULL_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT,0,10000, 0,false);
+        boolean createLinearRecordFile = desfireEv3.createALinearRecordFile(Constants.LINEAR_RECORD_FILE_FULL_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 3);
+        boolean createCyclicRecordFile = desfireEv3.createACyclicRecordFile(Constants.CYCLIC_RECORD_FILE_FULL_NUMBER, DesfireEv3.CommunicationSettings.Full, Constants.FILE_ACCESS_RIGHTS_DEFAULT, 32, 4);
         Log.d(TAG, "createStandardFile result: " + createStandardFile);
         Log.d(TAG, "createBackupFile result: " + createBackupFile);
         Log.d(TAG, "createValueFile result: " + createValueFile);

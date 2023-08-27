@@ -174,7 +174,10 @@
                     android:id="@+id/tvSection1"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:padding="10dp"
+                    android:paddingStart="10dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="5dp"
                     android:text="select application and file"
                     android:textAlignment="center"
                     android:textSize="16sp"
@@ -183,7 +186,7 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="0dp"
                     android:orientation="horizontal">
 
                     <Button
@@ -236,7 +239,10 @@
                     android:id="@+id/tvSection2"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:padding="10dp"
+                    android:paddingStart="10dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="5dp"
                     android:text="Standard or Backup file actions"
                     android:textAlignment="center"
                     android:textSize="16sp"
@@ -245,7 +251,7 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="0dp"
                     android:orientation="horizontal">
 
                     <Button
@@ -298,7 +304,10 @@
                     android:id="@+id/tvValueFile"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:padding="10dp"
+                    android:paddingStart="10dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="5dp"
                     android:text="Value file actions"
                     android:textAlignment="center"
                     android:textSize="16sp"
@@ -307,7 +316,7 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="0dp"
                     android:orientation="horizontal">
 
                     <Button
@@ -315,8 +324,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
-                        android:backgroundTint="#FFAB00"
                         android:layout_weight="1"
+                        android:backgroundTint="#FFAB00"
                         android:text="read" />
 
                     <Button
@@ -324,8 +333,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
-                        android:backgroundTint="#FFAB00"
                         android:layout_weight="1"
+                        android:backgroundTint="#FFAB00"
                         android:text="credit" />
 
                     <Button
@@ -333,8 +342,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
-                        android:backgroundTint="#FFAB00"
                         android:layout_weight="1"
+                        android:backgroundTint="#FFAB00"
                         android:text="debit" />
 
                 </LinearLayout>
@@ -361,7 +370,10 @@
                     android:id="@+id/tvRecordFiles"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:padding="10dp"
+                    android:paddingStart="10dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="5dp"
                     android:text="work with Record files"
                     android:textAlignment="center"
                     android:textSize="16sp"
@@ -377,8 +389,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
-                        android:backgroundTint="#FFAB00"
                         android:layout_weight="1"
+                        android:backgroundTint="#FFAB00"
                         android:text="read" />
 
                     <Button
@@ -386,8 +398,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
-                        android:backgroundTint="#FFAB00"
                         android:layout_weight="1"
+                        android:backgroundTint="#FFAB00"
                         android:text="write" />
 
                 </LinearLayout>
@@ -415,7 +427,10 @@
                     android:id="@+id/tvAuthentication"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:padding="10dp"
+                    android:paddingStart="10dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="5dp"
                     android:text="authentication with default or changed keys"
                     android:textAlignment="center"
                     android:textSize="16sp"
@@ -692,43 +707,57 @@
 
             </LinearLayout>
 
-            <com.google.android.material.divider.MaterialDivider
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                app:dividerInsetEnd="8dp"
-                app:dividerInsetStart="8dp" />
-
-            <TextView
-                android:id="@+id/tvChangeKey"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="10dp"
-                android:text="change key section"
-                android:textAlignment="center"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
             <LinearLayout
+                android:id="@+id/llSectionChangeKey"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:orientation="horizontal">
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:orientation="vertical"
+                android:visibility="visible">
 
-                <Button
-                    android:id="@+id/btnChangeKeyA1ToC"
-                    android:layout_width="wrap_content"
+                <com.google.android.material.divider.MaterialDivider
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginRight="8dp"
-                    android:layout_weight="1"
-                    android:text="01 -> Cha" />
+                    android:layout_marginTop="8dp"
+                    app:dividerInsetEnd="8dp"
+                    app:dividerInsetStart="8dp" />
 
-                <Button
-                    android:id="@+id/btnChangeKeyA1ToD"
-                    android:layout_width="wrap_content"
+                <TextView
+                    android:id="@+id/tvChangeKey"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginLeft="8dp"
-                    android:layout_weight="1"
-                    android:text="01 -> Def" />
+                    android:paddingStart="10dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="5dp"
+                    android:text="change key section"
+                    android:textAlignment="center"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnChangeKeyA1ToC"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:text="01 -> Cha" />
+
+                    <Button
+                        android:id="@+id/btnChangeKeyA1ToD"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="01 -> Def" />
+
+                </LinearLayout>
 
             </LinearLayout>
 
@@ -752,7 +781,10 @@
                     android:id="@+id/tvTransactionMacFile"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:padding="10dp"
+                    android:paddingStart="10dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="5dp"
                     android:text="Transaction MAC file actions"
                     android:textAlignment="center"
                     android:textSize="16sp"
@@ -820,7 +852,10 @@
                     android:id="@+id/tvApplicationSeveral"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:padding="10dp"
+                    android:paddingStart="10dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="5dp"
                     android:text="several application actions"
                     android:textAlignment="center"
                     android:textSize="16sp"

@@ -24,23 +24,23 @@ public class Constants {
     // standard 00, 01, 02
     public static final byte STANDARD_FILE_PLAIN_NUMBER = (byte) 0x00;
     public static final byte STANDARD_FILE_MACED_NUMBER = (byte) 0x01;
-    public static final byte STANDARD_FILE_ENCRYPTED_NUMBER = (byte) 0x02;
+    public static final byte STANDARD_FILE_FULL_NUMBER = (byte) 0x02;
     // backup 03, 04, 05
     public static final byte BACKUP_FILE_PLAIN_NUMBER = (byte) 0x03;
     public static final byte BACKUP_FILE_MACED_NUMBER = (byte) 0x04;
-    public static final byte BACKUP_FILE_ENCRYPTED_NUMBER = (byte) 0x05;
+    public static final byte BACKUP_FILE_FULL_NUMBER = (byte) 0x05;
     // value files 06, 07, 08
     public static final byte VALUE_FILE_PLAIN_NUMBER = (byte) 0x06; // 06
     public static final byte VALUE_FILE_MACED_NUMBER = (byte) 0x07; // 07
-    public static final byte VALUE_FILE_ENCRYPTED_NUMBER = (byte) 0x08; // 08
+    public static final byte VALUE_FILE_FULL_NUMBER = (byte) 0x08; // 08
     // linear record 09, 10, 11
     public static final byte LINEAR_RECORD_FILE_PLAIN_NUMBER = (byte) 0x09; // 09
     public static final byte LINEAR_RECORD_FILE_MACED_NUMBER = (byte) 0x0A; // 10
-    public static final byte LINEAR_RECORD_FILE_ENCRYPTED_NUMBER = (byte) 0x0B; // 11
+    public static final byte LINEAR_RECORD_FILE_FULL_NUMBER = (byte) 0x0B; // 11
     // cyclic record 12, 13, 14
     public static final byte CYCLIC_RECORD_FILE_PLAIN_NUMBER = (byte) 0x0C; // 12
     public static final byte CYCLIC_RECORD_FILE_MACED_NUMBER = (byte) 0x0D; // 13
-    public static final byte CYCLIC_RECORD_FILE_ENCRYPTED_NUMBER = (byte) 0x0E; // 14
+    public static final byte CYCLIC_RECORD_FILE_FULL_NUMBER = (byte) 0x0E; // 14
 
     public static final byte[] FILE_ACCESS_RIGHTS_DEFAULT = Utils.hexStringToByteArray("1234"); // RW key 01, CAR key 02, R key 03, W key 04
 
