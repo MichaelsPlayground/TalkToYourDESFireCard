@@ -127,8 +127,12 @@ read from a data file fileNumber: 2 data length: 256 data: 323032332e30382e32372
 read from a data file fileNumber: 2 data: 2023.08.27 10:32:53??!"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~�������������������������������������������������������������������������������������������������������������
 ```
 
+Note: all write operations on Standard, Backup, Linear Record and Cyclic Record files are writing a timestamp, followed by ascending byte 
+values, to the file. This app does not support the writing of individual data to the files.  
 
+For detailed information about the available file operations see the manual on desfire_ev3_file_operations.
 
+There are some more methods available, see the  manual on desfire_ev3_more_operations.
 
 
 
