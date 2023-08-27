@@ -98,15 +98,34 @@ There are additional "key numbers" available:
 - key number "15" means **never access**, meaning you can't run any task coupled with this key (e.g. setting the Change Access 
 Rights key to "15" will prohibit from any further access rights changing)
 
+## What are the next steps after setting up the test environment ?
 
+Using the menu you return to the main menu and tap the tag to the reader; the app will recognize the tag and provides the tag id ("UID") and 
+the information that the app and the tag are ready to use.
 
+As all files are located within an application you press the "select app" button (red background) and all applications on the tag are presented. After 
+preparing the tag with "setup test environment" only one application is available and you should press on "A1A2A3" in the dialog window.
 
+The "selected application" now shows the sample application ID and now you can select a file - press the "select file" button (red background).
 
+All 15 created files are displayed within a dialog window; just press on the file you like to work with.
 
+The "selected file id" now shows the file number, the file type and the communication mode of the file. 
 
+For a short demonstration, select a Standard file in Full enciphered communication mode (file number 2), scroll down to the 
+"authenticate with default of changed keys" section and press the button for "1 App R&W default" (green background). You will notice 
+a short vibration indicating that the operation ended with success. Now the tag is unlocked to all read and write operations.
 
+Next press the "write" button (orange background) above in the "Standard or Backup file section" and a vibrate is indicating success. 
+Now press the "read" button (orange background) and the read content of the Standard file is shown in the "operation output" on top of the 
+activity.
 
+This is a typical out of the read task:
 
+```plaintext
+read from a data file fileNumber: 2 data length: 256 data: 323032332e30382e32372031303a33323a3533000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebec
+read from a data file fileNumber: 2 data: 2023.08.27 10:32:53??!"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~�������������������������������������������������������������������������������������������������������������
+```
 
 
 

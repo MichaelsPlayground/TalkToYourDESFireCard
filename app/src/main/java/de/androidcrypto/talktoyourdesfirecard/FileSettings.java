@@ -97,8 +97,8 @@ public class FileSettings {
     public static final String CYCLIC_RECORD_FILE_TYPE_NAME = "Cyclic record";
     public static final String TRANSACTION_MAC_FILE_TYPE_NAME = "Transaction MAC";
     public static final String COMMUNICATION_SETTING_NAME_PLAIN = "Plain";
-    public static final String COMMUNICATION_SETTING_NAME_CMACED = "CMACed";
-    public static final String COMMUNICATION_SETTING_NAME_ENCRYPTED = "Encrypted";
+    public static final String COMMUNICATION_SETTING_NAME_MACED = "MACed";
+    public static final String COMMUNICATION_SETTING_NAME_ENCRYPTED = "Full enciphered";
 
     public FileSettings(byte fileNumber, byte[] completeResponse) {
         this.fileNumber = fileNumber;
@@ -181,7 +181,7 @@ public class FileSettings {
             if (communicationSettings == (byte) 0x00)
                 communicationSettingsName = COMMUNICATION_SETTING_NAME_PLAIN;
             if (communicationSettings == (byte) 0x01)
-                communicationSettingsName = COMMUNICATION_SETTING_NAME_CMACED;
+                communicationSettingsName = COMMUNICATION_SETTING_NAME_MACED;
             if (communicationSettings == (byte) 0x03)
                 communicationSettingsName = COMMUNICATION_SETTING_NAME_ENCRYPTED;
             accessRightsRwCar = completeResponse[position];
@@ -275,7 +275,7 @@ public class FileSettings {
             // MACed or FullEnciphered
             if (!fileOptionBit1) {
                 communicationSettings = (byte) 0x01;
-                communicationSettingsName = COMMUNICATION_SETTING_NAME_CMACED;
+                communicationSettingsName = COMMUNICATION_SETTING_NAME_MACED;
             } else {
                 communicationSettings = (byte) 0x03;
                 communicationSettingsName = COMMUNICATION_SETTING_NAME_ENCRYPTED;
@@ -372,7 +372,7 @@ public class FileSettings {
             // MACed or FullEnciphered
             if (!fileOptionBit1) {
                 communicationSettings = (byte) 0x01;
-                communicationSettingsName = COMMUNICATION_SETTING_NAME_CMACED;
+                communicationSettingsName = COMMUNICATION_SETTING_NAME_MACED;
             } else {
                 communicationSettings = (byte) 0x03;
                 communicationSettingsName = COMMUNICATION_SETTING_NAME_ENCRYPTED;
