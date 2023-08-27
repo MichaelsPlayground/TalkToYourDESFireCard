@@ -45,21 +45,21 @@
     2) The app will create a new application with applicationID A1A2A3. The app will have 5 AES based application keys.
         There are no restrictions on file and directory handling (default settings).\n
     3) In the new application some files are created with these file numbers and access rights (R &amp; W 1, CAR 2, R 3, W 4):\n
-    01 Standard File, 256 file size, communication mode Plain\n
-    02 Standard File, 256 file size, communication mode MACed\n
-    03 Standard File, 256 file size, communication mode Full enciphered\n
-    04 Backup File, 32 file size, communication mode Plain\n
-    05 Backup File, 32 file size, communication mode MACed\n
-    06 Standard File, 32 file size, communication mode Full enciphered\n
-    07 Value File, communication mode Plain\n
-    08 Value File, communication mode MACed\n
-    09 Value File, communication mode Full enciphered\n
-    10 Linear Record file, 32 record size, 3 maximum number of records, communication mode Plain\n
-    11 Linear Record file, 32 record size, 3 maximum number of records, communication mode MACed\n
-    12 Linear Record file, 32 record size, 3 maximum number of records, communication mode Full enciphered\n
-    13 Cyclic Record file, 32 record size, 4 maximum number of records, communication mode Plain\n
-    14 Cyclic Record file, 32 record size, 4 maximum number of records, communication mode MACed\n
-    15 Cyclic Record file, 32 record size, 4 maximum number of records, communication mode Full enciphered\n
+    00 Standard File, 256 file size, communication mode Plain\n
+    01 Standard File, 256 file size, communication mode MACed\n
+    02 Standard File, 256 file size, communication mode Full enciphered\n
+    03 Backup File, 32 file size, communication mode Plain\n
+    04 Backup File, 32 file size, communication mode MACed\n
+    05 Standard File, 32 file size, communication mode Full enciphered\n
+    06 Value File, communication mode Plain\n
+    07 Value File, communication mode MACed\n
+    08 Value File, communication mode Full enciphered\n
+    09 Linear Record file, 32 record size, 3 maximum number of records, communication mode Plain\n
+    10 Linear Record file, 32 record size, 3 maximum number of records, communication mode MACed\n
+    11 Linear Record file, 32 record size, 3 maximum number of records, communication mode Full enciphered\n
+    12 Cyclic Record file, 32 record size, 4 maximum number of records, communication mode Plain\n
+    13 Cyclic Record file, 32 record size, 4 maximum number of records, communication mode MACed\n
+    14 Cyclic Record file, 32 record size, 4 maximum number of records, communication mode Full enciphered\n
     \n\nThe PICC will be formatted immediately after tapping without any further confirmation, the PICC is authenticated with DEFAULT DES Master Application KEY\n\n
     </string>
 

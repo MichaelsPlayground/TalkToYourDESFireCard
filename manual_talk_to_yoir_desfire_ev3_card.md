@@ -7,7 +7,7 @@ work properly and are tested on a DESFire EV3 tag using the '2KB' version.
 
 Most of the methods are located in the DesfireEv3.java class and the development was done without any 
 material that is covered by a Non Disclosure Agreement (NDA), because no full datasheet for DESFire EV1/2/3 was 
-available at time of creating. Fortunately there are datasheets and accompanying documents available for other     
+available at time of creating. Fortunately there are datasheets and accompanying documents available for other 
 tags (e.g. DESFire Light and NTAG 424 DNA) and they provided the necessary information for the tasks. To make 
 it short: there is NO BREACH OF ANY DISCLOSURE AGREEMENT.
 
@@ -16,6 +16,13 @@ it short: there is NO BREACH OF ANY DISCLOSURE AGREEMENT.
 Most of the functionality described in this document is available within the DESFire EVx family and the app 
 should work properly with these tags as well. As I do not have DESFire EV1 or EV2 tags available I could not 
 test the functionality and the answer is *I don't know.*.
+
+## Which key and authentication does this app use ?
+
+The sample application is based on **AES-128 keys**. As authentications methods the (old) **authenticateLegacy** method 
+is available for unlocking read and write operations on files with communication mode "Plain". For files with 
+communication modes "MACed" and "Full" enciphered the **AuthenticateEV2First** method is used. This app is 
+NOT using any "Leakage Resilient Primitive" (LRP) methods.
 
 ## How do we start with a DESFire EV3 tag.
 
@@ -54,32 +61,42 @@ You will loose any existing applications and files on the PICC without recovery 
 These steps will be run and 15 files got created:
 
 1) The app will FORMAT the PICC so the complete PICC memory is available. The PICC will be formatted immediately after tapping without any further confirmation, the PICC is authenticated with DEFAULT DES Master Application KEY
-2) The app will create a new application with applicationID A1A2A3. The app will have 5 AES based application keys.
+2) The app will create a new application with **applicationID A1A2A3**. The app will have 5 **AES based application keys**.
 3) There are no restrictions in application on file and directory handling (default settings).
-4) In the new application files are created with these file numbers and access rights (R & W 1, CAR 2, R 3, W 4):
+4) In the new application files are created with these file numbers and access rights (R&W 1, CAR 2, R 3, W 4; see below):
        
-- 01 Standard File, 256 file size, communication mode Plain
-- 02 Standard File, 256 file size, communication mode MACed
-- 03 Standard File, 256 file size, communication mode Full enciphered
-- 04 Backup File, 32 file size, communication mode Plain
-- 05 Backup File, 32 file size, communication mode MACed
-- 06 Standard File, 32 file size, communication mode Full enciphered
-- 07 Value File, communication mode Plain
-- 08 Value File, communication mode MACed
-- 09 Value File, communication mode Full enciphered
-- 10 Linear Record file, 32 record size, 3 maximum number of records, communication mode Plain
-- 11 Linear Record file, 32 record size, 3 maximum number of records, communication mode MACed
-- 12 Linear Record file, 32 record size, 3 maximum number of records, communication mode Full enciphered
-- 13 Cyclic Record file, 32 record size, 4 maximum number of records, communication mode Plain
-- 14 Cyclic Record file, 32 record size, 4 maximum number of records, communication mode MACed
-- 15 Cyclic Record file, 32 record size, 4 maximum number of records, communication mode Full enciphered
+- 00 Standard File, 256 file size, communication mode Plain
+- 01 Standard File, 256 file size, communication mode MACed
+- 02 Standard File, 256 file size, communication mode Full enciphered
+- 03 Backup File, 32 file size, communication mode Plain
+- 04 Backup File, 32 file size, communication mode MACed
+- 05 Standard File, 32 file size, communication mode Full enciphered
+- 06 Value File, communication mode Plain
+- 07 Value File, communication mode MACed
+- 08 Value File, communication mode Full enciphered
+- 09 Linear Record file, 32 record size, 3 maximum number of records, communication mode Plain
+- 10 Linear Record file, 32 record size, 3 maximum number of records, communication mode MACed
+- 11 Linear Record file, 32 record size, 3 maximum number of records, communication mode Full enciphered
+- 12 Cyclic Record file, 32 record size, 4 maximum number of records, communication mode Plain
+- 13 Cyclic Record file, 32 record size, 4 maximum number of records, communication mode MACed
+- 14 Cyclic Record file, 32 record size, 4 maximum number of records, communication mode Full enciphered
 
+A short explanation on **Access rights**: each file gets it's individual access rights (can be changed later) 
+and if you running a file operation you need to **authenticate** first or you receive an authentication error.
 
+This are the 4 available access rights:
+- R&W: **Read & Write Access Rights key**: after authentication with this key all read and/or write operations are permitted
+- CAR: **Change Access Rights key**: for changing the authentication keys of a file a preceding authentication with this key is necessary
+- R: **Read Access Rights key**: after authentication with this key all read operations are permitted
+- W: **Write Access Rights key**: after authentication with this key all write operations are permitted
 
+The key numbers need to be in the range of the number of keys setup during application setup. The sample application is setup 
+with 5 keys - key number 0 ist the so called **Application Master key** that is necessary to enable some file creation methods.
 
-
-
-
+There are additional "key numbers" available:
+- key number "14" means **free access**, meaning you do need no preceding authentication before running the action
+- key number "15" means **never access**, meaning you can't run any task coupled with this key (e.g. setting the Change Access 
+Rights key to "15" will prohibit from any further access rights changing)
 
 
 
