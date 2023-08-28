@@ -147,8 +147,11 @@ Sometimes the app seems to freeze and does no longer communicate with the tag. T
 my real device a successful "workaround" is to call the "task manager" on the  smartphone and click on the open application again, that way is is reset and 
 accepts to connect to the tag again.
 
-
-
+[DESFire file operations](desfire_ev3_file_operations.md)
+[DESFire Transaction MAC file operations](desfire_ev3_transaction_mac_file_operations.md)
+[DESFire authentication](desfire_ev3_authentication.md)
+[]()
+[back to the main manual](manual_talk_to_your_desfire_ev3_card.md)
 
 
 
