@@ -14,8 +14,13 @@ it short: there is NO BREACH OF ANY DISCLOSURE AGREEMENT.
 ## Does your app work with DESFire EV1 and EV2 tags as well ?
 
 Most of the functionality described in this document is available within the DESFire EVx family and the app 
-should work properly with these tags as well. As I do not have DESFire EV1 or EV2 tags available I could not 
-test the functionality and the answer is *I don't know.*.
+should work properly with these tags as well. But for read and write operations using communication modes MACed or 
+Full enciphered the library is using the "**AuthenticateEV2First*" command available on DESFire EV2 and onwards only.
+
+As I do not have DESFire EV1 or EV2 tags available I could not test the functionality and the answer is:
+
+- for DESFire EV1 tags the read and write operations on files with Plain communication mode only should work, all others will fail
+- for DESFire EV2 tags the full functionality should be available
 
 ## Which key and authentication does this app use ?
 
@@ -136,9 +141,11 @@ There are some more methods available, see the  manual on desfire_ev3_more_opera
 
 A new feature on DESFire EV3 tags is the  **Transaction MAC file**, for more information on this see the desfire_ev3_transaction_mac_file_operations page.
 
+## Why does the app stops working ?
 
-
-
+Sometimes the app seems to freeze and does no longer communicate with the tag. This happens as there are timeouts in the tag reader and the tag itself. On 
+my real device a successful "workaround" is to call the "task manager" on the  smartphone and click on the open application again, that way is is reset and 
+accepts to connect to the tag again.
 
 
 

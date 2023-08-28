@@ -314,18 +314,6 @@ authAesEv3 FAILURE with error code: 91AE
 
 The tag is denying the authentication as the key value used does not match the one stored on the tag. 
 
-## What authentication methods are supported within this library ?
-
-The DesfireEv3.java class library is supporting two authentication methods:
-
-The first method is named "**authenticateLegacy**" that is available on DESFire EV1 and onwards tags. This version is using 
-AES-based keys and it's only purpose is to release a read or write access on files with communication mode Plain.
-
-For files with communication modes MACed or Full enciphered the modern **authenticateEv2First** method is in use, available 
-on DESFire EV2 and onwards tags. This authentication releases the read and write operations for "MACed" files and releases and encrypt 
-the data on read and write operations. As some commands use an encrypted data transfer this method is used. 
-
-The library chooses the authentication method automatically depending on the communication mode of the file to operate on.
 
 
 
