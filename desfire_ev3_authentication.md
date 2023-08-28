@@ -15,3 +15,4 @@ The library chooses the authentication method automatically depending on the com
 
 I'm sorry but the  answer is NO - **the library is not supporting "Leakage Resilient Primitive" (LRP) authentication**.
 
+[back to the main manual](manual_talk_to_your_desffire_ev3_card.md)
