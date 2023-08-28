@@ -134,6 +134,8 @@ For detailed information about the available file operations see the manual on d
 
 There are some more methods available, see the  manual on desfire_ev3_more_operations.
 
+A new feature on DESFire EV3 tags is the  **Transaction MAC file**, for more information on this see the desfire_ev3_transaction_mac_file_operations page.
+
 
 
 

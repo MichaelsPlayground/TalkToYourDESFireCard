@@ -1,6 +1,6 @@
 # DESFire EV file operations
 
-On a Mifare DESFire EV3 tags five file types are available, each with a specific characteristic. Im describing all 
+On a Mifare DESFire EV3 tags six file types are available, each with a specific characteristic. Im describing all 
 of them in a short overview to understand what file is usage for which task:
 
 **Standard file**: The most easy file type to work with. It has a fixed file size and can be written or read in a 
@@ -46,11 +46,24 @@ bytes size the remaining space on an 2048er 2K card is about 1500 bytes. If you 
 for reading, but when you recreate the file the remaining storage will be 1000 bytes. The only way to release the storage space is 
 to format the card, but that will delete all data on the card. 
 
+There is one additional file type available and that is a **Transaction MAC file**. This file type has a special purpose and is not 
+intended to store user data in it. The file is optional on a DESFire EV3 tag and can be create one time in each application. It stores 
+the last MAC's that where used when a transaction is committed (see above notes for Backup, Value and Record files) and is readable 
+only. With the data in this file a backend service can verify the last successful transaction.
 
+See the desfire_ev3_transaction_mac_file_operations for more information.
 
+## Which file related commands are available with the library ?
 
+The following commands are available with this library:
 
-
+- select a file
+- create a Standard, Backup, Value, Linear Record and Cyclic Record file with communication modes Plain, MACed and Full enciphered 
+- create a Transaction MAC file (communication modes Plain only)
+- write to and read from a Standard, Backup, Linear Record and Cyclic Record file
+- read from and credit or debit a Value file
+- delete a file
+- get the file settings
 
 
 
