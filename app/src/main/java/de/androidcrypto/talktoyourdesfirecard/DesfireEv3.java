@@ -6648,6 +6648,184 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
     }
 
     /**
+     * Change the settings of a file in the selected application. This is primarily used to change the authentication key numbers of the file.
+     * You can change the
+     * Note: a preceding authentication with the Change Access Key is necessary
+     * @param fileNumber
+     * @param communicationSettings
+     * @param keyRW
+     * @param keyCar
+     * @param keyR
+     * @param keyW
+     * @return                      | true on success
+     *
+     */
+
+
+    public boolean changeFileSettings(byte fileNumber, CommunicationSettings communicationSettings, int keyRW, int keyCar, int keyR, int keyW) {
+        String logData = "";
+        final String methodName = "changeFileSettings";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        // sanity checks
+        errorCode = new byte[2];
+        // sanity checks
+        if ((keyRW < 0) || (keyCar < 0) || (keyR < 0) || (keyW < 0)) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "a key number is < 0, aborted";
+            return false;
+        }
+        if ((keyRW > 15) || (keyCar > 15) || (keyR > 15) || (keyW > 15)) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "a key number is > 15, aborted";
+            return false;
+        }
+        if (!checkAuthentication()) return false;
+        if (!checkIsoDep()) return false;
+        if ((!authenticateEv2FirstSuccess) & (!authenticateEv2NonFirstSuccess)) {
+            errorCode = RESPONSE_FAILURE_MISSING_AUTHENTICATION.clone();
+            errorCodeReason = "missing authentication, did you forget to authenticate with the application Master key (0x00) ?), aborted";
+            return false;
+        }
+
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        // Generating the MAC for the Command APDU
+        byte[] ivInput = getIvInput();
+        /*
+        byte[] commandCounterLsb = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb", commandCounterLsb));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(HEADER_MAC, 0, HEADER_MAC.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb, 0, commandCounterLsb.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        */
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        // build the command data
+        byte communicationSettingsByte = (byte) 0x00;
+        if (communicationSettings.name().equals(CommunicationSettings.Plain.name()))
+            communicationSettingsByte = (byte) 0x00;
+        if (communicationSettings.name().equals(CommunicationSettings.MACed.name()))
+            communicationSettingsByte = (byte) 0x01;
+        if (communicationSettings.name().equals(CommunicationSettings.Full.name()))
+            communicationSettingsByte = (byte) 0x03;
+        byte fileOption = communicationSettingsByte;
+        byte accessRightsRwCar = (byte) ((keyRW << 4) | (keyCar & 0x0F)); // Read&Write Access & ChangeAccessRights
+        byte accessRightsRW = (byte) ((keyR << 4) | (keyW & 0x0F)); // Read Access & Write Access
+        byte sdmOptions = (byte) 0xC1; // UID mirror = 1, SDMReadCtr = 1, SDMReadCtrLimit = 0, SDMENCFileData = 0, ASCII Encoding mode = 1
+        byte[] sdmAccessRights = hexStringToByteArray("F121");
+        byte[] ENCPICCDataOffset = Utils.intTo3ByteArrayInversed(32); // 0x200000
+        byte[] SDMMACOffset = Utils.intTo3ByteArrayInversed(67);      // 0x430000
+        byte[] SDMMACInputOffset = Utils.intTo3ByteArrayInversed(67); // 0x430000
+        ByteArrayOutputStream baosCommandData = new ByteArrayOutputStream();
+        baosCommandData.write(fileOption);
+        baosCommandData.write(accessRightsRwCar);
+        baosCommandData.write(accessRightsRW);
+        byte[] commandData = baosCommandData.toByteArray();
+        log(methodName, printData("commandData", commandData));
+
+        // eventually some padding is necessary with 0x80..00
+        byte[] commandDataPadded = paddingWriteData(commandData);
+        log(methodName, printData("commandDataPadded", commandDataPadded));
+
+        // E(KSesAuthENC, IVc, CmdData || Padding (if necessary))
+        byte[] encryptedData = AES.encrypt(ivForCmdData, SesAuthENCKey, commandDataPadded);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // Generating the MAC for the Command APDU
+        // Cmd || CmdCounter || TI || CmdHeader = fileNumber || E(KSesAuthENC, CmdData)
+        byte[] macInput = getMacInput(CHANGE_FILE_SETTINGS_COMMAND, new byte[]{fileNumber}, encryptedData);
+        /*
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(CHANGE_FILE_SETTINGS_COMMAND); // 0x5F
+        baosMacInput.write(commandCounterLsb, 0, commandCounterLsb.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(fileNumber);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        */
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // error in DESFire Light Features and Hints, page 57, point 28:
+        // Data (FileNo || Offset || DataLength || Data) is NOT correct, as well not the Data Message
+        // correct is the following concatenation:
+
+        // Data (CmdHeader = fileNumber || Encrypted Data || MAC)
+        ByteArrayOutputStream baosWriteDataCommand = new ByteArrayOutputStream();
+        baosWriteDataCommand.write(fileNumber);
+        baosWriteDataCommand.write(encryptedData, 0, encryptedData.length);
+        baosWriteDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] writeDataCommand = baosWriteDataCommand.toByteArray();
+        log(methodName, printData("writeDataCommand", writeDataCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(CHANGE_FILE_SETTINGS_COMMAND, writeDataCommand);
+/*
+from NTAG424DNA sheet page 69:
+PERMISSION_DENIED
+- 9Dh PICC level (MF) is selected.
+- access right Change of targeted file has access conditions set to Fh.
+- Enabling Secure Dynamic Messaging (FileOption Bit 6 set to 1b) is only allowed for FileNo 02h.
+ */
+            // expected APDU 905F0000190261B6D97903566E84C3AE5274467E89EAD799B7C1A0EF7A0400 (31 bytes)
+            response = sendData(apdu);
+        } catch (IOException e) {
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        if (!checkResponse(response)) {
+            log(methodName, methodName + " FAILURE");
+            byte[] responseBytes = returnStatusBytes(response);
+            System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+            errorCodeReason = methodName + " FAILURE";
+            return false;
+        }
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+
+        if (verifyResponseMac(responseMACTruncatedReceived, null)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return true;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return false;
+        }
+    }
+
+
+
+
+
+    /**
      * changes the fileSettings of the file
      *
      * @param fileNumber            : in range 1..3

@@ -110,7 +110,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for key handling
      */
 
+    private LinearLayout llSectionChangeKey;
     private Button changeKeyA1ToC, changeKeyA1ToD;
+
+    /**
+     * section for file related action handling
+     */
+
+    private LinearLayout llSectionFileActions;
+    private Button changeFileSettings;
 
     /**
      * section for Transaction MAC file
@@ -141,7 +149,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for files
      */
 
-    private Button fileList, getFileSettings, changeFileSettings;
+    private Button fileList, getFileSettings, changeFileSettings2;
     private com.google.android.material.textfield.TextInputEditText fileSelected;
     private boolean isFileListRead = false; // 'fileSelect' will read all fileIds and fileSettings for all files, on SUCCESS isFileRead is set to true and an applicationSelect sets it to false;
     private String selectedFileId = ""; // cached data, filled by file select
@@ -449,8 +457,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         authA4C = findViewById(R.id.btnAuthA4C);
 
         // change key workflow
+        llSectionChangeKey = findViewById(R.id.llSectionChangeKey);
         changeKeyA1ToC = findViewById(R.id.btnChangeKeyA1ToC);
         changeKeyA1ToD = findViewById(R.id.btnChangeKeyA1ToD);
+
+        // file related actions workflow
+        llSectionFileActions = findViewById(R.id.llSectionFileActions);
+        changeFileSettings = findViewById(R.id.btnChangeFileSettings);
 
         // transaction mac file workflow
         fileTransactionMacCreate = findViewById(R.id.btnTransactionMacFileCreate);
@@ -480,7 +493,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileList = findViewById(R.id.btnListFiles); // this is misused for getSesAuthEncKey
 
         getFileSettings = findViewById(R.id.btnGetFileSettings);
-        changeFileSettings = findViewById(R.id.btnChangeFileSettings);
+        changeFileSettings2 = findViewById(R.id.btnChangeFileSettings2);
 
         rbFileFreeAccess = findViewById(R.id.rbFileAccessTypeFreeAccess);
         rbFileKeySecuredAccess = findViewById(R.id.rbFileAccessTypeKeySecuredAccess);
@@ -725,6 +738,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                         // for some actions we do need active authentication and key changing
                         llSectionAuthentication.setVisibility(View.VISIBLE);
+                        llSectionChangeKey.setVisibility((View.VISIBLE));
                     }
                 });
                 // create and show the alert dialog
@@ -839,6 +853,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                             llSectionRecordFiles.setVisibility(View.VISIBLE);
                         }
                         llSectionAuthentication.setVisibility(View.VISIBLE);
+                        llSectionFileActions.setVisibility(View.VISIBLE);
                         vibrateShort();
                     }
                 });
@@ -1717,9 +1732,72 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 writeToUiAppend(output, logString);
                 byte keyVersion = (byte) 0x01;
                 boolean success = changeApplicationKey(Constants.APPLICATION_KEY_RW_NUMBER, keyVersion, Constants.APPLICATION_KEY_RW_AES_DEFAULT, Constants.APPLICATION_KEY_RW_AES);
+                byte[] responseData = desfireEv3.getErrorCode();
 
+                if (success) {
+                    writeToUiAppend(output, logString + " keyVersion " + keyVersion + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " keyVersion " + keyVersion + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a APPLICATION MASTER KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
             }
         });
+
+        /**
+         * section for file related actions
+         */
+
+        changeFileSettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "change the fileSettings";
+                writeToUiAppend(output, logString);
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+
+                // todo force to authenticate with AuthenticateEv2First in DesfireEv3 class, not Legacy class
+
+
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                DesfireEv3.CommunicationSettings commSettings = DesfireEv3.CommunicationSettings.MACed; // change the settings to Plain
+                int keyRwOld = selectedFileSettings.getAccessRightsRw();
+                int keyCarOld = selectedFileSettings.getAccessRightsCar();
+                keyCarOld = 2;
+                int keyROld = selectedFileSettings.getAccessRightsR();
+                int keyWOld = selectedFileSettings.getAccessRightsW();
+                byte[] responseData = new byte[2];
+                boolean success = desfireEv3.changeFileSettings(fileIdByte, commSettings, keyRwOld, keyCarOld, keyROld, keyWOld);
+                responseData = desfireEv3.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    // NOTE: don't forget to authenticate with CAR key
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(errorCode, "Did you forget to authenticate with the CAR key ?");
+                    }
+                }
+            }
+        });
+
+
+
+
+
 
         /**
          * section for Transaction MAC file handling
@@ -4483,7 +4561,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
 
 
-        changeFileSettings.setOnClickListener(new View.OnClickListener() {
+        changeFileSettings2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 clearOutputFields();
@@ -8344,6 +8422,9 @@ posMacInpOffset:  75
         llSectionValueFiles.setVisibility(View.GONE);
         llSectionRecordFiles.setVisibility(View.GONE);
         llSectionAuthentication.setVisibility(View.GONE);
+        llSectionChangeKey.setVisibility(View.GONE);
+        llSectionFileActions.setVisibility(View.GONE);
+        llSectionFileActions.setVisibility(View.GONE);
     }
 
     /**
