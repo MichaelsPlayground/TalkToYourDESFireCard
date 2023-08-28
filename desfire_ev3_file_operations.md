@@ -314,6 +314,8 @@ authAesEv3 FAILURE with error code: 91AE
 
 The tag is denying the authentication as the key value used does not match the one stored on the tag. 
 
+If you want to read more about authentication see [DESFire authentication](desfire_ev3_authentication.md). 
+
 [back to the main manual](manual_talk_to_your_desfire_ev3_card.md)
 
 
