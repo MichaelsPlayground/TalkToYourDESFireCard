@@ -61,9 +61,37 @@ The following commands are available with this library:
 - create a Standard, Backup, Value, Linear Record and Cyclic Record file with communication modes Plain, MACed and Full enciphered 
 - create a Transaction MAC file (communication modes Plain only)
 - write to and read from a Standard, Backup, Linear Record and Cyclic Record file
+- commit a write operation for Backup, Value, Linear Record and Cyclic Record files
 - read from and credit or debit a Value file
 - delete a file
 - get the file settings
+
+## What are the parameter for file creations during "Setup test environment" ?
+
+The "Setup test environment" activity prepares the tag for a defined workspace. The activity will create 15 files in total within the 
+sample application "A1A2A3". The application gets default application parameter meaning there are no restrictions on creating and listing 
+files within the application. The application uses **AES based keys** and the number of keys is 5 (keys). 
+
+Common for all file types is the creation of 3 files in communication modes Plain, MACed and Full enciphered. The access rights are set to 
+therese key numbers (for explanations see the main manual page):
+- Application Master key: 0 (this is fixed and cannot get changed)
+- Read & Write Access Rights key: 1
+- Change Access Rights key: 2
+- Read Access Rights key: 3
+- Write Access Rights key: 4 
+
+As the "Read & Write Access key" is a combined key permitting read and write operation this key is preferred one for the following workflows.
+
+**File parameter:**
+- Standard file: The files do have a file size of 256 bytes
+- Backup file: The files do have a file size of 32 bytes
+- Value file: The initial value is 0 units, the minimum limit is 0 units and the maximum limit is 10000 units. 
+There are no "limited credit operations" enabled
+- Linear Record file: The files do have a record size is 32 bytes and a maximum number of records of 3
+- Cyclic Record file: The files do have a record size is 32 bytes and a maximum number of records of 4. Please note that the "fourth" record 
+is a spare record used for buffering the write operation for an "overflow" record. This means: if the file is full with (e.g. 3 records) a new 
+record is written in the fourth record and on committing the operation the record number 0 gets deleted, all other existing records "cycle" and 
+the record in the fourth / "spare" record get the new "last" record. To make it short: with this  setting you can store 3 records.
 
 ## What are the typical workflows for different file types ?
 
@@ -85,11 +113,149 @@ read from a data file fileNumber: 2 data: 2023.08.27 10:32:53??!"#$%&'()*+,-./01
 
 ### Backup file
 
+- select file (red button)
+- choose file number 3 (Plain), 4 (MACed) or 5 (Full enciphered) 
+- authenticate with key 1 "App R & W" default (* 1) (green button)
+- press "write" (orange button)
+- press "read" (orange button)
+- an example operation output can be:
+```plaintext
+read from a data file fileNumber: 4 data length: 32 data: 323032332e30382e32382031303a34323a3430000102030405060708090a0b0c
+read from a data file fileNumber: 4 data: 2023.08.28 10:42:40	
+```
 
+### Value file
 
+Note: the "credit" command increases the value by "123" units, the "debit" command decreases the value 
+by "111" units.
 
+- select file (red button)
+- choose file number 6 (Plain), 7 (MACed) or 8 (Full enciphered)
+- authenticate with key 1 "App R & W" default (* 1) (green button)
+- press "read" (orange button) -> example operation output: 
+```plaintext
+fileValueRead ID: 6 value: 0 
+``` 
+- press "credit" (orange button)
+- press "read" (orange button) -> example operation output:
+```plaintext
+fileValueRead ID: 6 value: 123
+```
+- press "debit" (orange button)
+- press "read" (orange button) -> example operation output:
+```plaintext
+fileValueRead ID: 6 value: 12
+```
+- press "debit" (orange button)
+- press "read" (orange button) -> example operation output:
+```plaintext
+fileValueDebit fileNumber 6 FAILURE with error BE boundary error
+as we received a Boundary Error - did you try to DEBIT below MINIMUM LIMIT ?
+Note: you need to authenticate again when trying to access the Value file again !
+```
 
+As the Value files do have "fences" for the **Minimum limit** and **Maximum Limit** we touched the 
+minimum limit of 0 units when trying to to decrease the value "12" unit by "111" units. The tag is 
+denying the operation with a **boundary error**.
 
+### Linear Record file
+
+- select file (red button)
+- choose file number 9 (Plain), 10 (MACed) or 11 (Full enciphered)
+- authenticate with key 1 "App R & W" default (* 1) (green button)
+- press "read" (orange button) -> example operation output:
+```plaintext
+read from a record file fileNumber 11 FAILURE with error BE boundary error
+as we received a Boundary Error - there might be NO records to read
+``` 
+There is a simple reason for the boundary error - there are no records to read from the tag.
+- press "write" (orange button)
+- press "read" (orange button) -> example operation output:
+```plaintext
+read from a record file fileNumber: 11 record: 0
+data length: 32 data: 323032332e30382e32382031313a31303a3339000102030405060708090a0b0c
+data: 2023.08.28 11:10:39	
+```
+- press "write" (orange button)
+- press "write" (orange button)
+- press "read" (orange button) -> example operation output:
+```plaintext
+read from a record file fileNumber: 11 record: 0
+data length: 32 data: 323032332e30382e32382031313a31303a3339000102030405060708090a0b0c
+data: 2023.08.28 11:10
+
+read from a record file fileNumber: 11 record: 1
+data length: 32 data: 323032332e30382e32382031313a31323a3130000102030405060708090a0b0c
+data: 2023.08.28 11:12:10
+
+read from a record file fileNumber: 11 record: 2
+data length: 32 data: 323032332e30382e32382031313a31323a3131000102030405060708090a0b0c
+data: 2023.08.28 11:12:11	
+read from a record file SUCCESS
+```
+We reached the maximum number of records defined on setup the file - what does happen when trying to 
+write a fourth record - let's try !
+- press "write" (orange button) -> example operation output:
+```plaintext
+write to a record file fileNumber 11 FAILURE with error BE boundary error
+Error reason: could not successfully write
+```
+A short explanation: the record file is "full" and no more records can be written.
+
+### Cyclic Record file
+
+- select file (red button)
+- choose file number 12 (Plain), 13 (MACed) or 14 (Full enciphered)
+- authenticate with key 1 "App R & W" default (* 1) (green button)
+- press "read" (orange button) -> example operation output:
+```plaintext
+read from a record file fileNumber 14 FAILURE with error BE boundary error
+as we received a Boundary Error - there might be NO records to read
+``` 
+This is the same behaviour as on Linear Record files - there are no records stored so far
+- press "write" (orange button)
+- press "read" (orange button) -> example operation output:
+```plaintext
+read from a record file fileNumber: 14 record: 0
+data length: 32 data: 323032332e30382e32382031313a33373a3130000102030405060708090a0b0c
+data: 2023.08.28 11:37:10	
+```
+- press "write" (orange button) ... wait a second ...
+- press "write" (orange button)
+- press "read" (orange button) -> example operation output:
+```plaintext
+read from a record file fileNumber: 14 record: 0
+data length: 32 data: 323032332e30382e32382031313a33373a3130000102030405060708090a0b0c
+data: 2023.08.28 11:37:10
+
+read from a record file fileNumber: 14 record: 1
+data length: 32 data: 323032332e30382e32382031313a33393a3136000102030405060708090a0b0c
+data: 2023.08.28 11:39:16
+
+read from a record file fileNumber: 14 record: 2
+data length: 32 data: 323032332e30382e32382031313a33393a3231000102030405060708090a0b0c
+data: 2023.08.28 11:39:21
+```
+On file creation we defined "4" maximum records but one of the is the spare record to buffer a write 
+operation, so now we do have 3 records and the file is "full" - what does happen when writing a fourth 
+record ? Let's try:
+- press "write" (orange button)
+- press "read" (orange button) -> example operation output:
+```plaintext
+read from a record file fileNumber: 14 record: 0
+data length: 32 data: 323032332e30382e32382031313a33393a3136000102030405060708090a0b0c
+data: 2023.08.28 11:39:16
+
+read from a record file fileNumber: 14 record: 1
+data length: 32 data: 323032332e30382e32382031313a33393a3231000102030405060708090a0b0c
+data: 2023.08.28 11:39:21
+
+read from a record file fileNumber: 14 record: 2
+data length: 32 data: 323032332e30382e32382031313a34303a3436000102030405060708090a0b0c
+data: 2023.08.28 11:40:46
+```
+The "old" record "0" is gone, the "new" record "0" is the "old" record "1" and so on. The record 
+number "2" is written to the file - that is the name giving cycling behaviour.
 
 
 

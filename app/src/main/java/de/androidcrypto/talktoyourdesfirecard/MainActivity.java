@@ -1042,7 +1042,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         if (isTransactionMacFilePresent) {
                             byte[] returnedTmacCV = desfireEv3.getTransactionMacFileReturnedTmcv();
                             writeToUiAppend(output, printData("returned TMAC counter and value", returnedTmacCV));
-                            if (returnedTmacCV.length == 12) {
+                            if ((returnedTmacCV != null) && (returnedTmacCV.length == 12)) {
                                 byte[] tmc = Arrays.copyOfRange(returnedTmacCV, 0, 4);
                                 byte[] tmacEnc = Arrays.copyOfRange(returnedTmacCV, 4, 12);
                                 int tmcInt = Utils.intFrom4ByteArrayInversed(tmc);
@@ -1190,7 +1190,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         if (isTransactionMacFilePresent) {
                             byte[] returnedTmacCV = desfireEv3.getTransactionMacFileReturnedTmcv();
                             writeToUiAppend(output, printData("returned TMAC counter and value", returnedTmacCV));
-                            if (returnedTmacCV.length == 12) {
+                            if ((returnedTmacCV != null) && (returnedTmacCV.length == 12)) {
                                 byte[] tmc = Arrays.copyOfRange(returnedTmacCV, 0, 4);
                                 byte[] tmacEnc = Arrays.copyOfRange(returnedTmacCV, 4, 12);
                                 int tmcInt = Utils.intFrom4ByteArrayInversed(tmc);
@@ -1290,7 +1290,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         if (isTransactionMacFilePresent) {
                             byte[] returnedTmacCV = desfireEv3.getTransactionMacFileReturnedTmcv();
                             writeToUiAppend(output, printData("returned TMAC counter and value", returnedTmacCV));
-                            if (returnedTmacCV.length == 12) {
+                            if ((returnedTmacCV != null) && (returnedTmacCV.length == 12)) {
                                 byte[] tmc = Arrays.copyOfRange(returnedTmacCV, 0, 4);
                                 byte[] tmacEnc = Arrays.copyOfRange(returnedTmacCV, 4, 12);
                                 int tmcInt = Utils.intFrom4ByteArrayInversed(tmc);
@@ -1461,7 +1461,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         if (isTransactionMacFilePresent) {
                             byte[] returnedTmacCV = desfireEv3.getTransactionMacFileReturnedTmcv();
                             writeToUiAppend(output, printData("returned TMAC counter and value", returnedTmacCV));
-                            if (returnedTmacCV.length == 12) {
+                            if ((returnedTmacCV != null) && (returnedTmacCV.length == 12)) {
                                 byte[] tmc = Arrays.copyOfRange(returnedTmacCV, 0, 4);
                                 byte[] tmacEnc = Arrays.copyOfRange(returnedTmacCV, 4, 12);
                                 int tmcInt = Utils.intFrom4ByteArrayInversed(tmc);
