@@ -2850,7 +2850,7 @@ public class DesfireEv3 {
                 completeSuccess = false;
                 Log.e(TAG, methodName + " could not successfully read, aborted");
                 log(methodName, "could not successfully red, aborted");
-                System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+                //System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2); / errorCode is given byte the read method before
                 return null;
             }
             {

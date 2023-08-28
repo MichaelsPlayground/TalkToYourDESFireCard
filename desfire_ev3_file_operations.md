@@ -257,6 +257,75 @@ data: 2023.08.28 11:40:46
 The "old" record "0" is gone, the "new" record "0" is the "old" record "1" and so on. The record 
 number "2" is written to the file - that is the name giving cycling behaviour.
 
+## What does happen when a wrong authentication key is used ?
+
+The "Read and Write Access rights key" number 1 is colored green as this way all operation described before are 
+working properly. For a simple test choose a Standard file with these steps:
+
+- select file (red button)
+- choose file number 0 (Plain), 1 (MACed) or 2 (Full enciphered)
+- authenticate with key 3 "App Read" default (* 1) (blue button)
+- press "write" (orange button) -> example operation output:
+```plaintext
+write to a data file fileNumber 0 FAILURE with error AE authentication error
+as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?
+Error reason: could not successfully write
+```
+
+A second test:
+
+- select file (red button)
+- choose file number 0 (Plain), 1 (MACed) or 2 (Full enciphered)
+- authenticate with key 4 "App Write" default (* 1) (blue button)
+- press "read" (orange button) -> example operation output:
+```plaintext
+read from a data file fileNumber 0 FAILURE with error AE authentication error
+as we received an Authentication Error - did you forget to AUTHENTICATE with a READ ACCESS KEY ?
+Error reason: Authentication error
+```
+
+The same error would occur when authenticating a read or write operation with a Master Application key or Change  
+Access Rights key.
+
+## What are the differences between a DEFAULT and a CHANGED key (* 1)
+
+There are authenticate buttons for default and changed keys. The main purpose is to show what happens when the right 
+Access key is used but with a "wrong" key value. 
+
+For example, if you are going to read from a Backup file we tag needs a preceding authentication with a "Read Access Rights key" or 
+the "Read Access Rights key". Try to read the file with this test: 
+
+- select file (red button)
+- choose file number 5 (Full enciphered)
+- authenticate with key 3 "App Read" default (* 1) (blue button)
+- press "read" (orange button) -> example operation output:
+```plaintext
+read from a data file fileNumber: 5 data length: 32 data: 323032332e30382e32382031333a31383a3334000102030405060708090a0b0c
+read from a data file fileNumber: 5 data: 2023.08.28 13:18:34	
+```
+
+Now try the same with the changed key number 3:
+- select file (red button)
+- choose file number 5 (Full enciphered)
+- authenticate with key 3 "App Read" changed (* 1) (blue button) -> example operation output:
+```plaintext
+authAesEv3 FAILURE with error code: 91AE	
+```
+
+The tag is denying the authentication as the key value used does not match the one stored on the tag. 
+
+## What authentication methods are supported within this library ?
+
+The DesfireEv3.java class library is supporting two authentication methods:
+
+The first method is named "**authenticateLegacy**" that is available on DESFire EV1 and onwards tags. This version is using 
+AES-based keys and it's only purpose is to release a read or write access on files with communication mode Plain.
+
+For files with communication modes MACed or Full enciphered the modern **authenticateEv2First** method is in use, available 
+on DESFire EV2 and onwards tags. This authentication releases the read and write operations for "MACed" files and releases and encrypt 
+the data on read and write operations. As some commands use an encrypted data transfer this method is used. 
+
+The library chooses the authentication method automatically depending on the communication mode of the file to operate on.
 
 
 
