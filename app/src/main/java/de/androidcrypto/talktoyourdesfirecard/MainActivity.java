@@ -148,14 +148,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for constants
      */
 
-    /**
-     * section for application keys
-     */
-
-    public static final byte[] APPLICATION_KEY_MASTER_AES_DEFAULT = Utils.hexStringToByteArray("00000000000000000000000000000000"); // default AES key with 16 nulls
-    public static final byte APPLICATION_KEY_MASTER_NUMBER = (byte) 0x00;
-
-
     // see Mifare DESFire Light Features and Hints AN12343.pdf, page 83-84
     private final byte[] TRANSACTION_MAC_KEY_AES = Utils.hexStringToByteArray("F7D23E0C44AFADE542BFDF2DC5C6AE02"); // taken from Mifare DESFire Light Features and Hints AN12343.pdf, pages 83-84
 
@@ -163,16 +155,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     /**
      * section for commands and responses
      */
-
-    private final byte CREATE_APPLICATION_COMMAND = (byte) 0xCA;
-    private final byte SELECT_APPLICATION_COMMAND = (byte) 0x5A;
-    private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
-    private final byte READ_STANDARD_FILE_COMMAND = (byte) 0xBD;
-    private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
-    private final byte GET_FILE_SETTINGS_COMMAND = (byte) 0xF5;
-    private final byte CHANGE_FILE_SETTINGS_COMMAND = (byte) 0x5F;
-    private final byte CHANGE_KEY_COMMAND = (byte) 0xC4;
-
 
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
 
@@ -201,7 +183,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private IsoDep isoDep;
     private byte[] tagIdByte;
 
-    private String exportString = "Desfire Authenticate Legacy"; // takes the log data for export
+    private String exportString = "Desfire Authenticate"; // takes the log data for export
     private String exportStringFileName = "auth.html"; // takes the log data for export
 
 
@@ -1883,7 +1865,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     }
 
-
     /**
      * section for dialogs
      */
@@ -1973,101 +1954,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             writeToUiAppend(output, methodName + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData));
             writeToUiAppendBorderColor(errorCode, errorCodeLayout, methodName + " FAILURE", COLOR_RED);
             return false;
-        }
-    }
-
-    public byte[] getModifiedKey(byte[] key) {
-        String methodName = "getModifiedKey";
-        Log.d(TAG, methodName + printData(" key", key));
-        if ((key == null) || (key.length != 8)) {
-            Log.d(TAG, methodName + " Error: key is NULL or key length is not of 8 bytes length, aborted");
-            return null;
-        }
-        byte[] modifiedKey = new byte[24];
-        System.arraycopy(key, 0, modifiedKey, 16, 8);
-        System.arraycopy(key, 0, modifiedKey, 8, 8);
-        System.arraycopy(key, 0, modifiedKey, 0, key.length);
-        Log.d(TAG, methodName + printData(" modifiedKey", modifiedKey));
-        return modifiedKey;
-    }
-
-    // this is the code as readFromAStandardFilePlainCommunicationDes but we allow a fileNumber 15 (0x0F) for TMAC files
-    private byte[] readFromAStandardFilePlainCommunication(TextView logTextView, byte fileNumber, int fileSize, byte[] methodResponse) {
-        final String methodName = "createFilePlainCommunication";
-        Log.d(TAG, methodName);
-        // sanity checks
-        if (logTextView == null) {
-            Log.e(TAG, methodName + " logTextView is NULL, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        if (fileNumber < 0) {
-            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        if (fileNumber > 15) {
-            Log.e(TAG, methodName + " fileNumber is > 15, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        /*
-        if ((fileSize < 1) || (fileSize > MAXIMUM_FILE_SIZE)) {
-            Log.e(TAG, methodName + " fileSize has to be in range 1.." + MAXIMUM_FILE_SIZE + " but found " + fileSize + ", aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-
-         */
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        // generate the parameter
-        int offsetBytes = 0; // read from the beginning
-        byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
-        byte[] length = Utils.intTo3ByteArrayInversed(fileSize); // LSB order
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        baos.write(fileNumber);
-        baos.write(offset, 0, 3);
-        baos.write(length, 0, 3);
-        byte[] parameter = baos.toByteArray();
-        Log.d(TAG, methodName + printData(" parameter", parameter));
-        byte[] response = new byte[0];
-        byte[] apdu = new byte[0];
-        try {
-            apdu = wrapMessage(READ_STANDARD_FILE_COMMAND, parameter);
-            Log.d(TAG, methodName + printData(" apdu", apdu));
-            response = isoDep.transceive(apdu);
-            Log.d(TAG, methodName + printData(" response", response));
-        } catch (IOException e) {
-            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
-            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        byte[] responseBytes = returnStatusBytes(response);
-        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
-        if (checkResponse(response)) {
-            Log.d(TAG, methodName + " SUCCESS");
-            // now strip of the response bytes
-            // if the card responses more data than expected we truncate the data
-            int expectedResponse = fileSize - offsetBytes;
-            if (response.length == expectedResponse) {
-                return response;
-            } else if (response.length > expectedResponse) {
-                // more data is provided - truncated
-                return Arrays.copyOf(response, expectedResponse);
-            } else {
-                // less data is provided - we return as much as possible
-                return response;
-            }
-        } else {
-            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
-            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
-            return null;
         }
     }
 
@@ -2564,14 +2450,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             outputStreamWriter.close();
         } catch (IOException e) {
             System.out.println("Exception File write failed: " + e.toString());
-        }
-    }
-
-    private void enableLinearLayout(int linearLayoutInt, boolean setEnabled) {
-        LinearLayout linearLayout = findViewById(linearLayoutInt);
-        for (int i = 0; i < linearLayout.getChildCount(); i++) {
-            View view = linearLayout.getChildAt(i);
-            view.setEnabled(setEnabled);
         }
     }
 

@@ -1,6 +1,5 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
-
 import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
 
 /**

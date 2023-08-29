@@ -1,8 +1,5 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
-import static de.androidcrypto.talktoyourdesfirecard.MainActivity.APPLICATION_KEY_MASTER_AES_DEFAULT;
-import static de.androidcrypto.talktoyourdesfirecard.MainActivity.APPLICATION_KEY_MASTER_NUMBER;
-
 import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
@@ -33,7 +30,6 @@ import androidx.appcompat.widget.Toolbar;
 import com.google.android.material.textfield.TextInputLayout;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 public class SetupTestEnvironmentActivity extends AppCompatActivity implements NfcAdapter.ReaderCallback {
 
@@ -173,47 +169,6 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
             //return;
         }
 
-        /*
-        // old sorting
-        writeToUiAppend("step 6: create a new file set Plain (Standard, Backup, Value, Linear Record and Cyclic Record files)");
-        success = createFileSetPlain();
-        errorCode = desfireEv3.getErrorCode();
-        errorCodeReason = desfireEv3.getErrorCodeReason();
-        if (success) {
-            writeToUiAppendBorderColor("create a new file set Plain SUCCESS", COLOR_GREEN);
-        } else {
-            writeToUiAppendBorderColor("create a new file set Plain FAILURE with error code: "
-                    + EV3.getErrorCode(errorCode) + " = "
-                    + errorCodeReason + ", aborted", COLOR_RED);
-            //return;
-        }
-
-        writeToUiAppend("step 7: create a new file set MACed (Standard, Backup, Value, Linear Record and Cyclic Record files)");
-        success = createFileSetMACed();
-        errorCode = desfireEv3.getErrorCode();
-        errorCodeReason = desfireEv3.getErrorCodeReason();
-        if (success) {
-            writeToUiAppendBorderColor("create a new file set MACed SUCCESS", COLOR_GREEN);
-        } else {
-            writeToUiAppendBorderColor("create a new file set MACed FAILURE with error code: "
-                    + EV3.getErrorCode(errorCode) + " = "
-                    + errorCodeReason + ", aborted", COLOR_RED);
-            //return;
-        }
-
-        writeToUiAppend("step 8: create a new file set Full (Standard, Backup, Value, Linear Record and Cyclic Record files)");
-        success = createFileSetFull();
-        errorCode = desfireEv3.getErrorCode();
-        errorCodeReason = desfireEv3.getErrorCodeReason();
-        if (success) {
-            writeToUiAppendBorderColor("create a new file set Full SUCCESS", COLOR_GREEN);
-        } else {
-            writeToUiAppendBorderColor("create a new file set Full FAILURE with error code: "
-                    + EV3.getErrorCode(errorCode) + " = "
-                    + errorCodeReason + ", aborted", COLOR_RED);
-            //return;
-        }
-        */
         writeToUiAppend(output, "");
         vibrateShort();
     }
@@ -357,14 +312,11 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
                 }
                 desfireEv3 = new DesfireEv3(isoDep); // true means all data is logged
 
-                // todo check just for DESFire
-                /*
                 isDesfireEv3 = desfireEv3.checkForDESFireEv3();
                 if (!isDesfireEv3) {
                     writeToUiAppendBorderColor("The tag is not a DESFire EV3 tag, stopping any further activities", COLOR_RED);
                     return;
                 }
-                 */
 
                 // get tag ID
                 tagIdByte = tag.getId();
