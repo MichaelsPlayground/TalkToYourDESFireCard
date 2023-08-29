@@ -16,22 +16,10 @@
         android:theme="@style/Theme.TalkToYourDESFireCard"
         tools:targetApi="31">
         <activity
-            android:name=".ReadNdefContentActivity"
-            android:exported="false" />
-        <activity
             android:name=".FormatPiccActivity"
             android:exported="false" />
         <activity
-            android:name=".PrepareSdmActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ActivateSdmActivity"
-            android:exported="false" />
-        <activity
             android:name=".SetupTestEnvironmentActivity"
-            android:exported="false" />
-        <activity
-            android:name=".MainActivityEv2"
             android:exported="false" />
         <activity
             android:name=".MainActivity"
