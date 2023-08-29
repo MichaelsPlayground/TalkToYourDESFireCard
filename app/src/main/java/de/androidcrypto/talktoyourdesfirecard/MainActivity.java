@@ -1,11 +1,6 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
-import static de.androidcrypto.talktoyourdesfirecard.Utils.byteArrayLength4InversedToInt;
-import static de.androidcrypto.talktoyourdesfirecard.Utils.byteToHex;
-import static de.androidcrypto.talktoyourdesfirecard.Utils.bytesToHexNpeUpperCase;
-import static de.androidcrypto.talktoyourdesfirecard.Utils.bytesToHexNpeUpperCaseBlank;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.divideArrayToList;
-import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
 
 import android.app.Activity;
@@ -31,9 +26,7 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Button;
-import android.widget.CompoundButton;
 import android.widget.LinearLayout;
-import android.widget.RadioButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -56,9 +49,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 
-import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
-import de.androidcrypto.talktoyourdesfirecard.nfcjlib.TripleDES;
-import de.androidcrypto.talktoyourdesfirecard.nfcjlib.CRC32;
 
 public class MainActivity extends AppCompatActivity implements NfcAdapter.ReaderCallback {
 
@@ -147,17 +137,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private byte selectedFileType; // cached data, filled by file select
 
 
-
-    private byte KEY_NUMBER_USED_FOR_AUTHENTICATION; // the key number used for a successful authentication
-    private byte[] SESSION_KEY_DES; // filled in authenticate, simply the first (leftmost) 8 bytes of SESSION_KEY_TDES
-
-
-    // var used by EV2 auth
-    private byte[] SES_AUTH_ENC_KEY; // filled in by authenticateEv2
-    private byte[] SES_AUTH_MAC_KEY; // filled in by authenticateEv2
-    private byte[] TRANSACTION_IDENTIFIER; // filled in by authenticateEv2
-    private int CMD_COUNTER; // filled in by authenticateEv2, LSB encoded when in byte[
-
     /**
      * section for general
      */
@@ -170,45 +149,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for constants
      */
 
-    private final byte[] APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("D0D1D2"); // AID 'D0 D1 D2'
-    private final byte[] APPLICATION_IDENTIFIER_AES = Utils.hexStringToByteArray("A1A2A3"); // AID 'A1 A2 A3'
-    private final byte APPLICATION_NUMBER_OF_KEYS = (byte) 0x05; // maximum 5 keys for secured access
-    private final byte APPLICATION_MASTER_KEY_SETTINGS = (byte) 0x0F; // 'amks'
-    /**
-     * for explanations on Master Key Settings see M075031_desfire.pdf page 35:
-     * left '0' = Application master key authentication is necessary to change any key (default)
-     * right 'f' = bits 3..0
-     * bit 3: 1: this configuration is changeable if authenticated with the application master key (default setting)
-     * bit 2: 1: CreateFile / DeleteFile is permitted also without application master key authentication (default setting)
-     * bit 1: 1: GetFileIDs, GetFileSettings and GetKeySettings commands succeed independently of a preceding application master key authentication (default setting)
-     * bit 0: 1: Application master key is changeable (authentication with the current application master key necessary, default setting)
-     */
-
-    private final byte FILE_COMMUNICATION_SETTINGS = (byte) 0x00; // plain communication
-    /**
-     * for explanations on File Communication Settings see M075031_desfire.pdf page 15:
-     * byte = 0: Plain communication
-     * byte = 1: Plain communication secured by DES/3DES/AES MACing
-     * byte = 3: Fully DES/3DES/AES enciphered communication
-     */
-
-    private final byte STANDARD_FILE_FREE_ACCESS_ID = (byte) 0x00; // file ID with free access
-    private final byte STANDARD_FILE_KEY_SECURED_ACCESS_ID = (byte) 0x01; // file ID with key secured access
-    // settings for key secured access depend on RadioButtons rbFileFreeAccess, rbFileKeySecuredAccess
-    // key 0 is the  Application Master Key
-    private final byte ACCESS_RIGHTS_RW_CAR_FREE = (byte) 0xEE; // Read&Write Access (free) & ChangeAccessRights (free)
-    private final byte ACCESS_RIGHTS_R_W_FREE = (byte) 0xEE; // Read Access (free) & Write Access (free)
-    private final byte ACCESS_RIGHTS_RW_CAR_SECURED = (byte) 0x12; // Read&Write Access (key 01) & ChangeAccessRights (key 02)
-    private final byte ACCESS_RIGHTS_R_W_SECURED = (byte) 0x34; // Read Access (key 03) & Write Access (key 04)
-    private int MAXIMUM_FILE_SIZE = 32; // do not increase this value to avoid framing !
-
-
     /**
      * section for application keys
      */
 
     public static final byte[] APPLICATION_KEY_MASTER_AES_DEFAULT = Utils.hexStringToByteArray("00000000000000000000000000000000"); // default AES key with 16 nulls
-    public static byte[] APPLICATION_KEY_MASTER_AES = Utils.hexStringToByteArray("A08899AABBCCDD223344556677889911");
     public static final byte APPLICATION_KEY_MASTER_NUMBER = (byte) 0x00;
 
 
@@ -409,7 +354,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         writeToUiAppendBorderColor(errorCode, errorCodeLayout, "selectApplication: " + EV3.getErrorCode(responseData), colorFromErrorCode);
                         applicationSelected.setText(applicationList[which]);
                         selectedApplicationId = Utils.hexStringToByteArray(applicationList[which]);
-                        invalidateEncryptionKeys();
 
                         // try to read all fileIds and fileSettings within this application
                         Log.d(TAG, "getAllFileIds and allFileSettings");
@@ -478,23 +422,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 } else {
                     Log.d(TAG, "getAllFileIds and allFileSettings SKIPPED");
                 }
-
-                /*
-                // debug
-                Log.d(TAG, "allFileIds");
-                for (int i = 0; i < allFileIds.length; i++) {
-                    Log.d(TAG, "i: " + i + ":" + allFileIds[i]);
-                }
-                Log.d(TAG, "allFileSettings");
-                for (int i = 0; i < allFileSettings.length; i++) {
-                    FileSettings fs = allFileSettings[i];
-                    if (fs == null) {
-                        Log.d(TAG, "i: " + i + ":" + "null");
-                    } else {
-                        Log.d(TAG, "i: " + i + ":" + allFileSettings[i].dump());
-                    }
-                }
-                 */
 
                 String[] fileList = new String[allFileIds.length];
                 for (int i = 0; i < allFileIds.length; i++) {
@@ -1901,22 +1828,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 writeToUiAppend(output, "yearProduction: " + Utils.byteToHex(yearProduction));
 
                 vibrateShort();
-
-                /*
-                VersionInfo versionInfo = null;
-                try {
-                    versionInfo = getVersionInfo(output);
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "success in getting tagVersion", COLOR_GREEN);
-                } catch (Exception e) {
-                    //throw new RuntimeException(e);
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "getTagVersion Exception: " + e.getMessage(), COLOR_RED);
-                    e.printStackTrace();
-                }
-                if (versionInfo != null) {
-                    writeToUiAppend(output, versionInfo.dump());
-                }
-
-                 */
             }
         });
 
@@ -2059,323 +1970,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         }
     }
 
-
-    /**
-     * section for application handling
-     */
-
-    private boolean createApplicationPlainCommunicationDes(TextView logTextView, byte[] applicationIdentifier, byte numberOfKeys, byte[] methodResponse) {
-        final String methodName = "createApplicationPlainCommunicationDes";
-        Log.d(TAG, methodName);
-        // sanity checks
-        if (logTextView == null) {
-            Log.e(TAG, methodName + " logTextView is NULL, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (applicationIdentifier == null) {
-            Log.e(TAG, methodName + " applicationIdentifier is NULL, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (applicationIdentifier.length != 3) {
-            Log.e(TAG, methodName + " applicationIdentifier length is not 3, found: " + applicationIdentifier.length + ", aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (numberOfKeys < 1) {
-            Log.e(TAG, methodName + " numberOfKeys is < 1, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (numberOfKeys > 14) {
-            Log.e(TAG, methodName + " numberOfKeys is > 14, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        // generate the parameter
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        baos.write(applicationIdentifier, 0, 3);
-        baos.write(APPLICATION_MASTER_KEY_SETTINGS);
-        baos.write(numberOfKeys);
-        byte[] parameter = baos.toByteArray();
-        Log.d(TAG, methodName + printData(" parameter", parameter));
-        byte[] response = new byte[0];
-        byte[] apdu = new byte[0];
-        try {
-            apdu = wrapMessage(CREATE_APPLICATION_COMMAND, parameter);
-            Log.d(TAG, methodName + printData(" apdu", apdu));
-            // sample: 90ca000005d0d1d20f0500
-            //       0x90CA000005D1D2D30F0500
-            response = isoDep.transceive(apdu);
-            Log.d(TAG, methodName + printData(" response", response));
-        } catch (IOException e) {
-            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
-            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        byte[] responseBytes = returnStatusBytes(response);
-        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
-        if (checkResponse(response)) {
-            Log.d(TAG, methodName + " SUCCESS");
-            return true;
-        } else {
-            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
-            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
-            return false;
-        }
-    }
-
-    private boolean createApplicationPlainCommunicationAes(TextView logTextView, byte[] applicationIdentifier, byte numberOfKeys, byte[] methodResponse) {
-        final String methodName = "createApplicationPlainCommunicationDes";
-        Log.d(TAG, methodName);
-        // sanity checks
-        if (logTextView == null) {
-            Log.e(TAG, methodName + " logTextView is NULL, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (applicationIdentifier == null) {
-            Log.e(TAG, methodName + " applicationIdentifier is NULL, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (applicationIdentifier.length != 3) {
-            Log.e(TAG, methodName + " applicationIdentifier length is not 3, found: " + applicationIdentifier.length + ", aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (numberOfKeys < 1) {
-            Log.e(TAG, methodName + " numberOfKeys is < 1, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (numberOfKeys > 14) {
-            Log.e(TAG, methodName + " numberOfKeys is > 14, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        // generate the parameter
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        baos.write(applicationIdentifier, 0, 3);
-        baos.write(APPLICATION_MASTER_KEY_SETTINGS);
-        baos.write(numberOfKeys | APPLICATION_CRYPTO_AES); // here we decide if the application is DES or AES
-        byte[] parameter = baos.toByteArray();
-        Log.d(TAG, methodName + printData(" parameter", parameter));
-        byte[] response = new byte[0];
-        byte[] apdu = new byte[0];
-        try {
-            apdu = wrapMessage(CREATE_APPLICATION_COMMAND, parameter);
-            Log.d(TAG, methodName + printData(" apdu", apdu));
-            response = isoDep.transceive(apdu);
-            Log.d(TAG, methodName + printData(" response", response));
-        } catch (IOException e) {
-            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
-            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        byte[] responseBytes = returnStatusBytes(response);
-        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
-        if (checkResponse(response)) {
-            Log.d(TAG, methodName + " SUCCESS");
-            return true;
-        } else {
-            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
-            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
-            return false;
-        }
-    }
-
-    /**
-     * section for file handling
-     */
-
-    private boolean createStandardFilePlainCommunicationDes(TextView logTextView, byte fileNumber, int fileSize, boolean isFreeAccess, byte[] methodResponse) {
-        final String methodName = "createFilePlainCommunicationDes";
-        Log.d(TAG, methodName);
-        // sanity checks
-        if (logTextView == null) {
-            Log.e(TAG, methodName + " logTextView is NULL, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (fileNumber < 0) {
-            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (fileNumber > 14) {
-            Log.e(TAG, methodName + " fileNumber is > 14, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (fileSize < 1) {
-            Log.e(TAG, methodName + " fileSize is < 1, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (fileSize > MAXIMUM_FILE_SIZE) {
-            Log.e(TAG, methodName + " fileSize is > " + MAXIMUM_FILE_SIZE + ", aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (isFreeAccess) {
-            Log.d(TAG, methodName + " file is created with FREE access");
-        } else {
-            Log.d(TAG, methodName + " file is created with KEY SECURED access");
-        }
-        byte[] fileSizeArray = Utils.intTo3ByteArrayInversed(fileSize); // lsb order
-        // generate the parameter
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        baos.write(fileNumber);
-        baos.write(FILE_COMMUNICATION_SETTINGS);
-        // the access rights depend on free access or not
-        if (isFreeAccess) {
-            baos.write(ACCESS_RIGHTS_RW_CAR_FREE);
-            baos.write(ACCESS_RIGHTS_R_W_FREE);
-        } else {
-            baos.write(ACCESS_RIGHTS_RW_CAR_SECURED);
-            baos.write(ACCESS_RIGHTS_R_W_SECURED);
-        }
-        baos.write(fileSizeArray, 0, 3);
-        byte[] parameter = baos.toByteArray();
-        Log.d(TAG, methodName + printData(" parameter", parameter));
-        byte[] response = new byte[0];
-        byte[] apdu = new byte[0];
-        try {
-            apdu = wrapMessage(CREATE_STANDARD_FILE_COMMAND, parameter);
-            Log.d(TAG, methodName + printData(" apdu", apdu));
-            // sample free access: 90cd0000070000eeee20000000 (13 bytes)
-            // sample key secured: 90cd0000070100123420000000 (13 bytes)
-            response = isoDep.transceive(apdu);
-            Log.d(TAG, methodName + printData(" response", response));
-        } catch (IOException e) {
-            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
-            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        byte[] responseBytes = returnStatusBytes(response);
-        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
-        if (checkResponse(response)) {
-            Log.d(TAG, methodName + " SUCCESS");
-            return true;
-        } else {
-            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
-            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
-            return false;
-        }
-    }
-
-    private byte[] readFromAStandardFilePlainCommunicationDes(TextView logTextView, byte fileNumber, int fileSize, byte[] methodResponse) {
-        final String methodName = "readStandardFilePlainCommunicationDes";
-        Log.d(TAG, methodName);
-        // sanity checks
-        if (logTextView == null) {
-            Log.e(TAG, methodName + " logTextView is NULL, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        if (fileNumber < 0) {
-            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        if (fileNumber > 14) {
-            Log.e(TAG, methodName + " fileNumber is > 14, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        if ((fileSize < 0) || (fileSize > MAXIMUM_FILE_SIZE)) {
-            Log.e(TAG, methodName + " fileSize has to be in range 0.." + MAXIMUM_FILE_SIZE + " but found " + fileSize + ", aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        // generate the parameter
-        int offsetBytes = 0; // read from the beginning
-        byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
-        byte[] length = Utils.intTo3ByteArrayInversed(fileSize); // LSB order
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        baos.write(fileNumber);
-        baos.write(offset, 0, 3);
-        baos.write(length, 0, 3);
-        byte[] parameter = baos.toByteArray();
-        Log.d(TAG, methodName + printData(" parameter", parameter));
-        byte[] response = new byte[0];
-        byte[] apdu = new byte[0];
-        try {
-            apdu = wrapMessage(READ_STANDARD_FILE_COMMAND, parameter);
-            Log.d(TAG, methodName + printData(" apdu", apdu));
-            // sample: 90bd0000070000000020000000 (13 bytes)
-            //       0x903D00002400000000000000
-            response = isoDep.transceive(apdu);
-            Log.d(TAG, methodName + printData(" response", response));
-            // sample: 323032332e30372e32312031373a30343a3034203132333435363738393031329100 (34 bytes)
-        } catch (IOException e) {
-            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
-            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        byte[] responseBytes = returnStatusBytes(response);
-        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
-        if (checkResponse(response)) {
-            Log.d(TAG, methodName + " SUCCESS");
-
-            /*
-            // for AES only - update the global IV
-            // status NOT working
-            // todo this is just for testing the IV "update" when getting the cardUid on AES
-            byte[] cmacIv = calculateApduCMAC(apdu, SESSION_KEY_AES, IV.clone());
-            writeToUiAppend(output, printData("cmacIv", cmacIv));
-            IV = cmacIv.clone();
-             */
-
-            // now strip of the response bytes
-            // if the card responses more data than expected we truncate the data
-            int expectedResponse = fileSize - offsetBytes;
-            if (response.length == expectedResponse) {
-                return response;
-            } else if (response.length > expectedResponse) {
-                // more data is provided - truncated
-                return Arrays.copyOf(response, expectedResponse);
-            } else {
-                // less data is provided - we return as much as possible
-                return response;
-            }
-        } else {
-            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
-            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
-            return null;
-        }
-    }
-
     public byte[] getModifiedKey(byte[] key) {
         String methodName = "getModifiedKey";
         Log.d(TAG, methodName + printData(" key", key));
@@ -2471,188 +2065,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         }
     }
 
-    private boolean writeToAStandardFilePlainCommunicationDes(TextView logTextView, byte fileNumber, byte[] data, byte[] methodResponse) {
-        final String methodName = "writeToAStandardFilePlainCommunicationDes";
-        Log.d(TAG, methodName);
-        // sanity checks
-        if (logTextView == null) {
-            Log.e(TAG, methodName + " logTextView is NULL, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (fileNumber < 0) {
-            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if (fileNumber > 14) {
-            Log.e(TAG, methodName + " fileNumber is > 14, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if ((data == null) || (data.length < 1) || (data.length > selectedFileSize)) {
-            Log.e(TAG, "data length not in range 1.." + MAXIMUM_FILE_SIZE + ", aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        if ((isoDep == null) || (!isoDep.isConnected())) {
-            writeToUiAppend(logTextView, methodName + " lost connection to the card, aborted");
-            Log.e(TAG, methodName + " lost connection to the card, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        // generate the parameter
-        int numberOfBytes = data.length;
-        int offsetBytes = 0; // write from the beginning
-        byte[] offset = Utils.intTo3ByteArrayInversed(offsetBytes); // LSB order
-        byte[] length = Utils.intTo3ByteArrayInversed(numberOfBytes); // LSB order
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        baos.write(fileNumber);
-        baos.write(offset, 0, 3);
-        baos.write(length, 0, 3);
-        baos.write(data, 0, numberOfBytes);
-        byte[] parameter = baos.toByteArray();
-        Log.d(TAG, methodName + printData(" parameter", parameter));
-        byte[] response = new byte[0];
-        byte[] apdu = new byte[0];
-        try {
-            apdu = wrapMessage(WRITE_STANDARD_FILE_COMMAND, parameter);
-            Log.d(TAG, methodName + printData(" apdu", apdu));
-            // sample:  903d00002700000000200000323032332e30372e32312031373a30343a30342031323334353637383930313200 (45 bytes)
-            response = isoDep.transceive(apdu);
-            Log.d(TAG, methodName + printData(" response", response));
-        } catch (IOException e) {
-            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
-            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return false;
-        }
-        byte[] responseBytes = returnStatusBytes(response);
-        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
-        if (checkResponse(response)) {
-            Log.d(TAG, methodName + " SUCCESS");
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    public byte[] getFileSettingsA(TextView logTextView, byte fileNumber, byte[] methodResponse) {
-        final String methodName = "getFileSettings";
-        Log.d(TAG, methodName);
-        // sanity checks
-        if (logTextView == null) {
-            Log.e(TAG, methodName + " logTextView is NULL, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        if (fileNumber < 0) {
-            Log.e(TAG, methodName + " fileNumber is < 0, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        if (fileNumber > 14) {
-            Log.e(TAG, methodName + " fileNumber is > 14, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        // generate the parameter
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        baos.write(fileNumber);
-        byte[] parameter = baos.toByteArray();
-        Log.d(TAG, methodName + printData(" parameter", parameter));
-        byte[] response = new byte[0];
-        byte[] apdu = new byte[0];
-        try {
-            apdu = wrapMessage(GET_FILE_SETTINGS_COMMAND, parameter);
-            Log.d(TAG, methodName + printData(" apdu", apdu));
-            response = isoDep.transceive(apdu);
-            Log.d(TAG, methodName + printData(" response", response));
-        } catch (IOException e) {
-            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
-            writeToUiAppend(logTextView, "transceive failed: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, methodResponse, 0, 2);
-            return null;
-        }
-        byte[] responseBytes = returnStatusBytes(response);
-        System.arraycopy(responseBytes, 0, methodResponse, 0, 2);
-        if (checkResponse(response)) {
-            Log.d(TAG, methodName + " SUCCESS");
-            return Arrays.copyOf(response, response.length - 2);
-        } else {
-            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
-            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
-            return null;
-        }
-    }
-
-
-    private boolean changeFileSettingsA(TextView logTextView, byte fileNumber, byte[] methodResponse) {
-        // NOTE: don't forget to authenticate with CAR key
-
-        if (SESSION_KEY_DES == null) {
-            writeToUiAppend(logTextView, "the SESSION KEY DES is null, did you forget to authenticate with a CAR key first ?");
-            return false;
-        }
-
-        int selectedFileIdInt = Integer.parseInt(selectedFileId);
-        byte selectedFileIdByte = Byte.parseByte(selectedFileId);
-        Log.d(TAG, "changeTheFileSettings for selectedFileId " + selectedFileIdInt);
-        Log.d(TAG, printData("DES session key", SESSION_KEY_DES));
-
-        // CD | File No | Comms setting byte | Access rights (2 bytes) | File size (3 bytes)
-        byte commSettingsByte = 0; // plain communication without any encryption
-
-        // we are changing the keys for R and W from 0x34 to 0x22;
-        byte accessRightsRwCar = (byte) 0x12; // Read&Write Access & ChangeAccessRights
-        //byte accessRightsRW = (byte) 0x34; // Read Access & Write Access // read with key 3, write with key 4
-        byte accessRightsRW = (byte) 0x22; // Read Access & Write Access // read with key 2, write with key 2
-        // to calculate the crc16 over the setting bytes we need a 3 byte long array
-        byte[] bytesForCrc = new byte[3];
-        bytesForCrc[0] = commSettingsByte;
-        bytesForCrc[1] = accessRightsRwCar;
-        bytesForCrc[2] = accessRightsRW;
-        Log.d(TAG, printData("bytesForCrc", bytesForCrc));
-        byte[] crc16Value = CRC16.get(bytesForCrc);
-        Log.d(TAG, printData("crc16Value", crc16Value));
-        // create a 8 byte long array
-        byte[] bytesForDecryption = new byte[8];
-        System.arraycopy(bytesForCrc, 0, bytesForDecryption, 0, 3);
-        System.arraycopy(crc16Value, 0, bytesForDecryption, 3, 2);
-        Log.d(TAG, printData("bytesForDecryption", bytesForDecryption));
-        // generate 24 bytes long triple des key
-        byte[] tripleDES_SESSION_KEY = getModifiedKey(SESSION_KEY_DES);
-        Log.d(TAG, printData("tripleDES Session Key", tripleDES_SESSION_KEY));
-        byte[] IV_DES = new byte[8];
-        Log.d(TAG, printData("IV_DES", IV_DES));
-        byte[] decryptedData = TripleDES.decrypt(IV_DES, tripleDES_SESSION_KEY, bytesForDecryption);
-        Log.d(TAG, printData("decryptedData", decryptedData));
-        // the parameter for wrapping
-        byte[] parameter = new byte[9];
-        parameter[0] = selectedFileIdByte;
-        System.arraycopy(decryptedData, 0, parameter, 1, 8);
-        Log.d(TAG, printData("parameter", parameter));
-        byte[] wrappedCommand;
-        byte[] response;
-        try {
-            wrappedCommand = wrapMessage(CHANGE_FILE_SETTINGS_COMMAND, parameter);
-            Log.d(TAG, printData("wrappedCommand", wrappedCommand));
-            response = isoDep.transceive(wrappedCommand);
-            Log.d(TAG, printData("response", response));
-            System.arraycopy(response, 0, methodResponse, 0, 2);
-            if (checkResponse(response)) {
-                return true;
-            } else {
-                return false;
-            }
-        } catch (IOException e) {
-            writeToUiAppend(output, "IOException: " + e.getMessage());
-            e.printStackTrace();
-        }
-        return false;
-    }
-
-
     /**
      * section for keys
      */
@@ -2685,31 +2097,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         }
     }
 
-    /*
-    if (selectedApplicationId == null) {
-                    writeToUiAppend(output, "You need to select an application first, aborted");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
-                    return;
-                }
-
-                byte keyVersion = (byte) 0x01;
-                boolean success = desfireEv3.changeApplicationKeyFull(Constants.APPLICATION_KEY_RW_NUMBER, keyVersion, Constants.APPLICATION_KEY_RW_AES, Constants.APPLICATION_KEY_RW_AES_DEFAULT);
-                byte[] responseData = desfireEv3.getErrorCode();
-
-                if (success) {
-                    writeToUiAppend(output, logString + " keyVersion " + keyVersion + " SUCCESS");
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
-                    vibrateShort();
-                } else {
-                    writeToUiAppend(output, logString + " keyVersion " + keyVersion + " FAILURE with error " + EV3.getErrorCode(responseData));
-                    if (checkAuthenticationError(responseData)) {
-                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a APPLICATION MASTER KEY ?");
-                    }
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
-                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
-                    return;
-                }
-     */
 
     /**
      * section for general handling
@@ -2748,43 +2135,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
             return null;
         }
-    }
-
-
-    /**
-     * copied from DESFireEV1.java class
-     * necessary for calculation the new IV for decryption of getCardUid
-     *
-     * @param apdu
-     * @param sessionKey
-     * @param iv
-     * @return
-     */
-    private byte[] calculateApduCMAC(byte[] apdu, byte[] sessionKey, byte[] iv) {
-        Log.d(TAG, "calculateApduCMAC" + printData(" apdu", apdu) +
-                printData(" sessionKey", sessionKey) + printData(" iv", iv));
-        byte[] block;
-
-        if (apdu.length == 5) {
-            block = new byte[apdu.length - 4];
-        } else {
-            // trailing 00h exists
-            block = new byte[apdu.length - 5];
-            System.arraycopy(apdu, 5, block, 1, apdu.length - 6);
-        }
-        block[0] = apdu[1];
-        Log.d(TAG, "calculateApduCMAC" + printData(" block", block));
-        //byte[] newIv = desfireAuthenticateProximity.calculateDiverseKey(sessionKey, iv);
-        //return newIv;
-        byte[] cmacIv = CMAC.get(CMAC.Type.AES, sessionKey, block, iv);
-        Log.d(TAG, "calculateApduCMAC" + printData(" cmacIv", cmacIv));
-        return cmacIv;
-    }
-
-    private static byte[] calculateApduCRC32R(byte[] apdu, int length) {
-        byte[] data = new byte[length + 1];
-        System.arraycopy(apdu, 0, data, 0, length);// response code is at the end
-        return CRC32.get(data);
     }
 
 
@@ -2829,14 +2179,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         } else {
             return false;
         }
-        /*
-        int status = ((0xff & data[data.length - 2]) << 8) | (0xff & data[data.length - 1]);
-        if (status == 0x9100) {
-            return true;
-        } else {
-            return false;
-        }
-         */
     }
 
     /**
@@ -2857,14 +2199,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         } else {
             return false;
         }
-        /*
-        int status = ((0xff & data[data.length - 2]) << 8) | (0xff & data[data.length - 1]);
-        if (status == 0x91AF) {
-            return true;
-        } else {
-            return false;
-        }
-         */
     }
 
     /**
@@ -2905,14 +2239,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         } else {
             return false;
         }
-        /*
-        int status = ((0xff & data[data.length - 2]) << 8) | (0xff & data[data.length - 1]);
-        if (status == 0x91AE) {
-            return true;
-        } else {
-            return false;
-        }
-         */
     }
 
     /**
@@ -3141,18 +2467,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             applicationSelected.setText("");
             fileSelected.setText("");
         });
-        KEY_NUMBER_USED_FOR_AUTHENTICATION = -1;
-        SESSION_KEY_DES = null;
-        SES_AUTH_ENC_KEY = null;
-        SES_AUTH_MAC_KEY = null;
     }
 
-    private void invalidateEncryptionKeys() {
-        KEY_NUMBER_USED_FOR_AUTHENTICATION = -1;
-        SES_AUTH_ENC_KEY = null;
-        SES_AUTH_MAC_KEY = null;
-        SESSION_KEY_DES = null;
-    }
 
     private void vibrateShort() {
         // Make a Sound

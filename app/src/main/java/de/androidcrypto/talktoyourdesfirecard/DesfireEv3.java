@@ -6,7 +6,6 @@ import static de.androidcrypto.talktoyourdesfirecard.Utils.intFrom4ByteArrayInve
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo2ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo3ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo4ByteArrayInversed;
-import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
 
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
@@ -31,6 +30,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
 import de.androidcrypto.talktoyourdesfirecard.nfcjlib.CRC32;
+
 
 /**
  * This class is the full library that connects to Mifare DESFire EV1/EV2/EV3 tags for these commands:

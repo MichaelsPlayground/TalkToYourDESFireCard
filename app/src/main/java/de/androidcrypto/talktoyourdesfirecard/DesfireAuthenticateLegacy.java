@@ -18,6 +18,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
+import de.androidcrypto.talktoyourdesfirecard.nfcjlib.CRC16;
 import de.androidcrypto.talktoyourdesfirecard.nfcjlib.TripleDES;
 
 /**
