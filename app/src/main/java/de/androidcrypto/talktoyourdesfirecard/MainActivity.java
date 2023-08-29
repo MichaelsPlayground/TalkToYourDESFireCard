@@ -263,7 +263,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
 
     // DesfireAuthentication is used for all authentication tasks. The constructor needs the isoDep object so it is initialized in 'onTagDiscovered'
-    DesfireAuthenticate desfireAuthenticate;
 
     // DesfireAuthenticationProximity is used for old DES d40 authenticate tasks. The constructor needs the isoDep object so it is initialized in 'onTagDiscovered'
     //DesfireAuthenticateProximity desfireAuthenticateProximity;
@@ -600,7 +599,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with the Application Master Key ?");
                     }
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
-                    writeToUiAppend(output, desfireAuthenticate.getLogData());
+                    writeToUiAppend(output, desfireAuthenticateLegacy.getLogData());
                     return;
                 } else {
                     writeToUiAppend(output, logString + " ID: " + fileIdByte + printData(" data", result));
@@ -2953,7 +2952,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     isoDep.close();
                     return;
                 }
-                desfireAuthenticate = new DesfireAuthenticate(isoDep, true); // true means all data is logged
 
                 //desfireAuthenticateProximity = new DesfireAuthenticateProximity(isoDep, true); // true means all data is logged
                 desfireAuthenticateLegacy = new DesfireAuthenticateLegacy(isoDep, true); // true means all data is logged

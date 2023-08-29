@@ -59,7 +59,7 @@ public class FormatPiccActivity extends AppCompatActivity implements NfcAdapter.
     private NfcAdapter mNfcAdapter;
     private IsoDep isoDep;
     private byte[] tagIdByte;
-    private DesfireD40Light desfireD40;
+
     private DesfireEv3 desfireEv3;
 
     private FileSettings fileSettings;
@@ -114,8 +114,8 @@ public class FormatPiccActivity extends AppCompatActivity implements NfcAdapter.
         stepString = "3 format the PICC";
         writeToUiAppend(output, stepString);
 
-        success = desfireD40.formatPicc();
-        errorCode = desfireD40.getErrorCode();
+        success = desfireEv3.desfireD40.formatPicc();
+        errorCode = desfireEv3.desfireD40.getErrorCode();
         if (success) {
             writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
         } else {
@@ -159,7 +159,6 @@ public class FormatPiccActivity extends AppCompatActivity implements NfcAdapter.
                     return;
                 }
                 desfireEv3 = new DesfireEv3(isoDep);
-                desfireD40 = new DesfireD40Light(isoDep);
 
                 isDesfireEv3 = desfireEv3.checkForDESFireEv3();
                 if (!isDesfireEv3) {

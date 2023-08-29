@@ -198,7 +198,7 @@ public class DesfireEv3 {
      */
     private final byte ACCESS_RIGHTS_R_W_TMAC = (byte) 0x1F; // Read Access (key 01) & Write Access (no access)
 
-
+    private final byte FORMAT_PICC_COMMAND = (byte) 0xFC;
     private final byte DELETE_FILE_COMMAND = (byte) 0xDF;
     private final byte GET_FILE_IDS_COMMAND = (byte) 0x6F;
     private final byte GET_FILE_SETTINGS_COMMAND = (byte) 0xF5;
@@ -265,6 +265,8 @@ public class DesfireEv3 {
     private boolean isTransactionMacCommitReaderId = false;
     private byte[] transactionMacFileReturnedTmcv; // if requested on commitTransaction the TMAC counter and Value are returned (only if TMAC file is present)
     private byte[] transactionMacReaderId; // necessary for Commit ReadId, filled on initialization with TRANSACTION_MAC_READER_ID_DEFAULT
+
+    DesfireAuthenticateLegacy desfireD40;
 
     public enum CommunicationSettings {
         Plain, MACed, Full
@@ -8786,6 +8788,56 @@ fileSize: 128
         int hardwareType = versionInfo.getHardwareType(); // 1 = DESFire, 4 = NTAG family 4xx
         int hardwareVersion = versionInfo.getHardwareVersionMajor(); // 51 = DESFire EV3, 48 = NTAG 424 DNA
         return ((hardwareType == 1) && (hardwareVersion == 51));
+    }
+
+    public boolean formatPicc() {
+        logData = "";
+        final String methodName = "formatPicc";
+        log(methodName, methodName);
+
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            log(methodName,"no or lost connection to the card, aborted");
+            Log.e(TAG, methodName + " no or lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        // the first step is to select the Master Application
+        boolean success = selectApplicationByAid(MASTER_APPLICATION_IDENTIFIER);
+        if (!success) {
+            log(methodName,"selection of Master Application failed, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        // the second step is to authentication with Master Application key
+        log(methodName, "trying to authenticate with MASTER_APPLICATION_KEY_NUMBER 00 DES DEFAULT");
+        success = desfireD40.authenticateD40(Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_DES_DEFAULT);
+        if (!success) {
+            log(methodName,"authenticate failed, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+
+        // now we are formatting the card
+        byte[] response = new byte[0];
+        byte[] wrappedCommand;
+        try {
+            wrappedCommand = wrapMessage(FORMAT_PICC_COMMAND, null);
+            Log.d(TAG, printData("wrappedCommand", wrappedCommand));
+            response = isoDep.transceive(wrappedCommand);
+            Log.d(TAG, printData("response", response));
+            System.arraycopy(response, 0, errorCode, 0, 2);
+            if (checkResponse(response)) {
+                return true;
+            } else {
+                return false;
+            }
+        } catch (IOException e) {
+            log(methodName, "IOException: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
     }
 
     /**
