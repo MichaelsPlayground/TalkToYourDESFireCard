@@ -228,7 +228,6 @@ public class DesfireAuthenticateEv2 {
     private String errorCodeReason = "";
 
     // the CommunicationAdapter takes all of the transmissions to avoid framing on outgoing or incoming data
-    CommunicationAdapter communicationAdapter;
 
     public enum CommunicationSettings {
         Plain, MACed, Encrypted
@@ -242,7 +241,6 @@ public class DesfireAuthenticateEv2 {
     public DesfireAuthenticateEv2(IsoDep isoDep, boolean printToLog) {
         this.isoDep = isoDep;
         this.printToLog = printToLog;
-        this.communicationAdapter = new CommunicationAdapter(isoDep, printToLog);
     }
 
     // getFileSettings, command 0xF5, pages 24-27

@@ -1,9 +1,9 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
-import static de.androidcrypto.talktoyourdesfirecard.DesfireAuthenticateEv2.intTo2ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.byteArrayLength4InversedToInt;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intFrom4ByteArrayInversed;
+import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo2ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo3ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo4ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
@@ -287,7 +287,7 @@ public class DesfireEv3 {
         // see Mifare DESFire Light Features and Hints AN12343.pdf page 64
         byte[] SesAuthEncKeyTest = Utils.hexStringToByteArray("78240CC5596B751D90023827B0B7E73D");
         byte[] TiTest = Utils.hexStringToByteArray("2D0611EC");
-        byte[] commandCounterLsbTest = Utils.intTo2ByteArrayInversed(2);
+        byte[] commandCounterLsbTest = intTo2ByteArrayInversed(2);
         byte[] EncryptedResponseDataTest = Utils.hexStringToByteArray("A1963F1BB9FC916A8B15B2DC58002531");
         byte[] DecryptedResponseExpTest = Utils.hexStringToByteArray("BDD40ED9F434F9DDCBF5821299CD2119");
         byte[] DecryptedResponseTest;
@@ -2936,7 +2936,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baos.write(counterLabel, 0, counterLabel.length);
         baos.write(lengthLabel, 0, lengthLabel.length);
         int tmcOld = intFrom4ByteArrayInversed(tmc);
-        byte[] tmcNew = Utils.intTo2ByteArrayInversed(tmcOld + 1);
+        byte[] tmcNew = intTo2ByteArrayInversed(tmcOld + 1);
         baos.write(tmcNew, 0, tmcNew.length);
         baos.write(uid, 0, uid.length);
         byte[] sv1 = baos.toByteArray();
@@ -6854,7 +6854,7 @@ PERMISSION_DENIED
      * SDMMACInputOffset: 0x430000
      */
 
-    public boolean changeFileSettingsNtag424Dna(byte fileNumber, DesfireAuthenticateEv2.CommunicationSettings communicationSettings, int keyRW, int keyCar, int keyR, int keyW, boolean sdmEnable) {
+    public boolean changeFileSettingsNtag424Dna(byte fileNumber, CommunicationSettings communicationSettings, int keyRW, int keyCar, int keyR, int keyW, boolean sdmEnable) {
 
         // this method can only enable Secure Dynamic Message but cannot set specific data like offsets
         // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 34 - 35 for SDM example
@@ -6989,11 +6989,11 @@ fileSize: 128
 
         // build the command data
         byte communicationSettingsByte = (byte) 0x00;
-        if (communicationSettings.name().equals(DesfireAuthenticateEv2.CommunicationSettings.Plain.name()))
+        if (communicationSettings.name().equals(CommunicationSettings.Plain.name()))
             communicationSettingsByte = (byte) 0x00;
-        if (communicationSettings.name().equals(DesfireAuthenticateEv2.CommunicationSettings.MACed.name()))
+        if (communicationSettings.name().equals(CommunicationSettings.MACed.name()))
             communicationSettingsByte = (byte) 0x01;
-        if (communicationSettings.name().equals(DesfireAuthenticateEv2.CommunicationSettings.Encrypted.name()))
+        if (communicationSettings.name().equals(CommunicationSettings.Full.name()))
             communicationSettingsByte = (byte) 0x03;
         byte fileOption;
         if (sdmEnable) {
@@ -7126,7 +7126,7 @@ PERMISSION_DENIED
         }
     }
 
-    public boolean changeFileSettingsNtag424Dna(byte fileNumber, DesfireAuthenticateEv2.CommunicationSettings communicationSettings, int keyRW, int keyCar, int keyR, int keyW, boolean sdmEnable, int encPiccDataOffset, int sdmMacOffset, int sdmMacInputOffset) {
+    public boolean changeFileSettingsNtag424Dna(byte fileNumber, CommunicationSettings communicationSettings, int keyRW, int keyCar, int keyR, int keyW, boolean sdmEnable, int encPiccDataOffset, int sdmMacOffset, int sdmMacInputOffset) {
 
         // this method can only enable Secure Dynamic Message but cannot set specific data like offsets
         // see NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 34 - 35 for SDM example
@@ -7263,11 +7263,11 @@ fileSize: 128
 
         // build the command data
         byte communicationSettingsByte = (byte) 0x00;
-        if (communicationSettings.name().equals(DesfireAuthenticateEv2.CommunicationSettings.Plain.name()))
+        if (communicationSettings.name().equals(CommunicationSettings.Plain.name()))
             communicationSettingsByte = (byte) 0x00;
-        if (communicationSettings.name().equals(DesfireAuthenticateEv2.CommunicationSettings.MACed.name()))
+        if (communicationSettings.name().equals(CommunicationSettings.MACed.name()))
             communicationSettingsByte = (byte) 0x01;
-        if (communicationSettings.name().equals(DesfireAuthenticateEv2.CommunicationSettings.Encrypted.name()))
+        if (communicationSettings.name().equals(CommunicationSettings.Full.name()))
             communicationSettingsByte = (byte) 0x03;
         byte fileOption;
         if (sdmEnable) {

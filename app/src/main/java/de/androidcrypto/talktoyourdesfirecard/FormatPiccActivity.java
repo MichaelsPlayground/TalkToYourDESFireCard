@@ -60,7 +60,8 @@ public class FormatPiccActivity extends AppCompatActivity implements NfcAdapter.
     private IsoDep isoDep;
     private byte[] tagIdByte;
     private DesfireD40Light desfireD40;
-    private DesfireEv3Light desfireEv3;
+    private DesfireEv3 desfireEv3;
+
     private FileSettings fileSettings;
     private boolean isDesfireEv3 = false;
 
@@ -118,7 +119,7 @@ public class FormatPiccActivity extends AppCompatActivity implements NfcAdapter.
         if (success) {
             writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
         } else {
-            if (Arrays.equals(errorCode, DesfireEv3Light.RESPONSE_DUPLICATE_ERROR)) {
+            if (Arrays.equals(errorCode, DesfireEv3.RESPONSE_DUPLICATE_ERROR)) {
                 writeToUiAppendBorderColor(stepString + " FAILURE because application already exits", COLOR_GREEN);
             } else {
                 writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
@@ -157,7 +158,7 @@ public class FormatPiccActivity extends AppCompatActivity implements NfcAdapter.
                     isoDep.close();
                     return;
                 }
-                desfireEv3 = new DesfireEv3Light(isoDep);
+                desfireEv3 = new DesfireEv3(isoDep);
                 desfireD40 = new DesfireD40Light(isoDep);
 
                 isDesfireEv3 = desfireEv3.checkForDESFireEv3();
