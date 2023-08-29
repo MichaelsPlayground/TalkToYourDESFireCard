@@ -87,7 +87,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private LinearLayout llSectionRecordFiles;
     private Button fileRecordRead, fileRecordWrite;
 
-    
+
     /**
      * section for authentication
      * note: the character at the end 'D' or 'C' is meaning 'default' or 'changed'
@@ -144,7 +144,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button getTagVersion, formatPicc;
 
 
-
     /**
      * section for constants
      */
@@ -159,7 +158,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     // see Mifare DESFire Light Features and Hints AN12343.pdf, page 83-84
     private final byte[] TRANSACTION_MAC_KEY_AES = Utils.hexStringToByteArray("F7D23E0C44AFADE542BFDF2DC5C6AE02"); // taken from Mifare DESFire Light Features and Hints AN12343.pdf, pages 83-84
-
 
 
     /**
@@ -1900,6 +1898,14 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         showDialog(MainActivity.this, tmacWarningMessage);
     }
 
+    private void showDialogWarningDesfireEv1() {
+        String desfireEv1WarningMessage = "SERIOUS WARNING\n\n" +
+                "The tag you are tapping is a Mifare DESFire EV1 tag that does not support the AuthenticateEV2First command.\n" +
+                "All AUTHENTICATE operations to a file with Communication Mode MACed and Full enciphered will FAIL\n" +
+                "The operations on Plain files will probably run (not tested)\n\n";
+        showDialog(MainActivity.this, desfireEv1WarningMessage);
+    }
+
     /**
      * section for AES authentication with EV3
      */
@@ -2279,12 +2285,20 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
 
-                //desfireAuthenticateProximity = new DesfireAuthenticateProximity(isoDep, true); // true means all data is logged
                 desfireAuthenticateLegacy = new DesfireAuthenticateLegacy(isoDep, true); // true means all data is logged
                 desfireEv3 = new DesfireEv3(isoDep);
 
-                // setup the communication adapter
-                //adapter = new CommunicationAdapter(isoDep, true);
+                if (desfireEv3 != null) {
+                    runOnUiThread(() -> {
+                        boolean isDesfireEv1 = desfireEv3.checkForDESFireEv1();
+                        if (isDesfireEv1) {
+                            showDialogWarningDesfireEv1();
+                            writeToUiAppend(output, "The tag you are tapping is a Mifare DESFire EV1 tag that does not support the AuthenticateEV2First command.\n" +
+                                    "All AUTHENTICATE operations to a file with Communication Mode MACed and Full enciphered will FAIL\n" +
+                                    "The operations on Plain files will probably run (not tested)\n\n");
+                        }
+                    });
+                }
 
                 // get tag ID
                 tagIdByte = tag.getId();

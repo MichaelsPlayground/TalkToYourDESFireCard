@@ -8748,7 +8748,7 @@ fileSize: 128
      *
      * @return true on success
      */
-    public boolean checkForDESFireEv1XX() {
+    public boolean checkForDESFireEv1() {
         // todo work on this, hardware version may be wrong !
         VersionInfo versionInfo = getVersionInformation();
         if (versionInfo == null) return false;
