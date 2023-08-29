@@ -2496,7 +2496,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             @Override
             public boolean onMenuItemClick(MenuItem item) {
                 allLayoutsInvisible();
-                //llStandardFile.setVisibility(View.VISIBLE);
                 return false;
             }
         });
