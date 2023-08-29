@@ -317,12 +317,13 @@ The tag is denying the authentication as the key value used does not match the o
 ## Change File Settings
 
 The Change File Settings command allows to change the communication mode and / or the authentication keys. 
-For e.g. the sample file 1 is a Standard file with communication mode MACed and access rights keys "1234" (see 
+For e.g. the sample file 0 is a Standard file with communication mode Plain and access rights keys "1234" (see 
 parameter above). In my code I do not change the communication mode but the access rights keys to "0000".
 
 There is just a hickup when working with files in communication mode Plain: the automatic detector will use 
 the "Legacy" authentication but we need to use the "authenticateEv2First" method. For this reason a switch 
-will be visible in Authentication Section when working with a Plain file.
+will be visible in Authentication Section when working with a Plain file (enabling this switch will force to 
+use AuthenticationEV2First).
 
 Run this example:
 
