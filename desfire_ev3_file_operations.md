@@ -314,6 +314,84 @@ authAesEv3 FAILURE with error code: 91AE
 
 The tag is denying the authentication as the key value used does not match the one stored on the tag. 
 
+## Change File Settings
+
+The Change File Settings command allows to change the communication mode and / or the authentication keys. 
+For e.g. the sample file 1 is a Standard file with communication mode MACed and access rights keys "1234" (see 
+parameter above). In my code I do not change the communication mode but the access rights keys to "0000".
+
+There is just a hickup when working with files in communication mode Plain: the automatic detector will use 
+the "Legacy" authentication but we need to use the "authenticateEv2First" method. For this reason a switch 
+will be visible in Authentication Section when working with a Plain file.
+
+Run this example:
+
+- select file (red button)
+- choose file number 0 (Standard|Plain)
+- press the settings button (blue button) -> example operation output:
+```plaintext
+get file settings ID: 0 data length: 7 data: 00001234000100
+fileNumber: 00
+fileType: 0 (Standard)
+communicationSettings: 00 (Plain)
+accessRights RW | CAR: 12
+accessRights R | W: 34
+accessRights RW:  1
+accessRights CAR: 2
+accessRights R:   3
+accessRights W:   4
+fileSize: 256
+```
+For changing the file settings for Plain file:
+- enable switch "use AuthenticateEV2First"
+- authenticate with key 2 "App CAR" default (* 1) (blue button)
+- press "file settings 0000" (blue button) -> example operation output:
+```plaintext
+change the fileSettings (all keys to 0000) SUCCESS
+```
+
+As we changed the file settings the tag internally resets and to proceed it is necessary to start with "select app":
+- "select app" for "A1A2A3" (you should have run the "Setup test environment before) (red button)
+- select file 0 (Standard|Plain) (red button)
+- press the settings button (blue button) -> example operation output:
+```plaintext
+get file settings ID: 0 data length: 7 data: 00000000000100
+fileNumber: 00
+fileType: 0 (Standard)
+communicationSettings: 00 (Plain)
+accessRights RW | CAR: 00
+accessRights R | W: 00
+accessRights RW:  0
+accessRights CAR: 0
+accessRights R:   0
+accessRights W:   0
+fileSize: 256
+```
+
+The command changed the access rights to "0000". To change this settings back to default use this example:
+- select file (red button)
+- choose file number 0 (Standard|Plain)
+  For changing the file settings for Plain file:
+- enable switch "use AuthenticateEV2First"
+- authenticate with key 0 "Master EV2" default (* 1) (blue button)
+- press "file settings 1234" (blue button) -> example operation output:
+```plaintext
+change the fileSettings (all keys to 0000) SUCCESS 
+```
+
+The file settings now show the default file settings "1234":
+```plaintext
+fileType: 0 (Standard)
+communicationSettings: 00 (Plain)
+accessRights RW | CAR: 12
+accessRights R | W: 34
+accessRights RW:  1
+accessRights CAR: 2
+accessRights R:   3
+accessRights W:   4
+fileSize: 256
+```
+
 If you want to read more about authentication see [DESFire authentication](desfire_ev3_authentication.md). 
 
 [back to the main manual](manual_talk_to_your_desfire_ev3_card.md)

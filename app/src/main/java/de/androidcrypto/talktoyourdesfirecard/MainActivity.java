@@ -44,6 +44,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
 import androidx.appcompat.widget.Toolbar;
 
 import com.google.android.material.textfield.TextInputLayout;
@@ -102,6 +103,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     private LinearLayout llSectionAuthentication;
+    private SwitchCompat swAuthenticateEv2First;
     private Button authM0D, authM0C; // Master Application key
     private Button authA0DLeg, authA0CLeg, authA0DEv2, authA0CEv2; // application master key, legacy or EV2First auth
     private Button authA1D, authA1C, authA2D, authA2C, authA3D, authA3C, authA4D, authA4C; // application keys
@@ -118,7 +120,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     private LinearLayout llSectionFileActions;
-    private Button changeFileSettings;
+    private Button changeFileSettings0000, changeFileSettings1234;
 
     /**
      * section for Transaction MAC file
@@ -441,6 +443,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
         // authenticate workflow
         llSectionAuthentication = findViewById(R.id.llSectionAuthentication);
+        swAuthenticateEv2First = findViewById(R.id.swAuthenticationEv2First);
         authM0D = findViewById(R.id.btnAuthM0D);
         authM0C = findViewById(R.id.btnAuthM0C);
         authA0DLeg = findViewById(R.id.btnAuthA0DLeg);
@@ -463,7 +466,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
         // file related actions workflow
         llSectionFileActions = findViewById(R.id.llSectionFileActions);
-        changeFileSettings = findViewById(R.id.btnChangeFileSettings);
+        changeFileSettings0000 = findViewById(R.id.btnChangeFileSettings0000);
+        changeFileSettings1234 = findViewById(R.id.btnChangeFileSettings1234);
 
         // transaction mac file workflow
         fileTransactionMacCreate = findViewById(R.id.btnTransactionMacFileCreate);
@@ -854,6 +858,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         }
                         llSectionAuthentication.setVisibility(View.VISIBLE);
                         llSectionFileActions.setVisibility(View.VISIBLE);
+
+                        if (selectedFileSettings.getCommunicationSettings() == (byte) 0x00) {
+                            // make a switch visible
+                            swAuthenticateEv2First.setVisibility(View.VISIBLE);
+                            swAuthenticateEv2First.setChecked(false);
+                        } else {
+                            swAuthenticateEv2First.setVisibility(View.GONE);
+                            swAuthenticateEv2First.setChecked(false);
+                        }
                         vibrateShort();
                     }
                 });
@@ -1754,11 +1767,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
          * section for file related actions
          */
 
-        changeFileSettings.setOnClickListener(new View.OnClickListener() {
+        changeFileSettings0000.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 clearOutputFields();
-                String logString = "change the fileSettings";
+                String logString = "change the fileSettings (all keys to 0000)";
                 writeToUiAppend(output, logString);
                 // check that a file was selected before
                 if (TextUtils.isEmpty(selectedFileId)) {
@@ -1766,19 +1779,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
                     return;
                 }
-
-                // todo force to authenticate with AuthenticateEv2First in DesfireEv3 class, not Legacy class
-
-
                 byte fileIdByte = Byte.parseByte(selectedFileId);
-                DesfireEv3.CommunicationSettings commSettings = DesfireEv3.CommunicationSettings.MACed; // change the settings to Plain
-                int keyRwOld = selectedFileSettings.getAccessRightsRw();
-                int keyCarOld = selectedFileSettings.getAccessRightsCar();
-                keyCarOld = 2;
-                int keyROld = selectedFileSettings.getAccessRightsR();
-                int keyWOld = selectedFileSettings.getAccessRightsW();
+                DesfireEv3.CommunicationSettings commSettings = selectedFileSettings.getDesfireEv3CommunicationSettings();
+                // this leaves the existing communication mode settings
+                int keyRw = 0;
+                int keyCar = 0;
+                int keyR = 0;
+                int keyW = 0;
                 byte[] responseData = new byte[2];
-                boolean success = desfireEv3.changeFileSettings(fileIdByte, commSettings, keyRwOld, keyCarOld, keyROld, keyWOld);
+                boolean success = desfireEv3.changeFileSettings(fileIdByte, commSettings, keyRw, keyCar, keyR, keyW);
                 responseData = desfireEv3.getErrorCode();
                 if (success) {
                     writeToUiAppend(output, logString + " SUCCESS");
@@ -1794,7 +1803,41 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
-
+        changeFileSettings1234.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "change the fileSettings (all keys to 1234 = default)";
+                writeToUiAppend(output, logString);
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                DesfireEv3.CommunicationSettings commSettings = selectedFileSettings.getDesfireEv3CommunicationSettings();
+                // this leaves the existing communication mode settings
+                int keyRw = 1;
+                int keyCar = 2;
+                int keyR = 3;
+                int keyW = 4;
+                byte[] responseData = new byte[2];
+                boolean success = desfireEv3.changeFileSettings(fileIdByte, commSettings, keyRw, keyCar, keyR, keyW);
+                responseData = desfireEv3.getErrorCode();
+                if (success) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    // NOTE: don't forget to authenticate with CAR key
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(errorCode, "Did you forget to authenticate with the CAR key ?");
+                    }
+                }
+            }
+        });
 
 
 
@@ -7919,18 +7962,24 @@ posMacInpOffset:  75
         Log.d(TAG, "commMode: " + commMode);
         if (commMode == (byte) 0x00) {
             // Plain
-            success = desfireEv3.authenticateAesLegacy(keyNumber, keyForAuthentication);
+            // as some tasks like changeFileSettings require an authenticationEv2First a switch is
+            // visible when a plain file was selected. Here we are checking the state of the switch
+            if ((swAuthenticateEv2First.getVisibility() == View.VISIBLE) && (swAuthenticateEv2First.isChecked())) {
+                // the switch is visible and checked
+                writeToUiAppend(output, methodName + " Using authenticateEv2First instead");
+                success = desfireEv3.authenticateAesEv2First(keyNumber, keyForAuthentication);
+            } else {
+                // the switch is visible but not checked
+                success = desfireEv3.authenticateAesLegacy(keyNumber, keyForAuthentication);
+            }
+        }
+        if (commMode == (byte) 0x01) {
+            // MACed
+            success = desfireEv3.authenticateAesEv2First(keyNumber, keyForAuthentication);
         }
         if (commMode == (byte) 0x03) {
             // Full enciphered
             success = desfireEv3.authenticateAesEv2First(keyNumber, keyForAuthentication);
-        }
-        if (commMode == (byte) 0x01) {
-            // MACed
-            //Log.e(TAG, "The selected file has the Communication Mode MACed that is not supported");
-            //writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The selected file has the Communication Mode MACed that is not supported, sorry", COLOR_RED);
-            success = desfireEv3.authenticateAesEv2First(keyNumber, keyForAuthentication);
-            //return false;
         }
         responseData = desfireEv3.getErrorCode();
         if (success) {
@@ -8322,6 +8371,7 @@ posMacInpOffset:  75
                     output.setText("");
                     errorCode.setText("");
                     errorCode.setBackgroundColor(getResources().getColor(R.color.white));
+                    allLayoutsInvisible();
                 });
                 isoDep.connect();
                 if (!isoDep.isConnected()) {
@@ -8425,6 +8475,8 @@ posMacInpOffset:  75
         llSectionChangeKey.setVisibility(View.GONE);
         llSectionFileActions.setVisibility(View.GONE);
         llSectionFileActions.setVisibility(View.GONE);
+        swAuthenticateEv2First.setVisibility(View.GONE);
+        swAuthenticateEv2First.setChecked(false);
     }
 
     /**

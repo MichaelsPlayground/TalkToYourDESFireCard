@@ -6648,19 +6648,19 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
     }
 
     /**
-     * Change the settings of a file in the selected application. This is primarily used to change the authentication key numbers of the file.
-     * You can change the
+     * Change the settings of a file in the selected application. This is used to change the communication mode and/or the
+     * authentication key numbers of the file.
      * Note: a preceding authentication with the Change Access Key is necessary
-     * @param fileNumber
-     * @param communicationSettings
-     * @param keyRW
-     * @param keyCar
-     * @param keyR
-     * @param keyW
+     * Note: if the file is of communication mode Plain you need to use authenticateEv2First instead of Legacy authentication
+     * @param fileNumber            | in range 00..31
+     * @param communicationSettings | new CommunicationMode Plain, MACed or Full
+     * @param keyRW                 | new key number for Read & Write access rights key
+     * @param keyCar                | new key number for Change Access Rights key
+     * @param keyR                  | new key number for Read access rights key
+     * @param keyW                  | new key number for Write access rights key
      * @return                      | true on success
-     *
+     * Note: check errorCode and errorCodeReason in case of failure
      */
-
 
     public boolean changeFileSettings(byte fileNumber, CommunicationSettings communicationSettings, int keyRW, int keyCar, int keyR, int keyW) {
         String logData = "";
