@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.security.Provider;
 import java.security.Security;
 import java.util.Arrays;
+import java.util.List;
 
 public class PersonalizeActivity extends AppCompatActivity implements NfcAdapter.ReaderCallback {
 
@@ -507,6 +508,9 @@ Keystore: KeyStore.TimaKeyStore available in provider: TimaKeyStore
         byte[] appKey = Constants.APPLICATION_KEY_MASTER_AES.clone();
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
             boolean sucStore = constantsKeystore.storeKey(Constants.APPLICATION_KEY_R_NUMBER, appKey);
+            sucStore = constantsKeystore.storeKey(Constants.APPLICATION_KEY_W_NUMBER, Constants.APPLICATION_KEY_W_AES.clone());
+            sucStore = constantsKeystore.storeKey(Constants.APPLICATION_KEY_CAR_NUMBER, Constants.APPLICATION_KEY_CAR_AES.clone());
+            sucStore = constantsKeystore.storeKey(Constants.APPLICATION_KEY_RW_NUMBER, Constants.APPLICATION_KEY_RW_AES.clone());
             Log.d(TAG, "sucStore: " + sucStore);
         } else {
             Log.d(TAG, "Android SDK version is not >= M / 23, no storage");
@@ -516,6 +520,8 @@ Keystore: KeyStore.TimaKeyStore available in provider: TimaKeyStore
         byte[] appKeyRetrieved = constantsKeystore.readKey(Constants.APPLICATION_KEY_R_NUMBER);
         Log.d(TAG, Utils.printData("appKey S", appKey));
         Log.d(TAG, Utils.printData("appKey R", appKeyRetrieved));
+        List<String> storedAliases = constantsKeystore.getKeystoreAliases();
+        Log.d(TAG, "stored aliases: " + Arrays.toString(storedAliases.toArray()));
 
         vibrateShort();
     }

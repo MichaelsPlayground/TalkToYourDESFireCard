@@ -15,6 +15,9 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -22,7 +25,11 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.cert.CertificateException;
 import java.security.spec.AlgorithmParameterSpec;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Enumeration;
+import java.util.List;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -142,6 +149,9 @@ public class ConstantsKeystore {
                 while (aliases.hasMoreElements())
                     Log.d(TAG, "Value is: " + aliases.nextElement());
                 Log.d(TAG, "Enumeration end");
+                // convert Enumeration to List
+                List<String> list = Collections.list(aliases);
+
 
                 if (keyStore.containsAlias(alias)) {
                     Log.d(TAG, "alias is present in keyStore: " + alias);
@@ -172,6 +182,40 @@ public class ConstantsKeystore {
         }
     }
 
+    public List<String> getKeystoreAliases() {
+        Log.d(TAG, "getKeystoreAliases");
+        if (!isFilePresent(keystoreFileName)) {
+            Log.d(TAG, "No keystoreFile present, aborted: " + keystoreFileName);
+            return null;
+        } else {
+            try {
+                KeyStore keyStore = KeyStore.getInstance(keystoreName);
+                FileInputStream fileInputStream = context.openFileInput(keystoreFileName);
+                keyStore.load(fileInputStream, keystorePassword);
+
+                Enumeration<String> aliases = keyStore.aliases();
+                // print the enumeration
+                Log.d(TAG, "Enumeration start");
+                List<String> list = new ArrayList<>();
+                while (aliases.hasMoreElements()) {
+                    String ne = aliases.nextElement();
+                    Log.d(TAG, "Value is: " + ne);
+                    list.add(ne);
+                }
+
+                Log.d(TAG, "Enumeration end");
+                // convert Enumeration to List
+                Log.d(TAG, "list has entries: " + list.size());
+                return list;
+            } catch (IOException | GeneralSecurityException e) {
+                Log.e(TAG, "Exception on keystore usage, aborted");
+                Log.e(TAG, e.getMessage());
+                e.printStackTrace();
+                return null;
+            }
+        }
+    }
+
     private boolean createKeyStore() {
         KeyStore ks = null;
         try {
@@ -191,5 +235,20 @@ public class ConstantsKeystore {
         return file.exists();
     }
 
+
+
+    // necessary to convert between byte[] <--> char[]
+    // https://stackoverflow.com/a/43996428/8166854
+    public byte[] charsToBytes(char[] chars)
+    {
+        final ByteBuffer byteBuffer = StandardCharsets.UTF_8.encode(CharBuffer.wrap(chars));
+        return Arrays.copyOf(byteBuffer.array(), byteBuffer.limit());
+    }
+
+    public char[] bytesToChars(byte[] bytes)
+    {
+        final CharBuffer charBuffer = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(bytes));
+        return Arrays.copyOf(charBuffer.array(), charBuffer.limit());
+    }
 
 }
