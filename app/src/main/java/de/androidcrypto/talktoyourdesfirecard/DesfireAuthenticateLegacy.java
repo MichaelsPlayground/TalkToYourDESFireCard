@@ -297,6 +297,399 @@ public class DesfireAuthenticateLegacy {
     }
 
     /**
+     * section key handling (e.g. change keys) that needs encryption
+     */
+
+    public boolean changeDesKey(byte authenticationKeyNumber, byte changeKeyNumber,
+                                     byte[] changeKeyNew, byte[] changeKeyOld, String changeKeyName) {
+        final String methodName = "changeDesKey";
+        System.out.println("*** 1");
+        log(methodName, methodName);
+        // sanity checks
+        if (authenticationKeyNumber < 0) {
+            Log.e(TAG, methodName + " authenticationKeyNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (authenticationKeyNumber > 14) {
+            Log.e(TAG, methodName + " authenticationKeyNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (changeKeyNumber < 0) {
+            Log.e(TAG, methodName + " changeKeyNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (changeKeyNumber > 14) {
+            Log.e(TAG, methodName + " changeKeyNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((changeKeyNew == null) || (changeKeyNew.length != 8)) {
+            Log.e(TAG, methodName + " changeKeyNew is NULL or of wrong length, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((changeKeyOld == null) || (changeKeyOld.length != 8)) {
+            Log.e(TAG, methodName + " changeKeyOld is NULL or of wrong length, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (TextUtils.isEmpty(changeKeyName)) {
+            Log.e(TAG, methodName + " changeKeyName is empty, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            log(methodName,methodName + " lost connection to the card, aborted");
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((SessionKey == null) || (SessionKey.length != 8)) {
+            log(methodName,methodName + " SESSION_KEY_DES is null or not of length 8 (missing auth ?), aborted");
+            Log.e(TAG, methodName + " SESSION_KEY_DES is null or not of length 8 (missing auth ?), aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+            return false;
+        }
+        System.out.println("*** 2");
+        // important: don't use the original keys for changes as the PICC is using
+        // only 56 bit of the 64 bit long (8 bytes) DES key, the remaining 8 bits are used for the
+        // key version. The following method call will set the keyVersion to 0 so the 'original' may get
+        // altered.
+        log(methodName, printData("new key before setKeyVersion", changeKeyNew));
+        byte KEY_VERSION = 0;
+        setKeyVersion(changeKeyOld, 0, changeKeyOld.length, KEY_VERSION);
+        setKeyVersion(changeKeyNew, 0, changeKeyNew.length, KEY_VERSION);
+        log(methodName,printData("new key after  setKeyVersion", changeKeyNew));
+
+        byte[] plaintext = new byte[24]; // this is the final array
+        int nklen = 16;
+        System.arraycopy(changeKeyNew, 0, plaintext, 0, changeKeyNew.length);
+        log(methodName,printData("plaintext", plaintext));
+        // 8-byte DES keys accepted: internally have to be handled w/ 16 bytes
+        System.arraycopy(changeKeyNew, 0, plaintext, 8, changeKeyNew.length);
+        changeKeyNew = Arrays.copyOfRange(plaintext, 0, 16);
+        System.out.println("*** 3");
+        log(methodName,printData("newKey TDES", changeKeyNew));
+
+        // xor the new key with the old key if a key is changed different to authentication key
+        if ((changeKeyNumber & 0x0F) != keyNumberUsedForAuthentication) {
+            for (int i = 0; i < changeKeyNew.length; i++) {
+                plaintext[i] ^= changeKeyOld[i % changeKeyOld.length];
+            }
+        }
+        log(methodName,printData("plaintext", plaintext));
+        System.out.println("*** 4");
+        byte[] crc;
+        int addDesKeyVersionByte = (byte) 0x00;
+
+        crc = CRC16.get(plaintext, 0, nklen + addDesKeyVersionByte);
+        System.arraycopy(crc, 0, plaintext, nklen + addDesKeyVersionByte, 2);
+
+        // this crc16 value is necessary only when the keyNumber used for authentication differs from key to change
+        if ((changeKeyNumber & 0x0F) != keyNumberUsedForAuthentication) {
+            crc = CRC16.get(changeKeyNew);
+            System.arraycopy(crc, 0, plaintext, nklen + addDesKeyVersionByte + 2, 2);
+        }
+        log(methodName, printData("plaintext before encryption", plaintext));
+        byte[] ciphertext = null;
+        System.out.println(printData("SESSION_KEY_DES", SessionKey));
+        ciphertext = decrypt(SessionKey, plaintext);
+        Log.d(methodName, printData("ciphertext after encryption", ciphertext));
+        System.out.println("*** 5");
+        byte[] apdu = new byte[5 + 1 + ciphertext.length + 1];
+        apdu[0] = (byte) 0x90;
+        apdu[1] = CHANGE_KEY_COMMAND;
+        apdu[4] = (byte) (1 + plaintext.length);
+        apdu[5] = changeKeyNumber;
+        System.arraycopy(ciphertext, 0, apdu, 6, ciphertext.length);
+        Log.d(methodName, printData("apdu", apdu));
+        System.out.println("*** 6");
+        byte[] changeKeyDesResponse = new byte[0];
+        try {
+            //response = isoDep.transceive(wrapMessage(selectApplicationCommand, applicationIdentifier));
+            changeKeyDesResponse = isoDep.transceive(apdu);
+            log(methodName, printData("changeKeyDesResponse", changeKeyDesResponse));
+            System.arraycopy(returnStatusBytes(changeKeyDesResponse), 0, errorCode, 0, 2);
+            //System.arraycopy(selectApplicationResponse, 0, response, 0, selectApplicationResponse.length);
+            System.out.println("*** 7 " + printData("changeKeyDesResponse", changeKeyDesResponse));
+            if (checkResponse(changeKeyDesResponse)) {
+                return true;
+            } else {
+                return false;
+            }
+        } catch (Exception e) {
+            //throw new RuntimeException(e);
+            log(methodName, "changeKeyDes transceive failed: " + e.getMessage());
+            byte[] responseManual = new byte[]{(byte) 0x91, (byte) 0xFF};
+            System.arraycopy(responseManual, 0, e, 0, 2);
+            return false;
+        }
+    }
+
+    // status: NOT WORKING
+    private boolean changeDesKeyToAes(byte authenticationKeyNumber, byte changeKeyNumber,
+                                byte[] changeKeyNew, byte[] changeKeyOld, String changeKeyName) {
+        final String methodName = "changeDesKeyToAes";
+        System.out.println("*** 1");
+        log(methodName, methodName);
+        // sanity checks
+        if (authenticationKeyNumber < 0) {
+            Log.e(TAG, methodName + " authenticationKeyNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (authenticationKeyNumber > 14) {
+            Log.e(TAG, methodName + " authenticationKeyNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (changeKeyNumber < 0) {
+            Log.e(TAG, methodName + " changeKeyNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (changeKeyNumber > 14) {
+            Log.e(TAG, methodName + " changeKeyNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((changeKeyNew == null) || (changeKeyNew.length != 16)) {
+            Log.e(TAG, methodName + " changeKeyNew is NULL or of wrong length, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((changeKeyOld == null) || (changeKeyOld.length != 8)) {
+            Log.e(TAG, methodName + " changeKeyOld is NULL or of wrong length, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (TextUtils.isEmpty(changeKeyName)) {
+            Log.e(TAG, methodName + " changeKeyName is empty, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            log(methodName,methodName + " lost connection to the card, aborted");
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((SessionKey == null) || (SessionKey.length != 8)) {
+            log(methodName,methodName + " SESSION_KEY_DES is null or not of length 8 (missing auth ?), aborted");
+            Log.e(TAG, methodName + " SESSION_KEY_DES is null or not of length 8 (missing auth ?), aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+            return false;
+        }
+        System.out.println("*** 2");
+        // important: don't use the original keys for changes as the PICC is using
+        // only 56 bit of the 64 bit long (8 bytes) DES key, the remaining 8 bits are used for the
+        // key version. The following method call will set the keyVersion to 0 so the 'original' may get
+        // altered.
+        log(methodName, printData("new key before setKeyVersion", changeKeyNew));
+        byte KEY_VERSION = 0;
+        setKeyVersion(changeKeyOld, 0, changeKeyOld.length, KEY_VERSION);
+        setKeyVersion(changeKeyNew, 0, changeKeyNew.length, KEY_VERSION);
+        log(methodName,printData("new key after  setKeyVersion", changeKeyNew));
+
+        byte[] plaintext = new byte[24]; // this is the final array
+        int nklen = 16;
+        System.arraycopy(changeKeyNew, 0, plaintext, 0, changeKeyNew.length);
+        log(methodName,printData("plaintext", plaintext));
+        // 8-byte DES keys accepted: internally have to be handled w/ 16 bytes
+        System.arraycopy(changeKeyNew, 0, plaintext, 8, changeKeyNew.length);
+        changeKeyNew = Arrays.copyOfRange(plaintext, 0, 16);
+        System.out.println("*** 3");
+        log(methodName,printData("newKey TDES", changeKeyNew));
+
+        // xor the new key with the old key if a key is changed different to authentication key
+        if ((changeKeyNumber & 0x0F) != keyNumberUsedForAuthentication) {
+            for (int i = 0; i < changeKeyNew.length; i++) {
+                plaintext[i] ^= changeKeyOld[i % changeKeyOld.length];
+            }
+        }
+        log(methodName,printData("plaintext", plaintext));
+        System.out.println("*** 4");
+        byte[] crc;
+        int addDesKeyVersionByte = (byte) 0x00;
+
+        crc = CRC16.get(plaintext, 0, nklen + addDesKeyVersionByte);
+        System.arraycopy(crc, 0, plaintext, nklen + addDesKeyVersionByte, 2);
+
+        // this crc16 value is necessary only when the keyNumber used for authentication differs from key to change
+        if ((changeKeyNumber & 0x0F) != keyNumberUsedForAuthentication) {
+            crc = CRC16.get(changeKeyNew);
+            System.arraycopy(crc, 0, plaintext, nklen + addDesKeyVersionByte + 2, 2);
+        }
+        log(methodName, printData("plaintext before encryption", plaintext));
+        byte[] ciphertext = null;
+        System.out.println(printData("SESSION_KEY_DES", SessionKey));
+        ciphertext = decrypt(SessionKey, plaintext);
+        Log.d(methodName, printData("ciphertext after encryption", ciphertext));
+        System.out.println("*** 5");
+        byte[] apdu = new byte[5 + 1 + ciphertext.length + 1];
+        apdu[0] = (byte) 0x90;
+        apdu[1] = CHANGE_KEY_COMMAND;
+        apdu[4] = (byte) (1 + plaintext.length);
+        apdu[5] = changeKeyNumber;
+        System.arraycopy(ciphertext, 0, apdu, 6, ciphertext.length);
+        Log.d(methodName, printData("apdu", apdu));
+        System.out.println("*** 6");
+        byte[] changeKeyDesResponse = new byte[0];
+        try {
+            //response = isoDep.transceive(wrapMessage(selectApplicationCommand, applicationIdentifier));
+            changeKeyDesResponse = isoDep.transceive(apdu);
+            log(methodName, printData("changeKeyDesResponse", changeKeyDesResponse));
+            System.arraycopy(returnStatusBytes(changeKeyDesResponse), 0, errorCode, 0, 2);
+            //System.arraycopy(selectApplicationResponse, 0, response, 0, selectApplicationResponse.length);
+            System.out.println("*** 7 " + printData("changeKeyDesResponse", changeKeyDesResponse));
+            if (checkResponse(changeKeyDesResponse)) {
+                return true;
+            } else {
+                return false;
+            }
+        } catch (Exception e) {
+            //throw new RuntimeException(e);
+            log(methodName, "changeKeyDes transceive failed: " + e.getMessage());
+            byte[] responseManual = new byte[]{(byte) 0x91, (byte) 0xFF};
+            System.arraycopy(responseManual, 0, e, 0, 2);
+            return false;
+        }
+    }
+
+    // status: NOT WORKING
+    private boolean changeAesKeyToDes(byte authenticationKeyNumber, byte changeKeyNumber,
+                                     byte[] changeKeyNew, byte[] changeKeyOld, String changeKeyName) {
+        final String methodName = "changeAesKeyToDes";
+        System.out.println("*** 1");
+        log(methodName, methodName);
+        // sanity checks
+        if (authenticationKeyNumber < 0) {
+            Log.e(TAG, methodName + " authenticationKeyNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (authenticationKeyNumber > 14) {
+            Log.e(TAG, methodName + " authenticationKeyNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (changeKeyNumber < 0) {
+            Log.e(TAG, methodName + " changeKeyNumber is < 0, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (changeKeyNumber > 14) {
+            Log.e(TAG, methodName + " changeKeyNumber is > 14, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((changeKeyNew == null) || (changeKeyNew.length != 8)) {
+            Log.e(TAG, methodName + " changeKeyNew is NULL or of wrong length, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((changeKeyOld == null) || (changeKeyOld.length != 8)) {
+            Log.e(TAG, methodName + " changeKeyOld is NULL or of wrong length, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if (TextUtils.isEmpty(changeKeyName)) {
+            Log.e(TAG, methodName + " changeKeyName is empty, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((isoDep == null) || (!isoDep.isConnected())) {
+            log(methodName,methodName + " lost connection to the card, aborted");
+            Log.e(TAG, methodName + " lost connection to the card, aborted");
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return false;
+        }
+        if ((SessionKey == null) || (SessionKey.length != 8)) {
+            log(methodName,methodName + " SESSION_KEY_DES is null or not of length 8 (missing auth ?), aborted");
+            Log.e(TAG, methodName + " SESSION_KEY_DES is null or not of length 8 (missing auth ?), aborted");
+            System.arraycopy(RESPONSE_FAILURE_MISSING_AUTHENTICATION, 0, errorCode, 0, 2);
+            return false;
+        }
+        System.out.println("*** 2");
+        // important: don't use the original keys for changes as the PICC is using
+        // only 56 bit of the 64 bit long (8 bytes) DES key, the remaining 8 bits are used for the
+        // key version. The following method call will set the keyVersion to 0 so the 'original' may get
+        // altered.
+        log(methodName, printData("new key before setKeyVersion", changeKeyNew));
+        byte KEY_VERSION = 0;
+        setKeyVersion(changeKeyOld, 0, changeKeyOld.length, KEY_VERSION);
+        setKeyVersion(changeKeyNew, 0, changeKeyNew.length, KEY_VERSION);
+        log(methodName,printData("new key after  setKeyVersion", changeKeyNew));
+
+        byte[] plaintext = new byte[24]; // this is the final array
+        int nklen = 16;
+        System.arraycopy(changeKeyNew, 0, plaintext, 0, changeKeyNew.length);
+        log(methodName,printData("plaintext", plaintext));
+        // 8-byte DES keys accepted: internally have to be handled w/ 16 bytes
+        System.arraycopy(changeKeyNew, 0, plaintext, 8, changeKeyNew.length);
+        changeKeyNew = Arrays.copyOfRange(plaintext, 0, 16);
+        System.out.println("*** 3");
+        log(methodName,printData("newKey TDES", changeKeyNew));
+
+        // xor the new key with the old key if a key is changed different to authentication key
+        if ((changeKeyNumber & 0x0F) != keyNumberUsedForAuthentication) {
+            for (int i = 0; i < changeKeyNew.length; i++) {
+                plaintext[i] ^= changeKeyOld[i % changeKeyOld.length];
+            }
+        }
+        log(methodName,printData("plaintext", plaintext));
+        System.out.println("*** 4");
+        byte[] crc;
+        int addDesKeyVersionByte = (byte) 0x00;
+
+        crc = CRC16.get(plaintext, 0, nklen + addDesKeyVersionByte);
+        System.arraycopy(crc, 0, plaintext, nklen + addDesKeyVersionByte, 2);
+
+        // this crc16 value is necessary only when the keyNumber used for authentication differs from key to change
+        if ((changeKeyNumber & 0x0F) != keyNumberUsedForAuthentication) {
+            crc = CRC16.get(changeKeyNew);
+            System.arraycopy(crc, 0, plaintext, nklen + addDesKeyVersionByte + 2, 2);
+        }
+        log(methodName, printData("plaintext before encryption", plaintext));
+        byte[] ciphertext = null;
+        System.out.println(printData("SESSION_KEY_DES", SessionKey));
+        ciphertext = decrypt(SessionKey, plaintext);
+        Log.d(methodName, printData("ciphertext after encryption", ciphertext));
+        System.out.println("*** 5");
+        byte[] apdu = new byte[5 + 1 + ciphertext.length + 1];
+        apdu[0] = (byte) 0x90;
+        apdu[1] = CHANGE_KEY_COMMAND;
+        apdu[4] = (byte) (1 + plaintext.length);
+        apdu[5] = changeKeyNumber;
+        System.arraycopy(ciphertext, 0, apdu, 6, ciphertext.length);
+        Log.d(methodName, printData("apdu", apdu));
+        System.out.println("*** 6");
+        byte[] changeKeyDesResponse = new byte[0];
+        try {
+            //response = isoDep.transceive(wrapMessage(selectApplicationCommand, applicationIdentifier));
+            changeKeyDesResponse = isoDep.transceive(apdu);
+            log(methodName, printData("changeKeyDesResponse", changeKeyDesResponse));
+            System.arraycopy(returnStatusBytes(changeKeyDesResponse), 0, errorCode, 0, 2);
+            //System.arraycopy(selectApplicationResponse, 0, response, 0, selectApplicationResponse.length);
+            System.out.println("*** 7 " + printData("changeKeyDesResponse", changeKeyDesResponse));
+            if (checkResponse(changeKeyDesResponse)) {
+                return true;
+            } else {
+                return false;
+            }
+        } catch (Exception e) {
+            //throw new RuntimeException(e);
+            log(methodName, "changeKeyDes transceive failed: " + e.getMessage());
+            byte[] responseManual = new byte[]{(byte) 0x91, (byte) 0xFF};
+            System.arraycopy(responseManual, 0, e, 0, 2);
+            return false;
+        }
+    }
+
+    /**
      * section for general handling
      */
 

@@ -6,21 +6,6 @@
     <!-- https://fonts.google.com/icons?selected=Material+Icons -->
 
     <item
-        android:id="@+id/action_prepare_sdm"
-        android:title="prepare SDM/SUN"
-        app:showAsAction="never"/>
-
-    <item
-        android:id="@+id/action_activate_sdm"
-        android:title="activate SDM/SUN"
-        app:showAsAction="never"/>
-
-    <item
-        android:id="@+id/action_read_ndef_content"
-        android:title="read NDEF content"
-        app:showAsAction="never"/>
-
-    <item
         android:id="@+id/action_format_picc"
         android:title="format PICC"
         app:showAsAction="never"/>
@@ -31,8 +16,8 @@
         app:showAsAction="never"/>
 
     <item
-        android:id="@+id/action_main_activity_ev2"
-        android:title="old Main EV2 activity"
+        android:id="@+id/action_personalize"
+        android:title="personalize PICC"
         app:showAsAction="never"/>
 
     <item

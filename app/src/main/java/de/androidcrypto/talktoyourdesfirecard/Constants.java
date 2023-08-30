@@ -49,6 +49,8 @@ public class Constants {
 
     public static final byte MASTER_APPLICATION_KEY_NUMBER = (byte) 0x00;
     public static final byte[] MASTER_APPLICATION_KEY_DES_DEFAULT = Utils.hexStringToByteArray("0000000000000000");
+    public static final byte[] MASTER_APPLICATION_KEY_DES = Utils.hexStringToByteArray("D000000000000000");
+    public static final byte[] MASTER_APPLICATION_KEY_AES = Utils.hexStringToByteArray("99000000000000000000000000000000");
     public static final byte[] APPLICATION_KEY_MASTER_AES_DEFAULT = Utils.hexStringToByteArray("00000000000000000000000000000000");
     public static final byte[] APPLICATION_KEY_MASTER_AES = Utils.hexStringToByteArray("A0000000000000000000000000000000");
     public static final byte APPLICATION_KEY_MASTER_NUMBER = (byte) 0x00;

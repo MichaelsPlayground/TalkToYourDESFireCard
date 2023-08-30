@@ -38,5 +38,20 @@
     \n\nThe PICC will be formatted immediately after tapping without any further confirmation, the PICC is authenticated with DEFAULT DES Master Application KEY\n\n
     </string>
 
+    <!-- strings for personalizing the PICC -->
+    <string name="header_personalize">Personalize the PICC</string>
+    <string name="description_personalize">Changes the application keys to individual ones including the Master Application key</string>
+    <string name="warning_personalize">WARNING: The app will IMMEDIATELY run all personalizing steps when attached without any further confirmation !</string>
+    <string name="more_information_personalize">More Information about the application and file creations:\n\n
+    For changing the application keys:\n
+    1) select the application with applicationID A1A2A3\n
+    2) authenticate with Application Master key = key number 00\n
+    3) change the application keys Read &amp; Write Access, Change Access, Read Access and Write Access rights (key numbers 01..04)\n
+    4) change the Application Master key (key number 00)\n\n
+    For changing the Master Application key:\n
+    5) select the Master Application with applicationId 000000\n
+    6) change the Master Application key value and type (from DES to AES)\n
+    </string>
+
 
 </resources>

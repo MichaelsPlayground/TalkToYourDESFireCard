@@ -2481,6 +2481,16 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        MenuItem mPersonalize = menu.findItem(R.id.action_personalize);
+        mPersonalize.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                Intent intent = new Intent(MainActivity.this, PersonalizeActivity.class);
+                startActivity(intent);
+                return false;
+            }
+        });
+
         MenuItem mApplications = menu.findItem(R.id.action_applications);
         mApplications.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override

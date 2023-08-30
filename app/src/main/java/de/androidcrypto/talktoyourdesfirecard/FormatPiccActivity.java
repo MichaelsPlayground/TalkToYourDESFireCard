@@ -100,7 +100,7 @@ public class FormatPiccActivity extends AppCompatActivity implements NfcAdapter.
          * 1) select the Master Application
          * 2) authenticate with the DEFAULT DES Master Application Key
          * 3) format the PICC
-         * Note: all 3 step are encapsulated within the DesfireD40Light class.
+         * Note: all 3 step are encapsulated within the DesfireEv3 class
          */
 
         boolean success;
