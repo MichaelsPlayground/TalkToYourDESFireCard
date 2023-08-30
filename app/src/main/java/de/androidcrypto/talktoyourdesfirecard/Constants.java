@@ -10,6 +10,12 @@ import static de.androidcrypto.talktoyourdesfirecard.Utils.hexStringToByteArray;
 public class Constants {
 
     /**
+     * keystore
+     */
+
+    public static char[] KEYSTORE_PASSWORD = "changeit".toCharArray();
+
+    /**
      * applications
      */
 

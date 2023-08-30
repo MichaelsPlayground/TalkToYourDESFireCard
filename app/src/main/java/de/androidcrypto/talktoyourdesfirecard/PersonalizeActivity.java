@@ -102,6 +102,14 @@ public class PersonalizeActivity extends AppCompatActivity implements NfcAdapter
                 showDialog(PersonalizeActivity.this, getResources().getString(R.string.more_information_personalize));
             }
         });
+
+        Button storageTest = findViewById(R.id.buttonStorageTest);
+        storageTest.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                runKeystores();
+            }
+        });
     }
 
     private void runChangeAppKeysToChanged() {
@@ -494,6 +502,20 @@ Keystore: KeyStore.TimaKeyStore available in provider: TimaKeyStore
                 }
             }
         }
+
+        ConstantsKeystore constantsKeystore = new ConstantsKeystore(getApplicationContext(), Constants.KEYSTORE_PASSWORD);
+        byte[] appKey = Constants.APPLICATION_KEY_MASTER_AES.clone();
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            boolean sucStore = constantsKeystore.storeKey(Constants.APPLICATION_KEY_R_NUMBER, appKey);
+            Log.d(TAG, "sucStore: " + sucStore);
+        } else {
+            Log.d(TAG, "Android SDK version is not >= M / 23, no storage");
+        }
+
+        // read the key
+        byte[] appKeyRetrieved = constantsKeystore.readKey(Constants.APPLICATION_KEY_R_NUMBER);
+        Log.d(TAG, Utils.printData("appKey S", appKey));
+        Log.d(TAG, Utils.printData("appKey R", appKeyRetrieved));
 
         vibrateShort();
     }
