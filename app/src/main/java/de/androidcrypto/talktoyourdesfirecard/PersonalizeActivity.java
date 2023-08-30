@@ -32,6 +32,8 @@ import android.widget.Toast;
 import com.google.android.material.textfield.TextInputLayout;
 
 import java.io.IOException;
+import java.security.Provider;
+import java.security.Security;
 import java.util.Arrays;
 
 public class PersonalizeActivity extends AppCompatActivity implements NfcAdapter.ReaderCallback {
@@ -102,7 +104,7 @@ public class PersonalizeActivity extends AppCompatActivity implements NfcAdapter
         });
     }
 
-    private void rbChangeAppKeysToChanged() {
+    private void runChangeAppKeysToChanged() {
         clearOutputFields();
         String logString = "runChangeAppKeysToChanged";
         writeToUiAppend(output, logString);
@@ -163,7 +165,7 @@ public class PersonalizeActivity extends AppCompatActivity implements NfcAdapter
         vibrateShort();
     }
 
-    private void rbChangeAppKeysToDefault() {
+    private void runChangeAppKeysToDefault() {
         clearOutputFields();
         String logString = "runChangeAppKeysToDefault";
         writeToUiAppend(output, logString);
@@ -247,7 +249,7 @@ public class PersonalizeActivity extends AppCompatActivity implements NfcAdapter
         }
     }
 
-    private void rbChangeMasterAppKeyToChanged() {
+    private void runChangeMasterAppKeyToChanged() {
         clearOutputFields();
         String logString = "runChangeMasterAppKeyToChanged";
         writeToUiAppend(output, logString);
@@ -310,7 +312,7 @@ public class PersonalizeActivity extends AppCompatActivity implements NfcAdapter
         vibrateShort();
     }
 
-    private void rbChangeMasterAppKeyToDefault() {
+    private void runChangeMasterAppKeyToDefault() {
         clearOutputFields();
         String logString = "runChangeMasterAppKeyToDefault";
         writeToUiAppend(output, logString);
@@ -467,41 +469,32 @@ public class PersonalizeActivity extends AppCompatActivity implements NfcAdapter
         return Arrays.copyOfRange(data, (data.length - 2), data.length);
     }
 
-    private void runPersonalize() {
+    private void runKeystores() {
         clearOutputFields();
-        String logString = "runPersonalize";
+        String logString = "runKeystores";
         writeToUiAppend(output, logString);
         /**
-         * the method will do these 3 steps to format the PICC
-         * 1) select the Master Application
-         * 2) authenticate with the DEFAULT DES Master Application Key
-         * 3) format the PICC
-         * Note: all 3 step are encapsulated within the DesfireD40Light class.
+
+        /*
+available KeyStores in Samsung A5 / Android 9
+Keystore: KeyStore.BouncyCastle available in provider: BC
+Keystore: KeyStore.PKCS12 available in provider: BC
+Keystore: KeyStore.BKS available in provider: BC
+Keystore: KeyStore.AndroidCAStore available in provider: HarmonyJSSE
+Keystore: KeyStore.AndroidKeyStore available in provider: AndroidKeyStore
+Keystore: KeyStore.KnoxAndroidKeyStore available in provider: KnoxAndroidKeyStore
+Keystore: KeyStore.TimaKeyStore available in provider: TimaKeyStore
          */
 
-        boolean success;
-        byte[] errorCode;
-        String errorCodeReason = "";
-        writeToUiAppend(output, "");
-        String stepString = "1 select the Master Application";
-        writeToUiAppend(output, stepString);
-        stepString = "2 authenticate with the DEFAULT DES Master Application Key";
-        writeToUiAppend(output, stepString);
-        stepString = "3 format the PICC";
-        writeToUiAppend(output, stepString);
-
-        success = desfireEv3.desfireD40.formatPicc();
-        errorCode = desfireEv3.desfireD40.getErrorCode();
-        if (success) {
-            writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
-        } else {
-            if (Arrays.equals(errorCode, DesfireEv3.RESPONSE_DUPLICATE_ERROR)) {
-                writeToUiAppendBorderColor(stepString + " FAILURE because application already exits", COLOR_GREEN);
-            } else {
-                writeToUiAppendBorderColor(stepString + " FAILURE with ErrorCode " + EV3.getErrorCode(errorCode) + " reason: " + errorCodeReason, COLOR_RED);
-                return;
+        // Iterate in security providers
+        for(Provider provider: Security.getProviders()) {
+            for(Object item: provider.keySet()) {
+                if(item.toString().startsWith("KeyStore.")) { // grep KeyStores
+                    Log.d(TAG, "Keystore: " + item.toString() + " available in provider: " + provider.getName());
+                }
             }
         }
+
         vibrateShort();
     }
 
@@ -551,19 +544,20 @@ public class PersonalizeActivity extends AppCompatActivity implements NfcAdapter
 
                 if (rbDoNothing.isChecked()) {
                     writeToUiAppend("nothing was changed");
+                    runKeystores();
                     return;
                 };
                 if (rbChangeAppKeysToChanged.isChecked()) {
-                    rbChangeAppKeysToChanged();
+                    runChangeAppKeysToChanged();
                 }
                 if (rbChangeAppKeysToDefault.isChecked()) {
-                    rbChangeAppKeysToDefault();
+                    runChangeAppKeysToDefault();
                 }
                 if (rbChangeMasterAppKeyToChanged.isChecked()) {
-                    rbChangeMasterAppKeyToChanged();
+                    runChangeMasterAppKeyToChanged();
                 }
                 if (rbChangeMasterAppKeyToDefault.isChecked()) {
-                    rbChangeMasterAppKeyToDefault();
+                    runChangeMasterAppKeyToDefault();
                 }
 
             }
