@@ -113,6 +113,13 @@ public class Utils {
         //return String.format("0x%02X", input);
     }
 
+    public static char intToUpperNibble(int input) {
+        final char[] hexArray = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+        //int v = input & 0xFF; // Cast byte to int, treating as unsigned value
+        int v = input;
+        return hexArray[v >>> 4]; // Select hex character from upper nibble
+    }
+
     public static char byteToUpperNibble(Byte input) {
         final char[] hexArray = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
         int v = input & 0xFF; // Cast byte to int, treating as unsigned value

@@ -53,5 +53,11 @@
     6) change the Master Application key value and type (from DES to AES)\n
     </string>
 
+    <!-- strings for creating an application -->
+    <string name="header_create_application">Create an application</string>
+    <string name="description_create_application">Creates an application on the PICC with AES keys</string>
+    <string name="warning_create_application">This will create an application on the PICC without any further conformation</string>
+    <string name="more_information_create_application">more\n</string>
+
 
 </resources>

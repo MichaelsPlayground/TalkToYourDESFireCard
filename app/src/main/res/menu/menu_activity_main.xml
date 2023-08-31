@@ -21,13 +21,13 @@
         app:showAsAction="never"/>
 
     <item
-        android:id="@+id/action_applications"
-        android:title="Applications"
+        android:id="@+id/action_create_application"
+        android:title="create application"
         app:showAsAction="never"/>
 
     <item
-        android:id="@+id/action_standard_file"
-        android:title="standard file"
+        android:id="@+id/action_create_file"
+        android:title="create file"
         app:showAsAction="never"/>
 
     <item

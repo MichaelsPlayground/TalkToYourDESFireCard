@@ -358,6 +358,12 @@ public class DesfireEv3 {
         // sanity checks
         if (!checkApplicationIdentifier(applicationIdentifier))
             return false; // logFile and errorCode are updated
+        if (Arrays.equals(applicationIdentifier, MASTER_APPLICATION_IDENTIFIER)) {
+            log(methodName, "application identifier is 000000, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "application identifier is 000000";
+            return false;
+        }
         if ((numberOfApplicationKeys < 1) || (numberOfApplicationKeys > 14)) {
             log(methodName, "numberOfApplicationKeys is not in range 1..14, aborted");
             errorCode = RESPONSE_PARAMETER_ERROR.clone();
@@ -375,6 +381,81 @@ public class DesfireEv3 {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         baos.write(applicationIdentifier, 0, applicationIdentifier.length);
         baos.write(APPLICATION_MASTER_KEY_SETTINGS); // application master key settings, fixed value
+        baos.write(keyNumbers);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+        try {
+            apdu = wrapMessage(CREATE_APPLICATION_COMMAND, commandParameter);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            log(methodName, "SUCCESS");
+            return true;
+        } else {
+            log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            return false;
+        }
+    }
+
+    /**
+     * section for application handling
+     */
+
+    /**
+     * create a new application using 5 AES keys
+     * This uses a given Application Master Key Settings value (default could be 0x0F)
+     * WARNING: be very careful on this value as it might freeze the application
+     * This method does not run on the Master Application Identifier
+     * @param applicationIdentifier   | length 3 but NOT '000000'
+     * @param numberOfApplicationKeys | range 1..14
+     * @param applicationMasterKeySettings | e.g. 0F
+     * @return true on success
+     * Note: check errorCode and errorCodeReason in case of failure
+     */
+
+    public boolean createApplicationAes(byte[] applicationIdentifier, int numberOfApplicationKeys, byte applicationMasterKeySettings) {
+        String logData = "";
+        final String methodName = "createApplicationAesIso";
+        log(methodName, "started", true);
+        log(methodName, printData("applicationIdentifier", applicationIdentifier));
+        //log(methodName, "communicationSettings: " + communicationSettings.toString());
+        log(methodName, "numberOfApplicationKeys: " + numberOfApplicationKeys);
+        // sanity checks
+        if (!checkApplicationIdentifier(applicationIdentifier))
+            return false; // logFile and errorCode are updated
+        if (Arrays.equals(applicationIdentifier, MASTER_APPLICATION_IDENTIFIER)) {
+            log(methodName, "application identifier is 000000, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "application identifier is 000000";
+            return false;
+        }
+        if ((numberOfApplicationKeys < 1) || (numberOfApplicationKeys > 14)) {
+            log(methodName, "numberOfApplicationKeys is not in range 1..14, aborted");
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "numberOfApplicationKeys is not in range 1..14";
+            return false;
+        }
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+
+        // build the command string
+        byte keyNumbers = (byte) numberOfApplicationKeys;
+        // now adding the constant for key type, here fixed to AES = 0x80
+        //keyNumbers = (byte) (keyNumbers | APPLICATION_CRYPTO_AES);
+        keyNumbers = (byte) (keyNumbers | (byte) 0x80);
+        // "90CA00000E 010000 0F A5 10E1 D276000085010100"
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(applicationIdentifier, 0, applicationIdentifier.length);
+        baos.write(applicationMasterKeySettings);
         baos.write(keyNumbers);
         byte[] commandParameter = baos.toByteArray();
         byte[] apdu;

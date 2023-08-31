@@ -2504,17 +2504,17 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
-        MenuItem mApplications = menu.findItem(R.id.action_applications);
-        mApplications.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
+        MenuItem mCreateApplication = menu.findItem(R.id.action_create_application);
+        mCreateApplication.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override
             public boolean onMenuItemClick(MenuItem item) {
-                allLayoutsInvisible();
-                //llApplicationHandling.setVisibility(View.VISIBLE);
+                Intent intent = new Intent(MainActivity.this, CreateApplicationActivity.class);
+                startActivity(intent);
                 return false;
             }
         });
 
-        MenuItem mStandardFile = menu.findItem(R.id.action_standard_file);
+        MenuItem mStandardFile = menu.findItem(R.id.action_create_file);
         mStandardFile.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override
             public boolean onMenuItemClick(MenuItem item) {
