@@ -201,8 +201,6 @@ public class CustomKeystore {
                 Log.e(TAG, "getKeystorePasswordBytes failed");
                 return false;
             }
-            System.out.println(Utils.printData("keystorePasswordBytes", keystorePasswordBytes));
-            //keystorePassword = bytesToChars(keystorePasswordBytes);
             keystorePassword = convertByteArrayToCharArray(keystorePasswordBytes);
             return true;
         }
@@ -271,8 +269,6 @@ public class CustomKeystore {
             Log.e(TAG, "No keystorePasswort present, aborted: " + keystoreFileName);
             return false;
         }
-        //System.out.println("ksPW" + keystorePassword + Utils.printData(" ",  charsToBytes(keystorePassword)));
-        System.out.println("ksPW" + keystorePassword + Utils.printData(" ",  convertCharArrayToByteArray(keystorePassword)));
         if (!isFilePresent(keystoreFileName)) {
             Log.e(TAG, "No keystoreFile present, aborted: " + keystoreFileName);
             return false;
@@ -404,33 +400,6 @@ public class CustomKeystore {
     public static byte[] base64Decoding(String input) {
         return Base64.decode(input, Base64.NO_WRAP);
     }
-
-    // necessary to convert between byte[] <--> char[]
-    // https://stackoverflow.com/a/43996428/8166854
-    public byte[] XcharsToBytes(char[] chars) {
-        final ByteBuffer byteBuffer = StandardCharsets.UTF_8.encode(CharBuffer.wrap(chars));
-        return Arrays.copyOf(byteBuffer.array(), byteBuffer.limit());
-    }
-
-    public char[] XbytesToChars(byte[] bytes) {
-        final CharBuffer charBuffer = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(bytes));
-        return Arrays.copyOf(charBuffer.array(), charBuffer.limit());
-    }
-
-
-    // see: https://stackoverflow.com/a/9670279/8166854
-    // /* do something with chars/bytes */
-    //Arrays.fill(chars, '\u0000'); // clear sensitive data
-    //Arrays.fill(bytes, (byte) 0); // clear sensitive data
-    byte[] toBytes(char[] chars) {
-        CharBuffer charBuffer = CharBuffer.wrap(chars);
-        ByteBuffer byteBuffer = Charset.forName("UTF-8").encode(charBuffer);
-        byte[] bytes = Arrays.copyOfRange(byteBuffer.array(),
-                byteBuffer.position(), byteBuffer.limit());
-        Arrays.fill(byteBuffer.array(), (byte) 0); // clear sensitive data
-        return bytes;
-    }
-
 
     // conversion from www.java2s.com
     // http://www.java2s.com/example/java-utility-method/byte-array-to-char-index-0.html

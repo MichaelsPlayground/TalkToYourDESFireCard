@@ -208,6 +208,29 @@ System.out.println(i2); // 234
         return output;
     }
 
+    // conversion from www.java2s.com
+    // http://www.java2s.com/example/java-utility-method/byte-array-to-char-index-0.html
+    private char[] convertByteArrayToCharArray(byte[] bytes) {
+        char[] buffer = new char[bytes.length >> 1];
+        for (int i = 0; i < buffer.length; i++) {
+            int bpos = i << 1;
+            char c = (char) (((bytes[bpos] & 0x00FF) << 8) + (bytes[bpos + 1] & 0x00FF));
+            buffer[i] = c;
+        }
+        return buffer;
+    }
+
+    // http://www.java2s.com/example/java-utility-method/char-to-byte-array-index-0.html
+    private byte[] convertCharArrayToByteArray(char[] buffer) {
+        byte[] b = new byte[buffer.length << 1];
+        for (int i = 0; i < buffer.length; i++) {
+            int bpos = i << 1;
+            b[bpos] = (byte) ((buffer[i] & 0xFF00) >> 8);
+            b[bpos + 1] = (byte) (buffer[i] & 0x00FF);
+        }
+        return b;
+    }
+
     /**
      * Reverse a byte Array (e.g. Little Endian -> Big Endian).
      * Hmpf! Java has no Array.reverse(). And I don't want to use
