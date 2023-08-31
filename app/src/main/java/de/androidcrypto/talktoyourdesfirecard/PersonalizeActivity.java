@@ -504,6 +504,13 @@ Keystore: KeyStore.TimaKeyStore available in provider: TimaKeyStore
             }
         }
 
+        CustomKeystore customKeystore = new CustomKeystore(getApplicationContext());
+        if (!customKeystore.isLibraryInitialized()) {
+            customKeystore.initialize("123456".toCharArray());
+        }
+        customKeystore.storeKey(Constants.APPLICATION_KEY_W_NUMBER, Constants.APPLICATION_KEY_W_AES.clone());
+        customKeystore.storeKey(Constants.APPLICATION_KEY_CAR_NUMBER, Constants.APPLICATION_KEY_CAR_AES.clone());
+
         ConstantsKeystore constantsKeystore = new ConstantsKeystore(getApplicationContext(), Constants.KEYSTORE_PASSWORD);
         byte[] appKey = Constants.APPLICATION_KEY_MASTER_AES.clone();
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {

@@ -1294,7 +1294,16 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 String logString = "authenticate EV2 First with CHANGED AES key number 0x04 = write access key";
                 writeToUiAppend(output, logString);
                 // the method runs all outputs
-                boolean success = authAesEv3(Constants.APPLICATION_KEY_W_NUMBER, Constants.APPLICATION_KEY_W_AES);
+                // this is getting the  key from customKeystore as test
+                CustomKeystore customKeystore = new CustomKeystore(view.getContext());
+                byte[] key = customKeystore.readKey(Constants.APPLICATION_KEY_W_NUMBER);
+                if (key == null) {
+                    writeToUiAppend(output, "There is no key stored in the CustomKeystore with this key number");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE, you did not store a key in CustomKeystore, aorted", COLOR_RED);
+                    return;
+                }
+                boolean success = authAesEv3(Constants.APPLICATION_KEY_W_NUMBER, key);
+                //boolean success = authAesEv3(Constants.APPLICATION_KEY_W_NUMBER, Constants.APPLICATION_KEY_W_AES);
             }
         });
 
@@ -1907,6 +1916,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         writeToUiAppend(output, methodName);
         if (selectedApplicationId == null) {
             writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select an application first", COLOR_RED);
+            return false;
+        }
+        if (selectedFileSettings == null) {
+            writeToUiAppendBorderColor(errorCode, errorCodeLayout, "you need to select a file first", COLOR_RED);
             return false;
         }
         // sanity checks
