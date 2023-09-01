@@ -3,6 +3,7 @@ package de.androidcrypto.talktoyourdesfirecard;
 import android.nfc.tech.IsoDep;
 import android.text.TextUtils;
 import android.util.Log;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
@@ -14,7 +15,9 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Arrays;
 
+import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import de.androidcrypto.talktoyourdesfirecard.nfcjlib.AES;
@@ -429,9 +432,9 @@ public class DesfireAuthenticateLegacy {
         }
     }
 
-    // status: NOT WORKING
-    private boolean changeDesKeyToAes(byte authenticationKeyNumber, byte changeKeyNumber,
-                                byte[] changeKeyNew, byte[] changeKeyOld, String changeKeyName) {
+
+    public boolean changeDesKeyToAes(byte authenticationKeyNumber, byte changeKeyNumber,
+                                     byte[] changeKeyNew, byte[] changeKeyOld, String changeKeyName) {
         final String methodName = "changeDesKeyToAes";
         System.out.println("*** 1");
         log(methodName, methodName);
@@ -504,6 +507,10 @@ public class DesfireAuthenticateLegacy {
         System.out.println("*** 3");
         log(methodName,printData("newKey TDES", changeKeyNew));
 
+        // as we are changing not only the key value but the algorithm type from DES to AES we need to change
+        // the key number as well
+        changeKeyNumber = (byte) 0x80;
+
         // xor the new key with the old key if a key is changed different to authentication key
         if ((changeKeyNumber & 0x0F) != keyNumberUsedForAuthentication) {
             for (int i = 0; i < changeKeyNew.length; i++) {
@@ -560,7 +567,7 @@ public class DesfireAuthenticateLegacy {
     }
 
     // status: NOT WORKING
-    private boolean changeAesKeyToDes(byte authenticationKeyNumber, byte changeKeyNumber,
+    public boolean changeAesKeyToDes(byte authenticationKeyNumber, byte changeKeyNumber,
                                      byte[] changeKeyNew, byte[] changeKeyOld, String changeKeyName) {
         final String methodName = "changeAesKeyToDes";
         System.out.println("*** 1");
@@ -633,6 +640,10 @@ public class DesfireAuthenticateLegacy {
         changeKeyNew = Arrays.copyOfRange(plaintext, 0, 16);
         System.out.println("*** 3");
         log(methodName,printData("newKey TDES", changeKeyNew));
+
+        // as we are changing not only the key value but the algorithm type from AES to DES we need to change
+        // the key number as well
+        changeKeyNumber = (byte) 0x00;
 
         // xor the new key with the old key if a key is changed different to authentication key
         if ((changeKeyNumber & 0x0F) != keyNumberUsedForAuthentication) {
@@ -963,6 +974,168 @@ public class DesfireAuthenticateLegacy {
             log(methodName, "*********************");
             return false;
         }
+    }
+
+    // status NOT WORKING
+    public boolean authenticateAes(TextView logTextView, byte keyId, byte[] key, boolean verbose, byte[] response) {
+        try {
+            //writeToUiAppend(logTextView, "authenticateApplicationAes for keyId " + keyId + " and key " + Utils.bytesToHex(key));
+            // do DES auth
+            //String getChallengeCommand = "901a0000010000";
+            //String getChallengeCommand = "9084000000"; // IsoGetChallenge
+
+            //byte[] getChallengeResponse = nfcA.transceive(Utils.hexStringToByteArray(getChallengeCommand));
+            //byte[] getChallengeResponse = nfcA.transceive(wrapMessage((byte) 0x1a, new byte[]{(byte) 0x01} ));
+            byte[] getChallengeResponse = isoDep.transceive(wrapMessage((byte) 0xaa, new byte[]{(byte) (keyId & 0xFF)}));
+            //if (verbose) writeToUiAppend(logTextView, printData("getChallengeResponse", getChallengeResponse)); // this 16 bytes long
+            // cf5e0ee09862d90391af
+            // 91 af at the end shows there is more data
+
+            byte[] challenge = Arrays.copyOf(getChallengeResponse, getChallengeResponse.length - 2);
+            //if (verbose) writeToUiAppend(logTextView, printData("challengeResponse", challenge));
+
+            // Of course the rndA shall be a random number,
+            // but we will use a constant number to make the example easier.
+            byte[] rndA = Utils.hexStringToByteArray("000102030405060708090a0b0c0d0e0f");
+            //if (verbose) writeToUiAppend(logTextView, printData("rndA", rndA));
+
+            // This is the default key for a blank AESFire card.
+            // defaultKey = 16 byte array = [0x00, ..., 0x00]
+            //byte[] defaultAESKey = Utils.hexStringToByteArray("00000000000000000000000000000000");
+            byte[] defaultAESKey = key.clone();
+            byte[] IV = new byte[16];
+
+            // Decrypt the challenge with default keybyte[] rndB = decrypt(challenge, defaultDESKey, IV);
+            byte[] rndB = decryptAes(challenge, defaultAESKey, IV);
+            //if (verbose) writeToUiAppend(logTextView, printData("rndB", rndB));
+            // Rotate left the rndB byte[] leftRotatedRndB = rotateLeft(rndB);
+            byte[] leftRotatedRndB = rotateLeft(rndB);
+            //if (verbose) writeToUiAppend(logTextView, printData("leftRotatedRndB", leftRotatedRndB));
+            // Concatenate the RndA and rotated RndB byte[] rndA_rndB = concatenate(rndA, leftRotatedRndB);
+            byte[] rndA_rndB = concatenate(rndA, leftRotatedRndB);
+            if (verbose) //writeToUiAppend(logTextView, printData("rndA_rndB", rndA_rndB));
+
+            // Encrypt the bytes of the last step to get the challenge answer byte[] challengeAnswer = encrypt(rndA_rndB, defaultDESKey, IV);
+            IV = challenge;
+            byte[] challengeAnswer = encryptAes(rndA_rndB, defaultAESKey, IV);
+            IV = Arrays.copyOfRange(challengeAnswer, 16, 32);
+            /*
+            if (verbose) {
+                writeToUiAppend(logTextView, printData("challengeAnswer", challengeAnswer));
+                writeToUiAppend(logTextView, printData("new IV         ", IV));
+            }
+             */
+
+                /*
+                    Build and send APDU with the answer. Basically wrap the challenge answer in the APDU.
+                    The total size of apdu (for this scenario) is 22 bytes:
+                    > 0x90 0xAF 0x00 0x00 0x10 [16 bytes challenge answer] 0x00
+                */
+            byte[] challengeAnswerAPDU = new byte[38]; // old 22
+            challengeAnswerAPDU[0] = (byte) 0x90; // CLS
+            challengeAnswerAPDU[1] = (byte) 0xAF; // INS
+            challengeAnswerAPDU[2] = (byte) 0x00; // p1
+            challengeAnswerAPDU[3] = (byte) 0x00; // p2
+            challengeAnswerAPDU[4] = (byte) 0x20; // data length: 32 bytes
+            challengeAnswerAPDU[challengeAnswerAPDU.length - 1] = (byte) 0x00;
+            System.arraycopy(challengeAnswer, 0, challengeAnswerAPDU, 5, challengeAnswer.length);
+            //if (verbose) writeToUiAppend(logTextView, printData("challengeAnswerAPDU", challengeAnswerAPDU));
+
+            /*
+             * Sending the APDU containing the challenge answer.
+             * It is expected to be return 18 bytes [rndA from the Card] + 9100
+             */
+            byte[] challengeAnswerResponse = isoDep.transceive(challengeAnswerAPDU);
+            // response = channel.transmit(new CommandAPDU(challengeAnswerAPDU));
+            //if (verbose) writeToUiAppend(logTextView, printData("challengeAnswerResponse", challengeAnswerResponse));
+            byte[] challengeAnswerResp = Arrays.copyOf(challengeAnswerResponse, getChallengeResponse.length - 2);
+            //if (verbose) writeToUiAppend(logTextView, printData("challengeAnswerResp", challengeAnswerResp));
+
+            /*
+             * At this point, the challenge was processed by the card. The card decrypted the
+             * rndA rotated it and sent it back.
+             * Now we need to check if the RndA sent by the Card is valid.
+             */// encrypted rndA from Card, returned in the last step byte[] encryptedRndAFromCard = response.getData();
+
+            // Decrypt the rnd received from the Card.byte[] rotatedRndAFromCard = decrypt(encryptedRndAFromCard, defaultDESKey, IV);
+            //byte[] rotatedRndAFromCard = decrypt(encryptedRndAFromCard, defaultDESKey, IV);
+            byte[] rotatedRndAFromCard = decryptAes(challengeAnswerResp, defaultAESKey, IV);
+            //if (verbose) writeToUiAppend(logTextView, printData("rotatedRndAFromCard", rotatedRndAFromCard));
+
+            // As the card rotated left the rndA,// we shall un-rotate the bytes in order to get compare it to our original rndA.byte[] rndAFromCard = rotateRight(rotatedRndAFromCard);
+            byte[] rndAFromCard = rotateRight(rotatedRndAFromCard);
+            //if (verbose) writeToUiAppend(logTextView, printData("rndAFromCard", rndAFromCard));
+            //writeToUiAppend(logTextView, "********** AUTH RESULT **********");
+            //System.arraycopy(createApplicationResponse, 0, response, 0, createApplicationResponse.length);
+            if (Arrays.equals(rndA, rndAFromCard)) {
+                //writeToUiAppend(logTextView, "Authenticated");
+
+                // generate the session key
+                //skey = generateSessionKey(rndA, rndB, KeyType.AES);
+
+
+                // own vars
+                byte[] ivOwn = new byte[16]; // AES IV is 16 bytes long
+                SessionKey = generateSessionKeyAes(rndA, rndB);
+                Log.e(TAG, printData("SessionKey", SessionKey));
+                //writeToUiAppend(logTextView, printData("## ivOwn ##", ivOwn));
+                //writeToUiAppend(logTextView, printData("## session key ##", skeyOwn));
+                return true;
+            } else {
+                //writeToUiAppend(logTextView, "Authentication failed");
+                SessionKey = null;
+                return false;
+                //System.err.println(" ### Authentication failed. ### ");
+                //log("rndA:" + toHexString(rndA) + ", rndA from Card: " + toHexString(rndAFromCard));
+            }
+            //writeToUiAppend(logTextView, "********** AUTH RESULT END **********");
+            //return false;
+        } catch (Exception e) {
+            //throw new RuntimeException(e);
+            //writeToUiAppend(logTextView, "authenticateApplicationAes transceive failed: " + e.getMessage());
+            //writeToUiAppend(logTextView, "authenticateApplicationAes transceive failed: " + Arrays.toString(e.getStackTrace()));
+        }
+        //System.arraycopy(createApplicationResponse, 0, response, 0, createApplicationResponse.length);
+        return false;
+
+        // todo set global IV to zero's
+
+    }
+
+    private static byte[] decryptAes(byte[] data, byte[] key, byte[] IV) throws Exception {
+        Cipher cipher = getCipherAes(Cipher.DECRYPT_MODE, key, IV);
+        return cipher.doFinal(data);
+    }
+
+    private static byte[] encryptAes(byte[] data, byte[] key, byte[] IV) throws Exception {
+        Cipher cipher = getCipherAes(Cipher.ENCRYPT_MODE, key, IV);
+        return cipher.doFinal(data);
+    }
+
+    private static Cipher getCipherAes(int mode, byte[] key, byte[] IV) throws Exception {
+        Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
+        SecretKeySpec keySpec = new SecretKeySpec(key, "AES");
+        IvParameterSpec algorithmParamSpec = new IvParameterSpec(IV);
+        cipher.init(mode, keySpec, algorithmParamSpec);
+        return cipher;
+    }
+
+    /**
+     * Generate the session key using the random A generated by the PICC and
+     * the random B generated by the PCD.
+     *
+     * @param randA the random number A
+     * @param randB the random number B
+     * @return the session key
+     */
+    private static byte[] generateSessionKeyAes(byte[] randA, byte[] randB) {
+        byte[] skey = null;
+        skey = new byte[16];
+        System.arraycopy(randA, 0, skey, 0, 4);
+        System.arraycopy(randB, 0, skey, 4, 4);
+        System.arraycopy(randA, 12, skey, 8, 4);
+        System.arraycopy(randB, 12, skey, 12, 4);
+        return skey;
     }
 
     // this is just a manual method to test the SEND encryption magic

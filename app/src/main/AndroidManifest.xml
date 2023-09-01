@@ -19,6 +19,9 @@
             android:name=".CreateApplicationActivity"
             android:exported="false" />
         <activity
+            android:name=".CreateFileActivity"
+            android:exported="false" />
+        <activity
             android:name=".PersonalizeActivity"
             android:exported="false" />
         <activity

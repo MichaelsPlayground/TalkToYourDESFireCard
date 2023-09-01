@@ -136,6 +136,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private FileSettings selectedFileSettings; // cached data, filled by file select
     private byte selectedFileType; // cached data, filled by file select
 
+    /**
+     * section for tests
+     */
+
+    private Button test;
 
     /**
      * section for general
@@ -270,6 +275,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         // general handling
         getTagVersion = findViewById(R.id.btnGetTagVersion);
         formatPicc = findViewById(R.id.btnFormatPicc);
+
+        // test section
+        test = findViewById(R.id.btnTest);
 
         allLayoutsInvisible(); // except select application & file
 
@@ -1294,6 +1302,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 String logString = "authenticate EV2 First with CHANGED AES key number 0x04 = write access key";
                 writeToUiAppend(output, logString);
                 // the method runs all outputs
+                boolean success = authAesEv3(Constants.APPLICATION_KEY_W_NUMBER, Constants.APPLICATION_KEY_W_AES);
+
+                /*
                 // this is getting the  key from customKeystore as test
                 CustomKeystore customKeystore = new CustomKeystore(view.getContext());
                 byte[] key = customKeystore.readKey(Constants.APPLICATION_KEY_W_NUMBER);
@@ -1304,6 +1315,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
                 boolean success = authAesEv3(Constants.APPLICATION_KEY_W_NUMBER, key);
                 //boolean success = authAesEv3(Constants.APPLICATION_KEY_W_NUMBER, Constants.APPLICATION_KEY_W_AES);
+                */
             }
         });
 
@@ -1870,6 +1882,54 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         .setNegativeButton(android.R.string.no, dialogClickListener)
          */
             }
+        });
+
+        /**
+         * section for tests
+         */
+
+        test.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "Test change Main Application Key to AES DEFAULT";
+                writeToUiAppend(output, logString);
+
+                boolean success;
+                String stepString = "1 select Master Application";
+                success = desfireAuthenticateLegacy.selectApplication(DesfireAuthenticateLegacy.MASTER_APPLICATION_IDENTIFIER);
+                writeToUiAppend(output, stepString + " success ? : " + success);
+                if (!success) return;
+
+                /*
+                // this is DES to AES
+                stepString = "2 authenticate Master Application with DEFAULT DES key";
+                success = desfireAuthenticateLegacy.authenticateD40(Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_DES_DEFAULT);
+                writeToUiAppend(output, stepString + " success ? : " + success);
+                if (!success) return;
+
+                stepString = "3 change Master Application Key 00 from DES DEFAULT to AES DEFAULT";
+                success = desfireAuthenticateLegacy.changeDesKeyToAes(Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_AES_DEFAULT, Constants.MASTER_APPLICATION_KEY_DES_DEFAULT, "Master App Key");
+                writeToUiAppend(output, stepString + " success ? : " + success);
+                if (!success) return;
+                */
+
+                // this is AES to DES
+                stepString = "2 authenticate Master Application with DEFAULT AES key";
+                byte[] responseData = new byte[2];
+                success = desfireAuthenticateLegacy.authenticateAes(null, Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_AES_DEFAULT, false, responseData);
+                writeToUiAppend(output, stepString + " success ? : " + success);
+                if (!success) return;
+
+                stepString = "3 change Master Application Key 00 from AES DEFAULT to DES DEFAULT";
+                success = desfireAuthenticateLegacy.changeAesKeyToDes(Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_DES_DEFAULT, Constants.MASTER_APPLICATION_KEY_AES_DEFAULT, "Master App Key");
+                //success = desfireEv3.changeApplicationKeyToDesFull(Constants.MASTER_APPLICATION_KEY_NUMBER, (byte) 0x00, Constants.MASTER_APPLICATION_KEY_DES_DEFAULT, Constants.MASTER_APPLICATION_KEY_AES_DEFAULT);
+                writeToUiAppend(output, stepString + " success ? : " + success);
+                if (!success) return;
+
+
+            }
+
         });
 
     }
@@ -2514,14 +2574,16 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
-        MenuItem mStandardFile = menu.findItem(R.id.action_create_file);
-        mStandardFile.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
+        MenuItem mCreateFile = menu.findItem(R.id.action_create_file);
+        mCreateFile.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
             @Override
             public boolean onMenuItemClick(MenuItem item) {
-                allLayoutsInvisible();
+                Intent intent = new Intent(MainActivity.this, CreateFileActivity.class);
+                startActivity(intent);
                 return false;
             }
         });
+
 
         MenuItem mExportTextFile = menu.findItem(R.id.action_export_text_file);
         mExportTextFile.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {

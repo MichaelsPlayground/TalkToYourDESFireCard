@@ -930,12 +930,13 @@
                         android:text="tag version" />
 
                     <Button
-                        android:id="@+id/btnxxx"
+                        android:id="@+id/btnTest"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
-                        android:text="xxx" />
+                        android:backgroundTint="#FD0000"
+                        android:text="Test" />
 
                     <Button
                         android:id="@+id/btnGetKeySettings"

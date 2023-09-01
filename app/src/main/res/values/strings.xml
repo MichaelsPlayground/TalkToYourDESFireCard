@@ -58,6 +58,9 @@
     <string name="description_create_application">Creates an application on the PICC with AES keys</string>
     <string name="warning_create_application">This will create an application on the PICC without any further conformation</string>
     <string name="more_information_create_application">more\n</string>
+    <string name="header_create_file">he</string>
+    <string name="description_create_file">des</string>
+    <string name="warning_create_file">wa</string>
 
 
 </resources>
