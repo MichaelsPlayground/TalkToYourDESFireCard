@@ -1307,6 +1307,28 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 /*
                 // this is getting the  key from customKeystore as test
                 CustomKeystore customKeystore = new CustomKeystore(view.getContext());
+
+                boolean isInitialized = customKeystore.isLibraryInitialized();
+                if (!isInitialized) {
+                    customKeystore.initialize("123456".toCharArray());
+                }
+
+                List<String> keyAliasesList = customKeystore.getKeystoreAliases();
+
+                boolean isInitializedRecovery = customKeystore.recoveryInitialization("123456".toCharArray());
+                if (!isInitializedRecovery) {
+                    Log.d(TAG, "Error during recovery initialization of CustomKeystore");
+                    return;
+                }
+
+
+                byte[] keyToStore = '12345678901234567890123456789012';
+                boolean writeSuccess = customKeystore.storeKey((byte) 0x02, keyToStore);
+                if (!writeSuccess) {
+                    Log.d(TAG, "Error during storing a key in the CustomKeystore with this key number");
+                    return;
+                }
+
                 byte[] key = customKeystore.readKey(Constants.APPLICATION_KEY_W_NUMBER);
                 if (key == null) {
                     writeToUiAppend(output, "There is no key stored in the CustomKeystore with this key number");
