@@ -51,13 +51,13 @@
     For changing the Master Application key from DEFAULT to CHANGED or CHANGED to DEFAULT:\n
     5) select the Master Application with applicationId 000000\n
     6) authenticate with Master Application key = key number 00 (DES DEFAULT)\n
-    7) change the Master Application key value\n
+    7) change the Master Application key value\n\n
     For changing the Master Application key from DES DEFAULT to AES DEFAULT:\n
     8) select the Master Application with applicationId 000000\n
     9) authenticate with Master Application key = key number 00 (DES DEFAULT)\n
-    10) change the Master Application key from DES DEFAULT to AES DEFAULT\n
+    10) change the Master Application key from DES DEFAULT to AES DEFAULT\n\n
     Note: this is a one way option, with this app you cannot change the Master Application key back to a DES key,
-    use my app MifareDesfireEv3MasterkeyToDesNFCJLib for this task.
+    use my app MifareDesfireEv3MasterkeyToDesNFCJLib for this task.\n
 
     </string>
 
