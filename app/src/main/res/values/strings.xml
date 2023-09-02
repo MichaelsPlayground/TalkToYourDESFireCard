@@ -43,14 +43,22 @@
     <string name="description_personalize">Changes the application keys to individual ones including the Master Application key</string>
     <string name="warning_personalize">WARNING: The app will IMMEDIATELY run all personalizing steps when attached without any further confirmation !</string>
     <string name="more_information_personalize">More Information about the application and file creations:\n\n
-    For changing the application keys:\n
+    For changing the application keys from DEFAULT to CHANGED or CHANGED to DEFAULT:\n
     1) select the application with applicationID A1A2A3\n
-    2) authenticate with Application Master key = key number 00\n
-    3) change the application keys Read &amp; Write Access, Change Access, Read Access and Write Access rights (key numbers 01..04)\n
+    2) authenticate with Application Master key = key number 00 (AES DEFAULT)\n
+    3) change the application keys Read &amp; Write Access, Change Access Rights, Read Access and Write Access rights (key numbers 01..04)\n
     4) change the Application Master key (key number 00)\n\n
-    For changing the Master Application key:\n
+    For changing the Master Application key from DEFAULT to CHANGED or CHANGED to DEFAULT:\n
     5) select the Master Application with applicationId 000000\n
-    6) change the Master Application key value and type (from DES to AES)\n
+    6) authenticate with Master Application key = key number 00 (DES DEFAULT)\n
+    7) change the Master Application key value\n
+    For changing the Master Application key from DES DEFAULT to AES DEFAULT:\n
+    8) select the Master Application with applicationId 000000\n
+    9) authenticate with Master Application key = key number 00 (DES DEFAULT)\n
+    10) change the Master Application key from DES DEFAULT to AES DEFAULT\n
+    Note: this is a one way option, with this app you cannot change the Master Application key back to a DES key,
+    use my app MifareDesfireEv3MasterkeyToDesNFCJLib for this task.
+
     </string>
 
     <!-- strings for creating an application -->
