@@ -49,7 +49,9 @@ public class PersonalizeActivity extends AppCompatActivity implements NfcAdapter
     private com.google.android.material.textfield.TextInputLayout outputLayout;
     private Button moreInformation;
 
-    private RadioButton rbDoNothing, rbChangeAppKeysToChanged, rbChangeAppKeysToDefault, rbChangeMasterAppKeyToChanged, rbChangeMasterAppKeyToDefault;
+    private RadioButton rbDoNothing, rbChangeAppKeysToChanged, rbChangeAppKeysToDefault,
+            rbChangeMasterAppKeyToChanged, rbChangeMasterAppKeyToDefault,
+            rbChangeMasterAppKeyDesToAesDefault;
 
     /**
      * general constants
@@ -90,6 +92,7 @@ public class PersonalizeActivity extends AppCompatActivity implements NfcAdapter
         rbChangeAppKeysToDefault = findViewById(R.id.rbPersonalizeAppKeysToDefault);
         rbChangeMasterAppKeyToChanged = findViewById(R.id.rbPersonalizeMasterAppKeyToChanged);
         rbChangeMasterAppKeyToDefault = findViewById(R.id.rbPersonalizeMasterAppKeyToDefault);
+        rbChangeMasterAppKeyDesToAesDefault = findViewById(R.id.rbPersonalizeDesMasterAppKeyToAesDefault);
 
         // hide soft keyboard from showing up on startup
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
@@ -299,7 +302,7 @@ public class PersonalizeActivity extends AppCompatActivity implements NfcAdapter
             return;
         }
 
-        writeToUiAppend("step 3: change the Master Application key (key number 00)");
+        writeToUiAppend("step 3: change the Master Application key (key number 00) to CHANGED");
         // key version is fixed to 0x00
         success = desfireLegacy.changeDesKey(Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_DES, Constants.MASTER_APPLICATION_KEY_DES_DEFAULT, "key number 00");
         errorCode = desfireLegacy.getErrorCode();
@@ -363,7 +366,7 @@ public class PersonalizeActivity extends AppCompatActivity implements NfcAdapter
             return;
         }
 
-        writeToUiAppend("step 3: change the Master Application key (key number 00)");
+        writeToUiAppend("step 3: change the Master Application key (key number 00) to DEFAULT");
         // key version is fixed to 0x00
         success = desfireLegacy.changeDesKey(Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_DES_DEFAULT, Constants.MASTER_APPLICATION_KEY_DES, "key number 00");
         errorCode = desfireLegacy.getErrorCode();
@@ -454,6 +457,64 @@ public class PersonalizeActivity extends AppCompatActivity implements NfcAdapter
         vibrateShort();
     }
 */
+
+        private void runChangeMasterAppKeyDesToAesDefault() {
+            clearOutputFields();
+            String logString = "runChangeMasterAppKeyDesToAesDefault";
+            writeToUiAppend(output, logString);
+            /**
+             * the method will do these steps to change the Master Application key from DEFAULT DES to DEFAULT AES
+             * 1) select the master application ("000000")
+             * 2) authenticate with the DEFAULT master application key
+             * 3) change the master application key (key number 00)
+             */
+
+            boolean success;
+
+            writeToUiAppend("step 1: select the application (\"000000\")");
+            success = desfireLegacy.selectApplication(Constants.MASTER_APPLICATION_IDENTIFIER);
+            errorCode = desfireLegacy.getErrorCode();
+            if (success) {
+                writeToUiAppendBorderColor("select the application SUCCESS", COLOR_GREEN);
+            } else {
+                writeToUiAppend("select the application FAILURE, aborted");
+                writeToUiAppendBorderColor("select the application FAILURE with error code: "
+                        + EV3.getErrorCode(errorCode) + " = "
+                        + errorCodeReason + ", aborted", COLOR_RED);
+                return;
+            }
+
+            writeToUiAppend("step 2: authenticate with the DEFAULT Master Application key (key number 00)");
+            success = desfireLegacy.authenticateD40(Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_DES_DEFAULT);
+            errorCode = desfireLegacy.getErrorCode();
+            if (success) {
+                writeToUiAppendBorderColor("authenticate with the DEFAULT AES Master Application key SUCCESS", COLOR_GREEN);
+            } else {
+                writeToUiAppend("authenticate with the DEFAULT AES Master Application key FAILURE, aborted");
+                writeToUiAppendBorderColor("authenticate with the DEFAULT AES Master Application key FAILURE with error code: "
+                        + EV3.getErrorCode(errorCode) + " = "
+                        + errorCodeReason + ", aborted", COLOR_RED);
+                return;
+            }
+
+            writeToUiAppend("step 3: change the Master Application key (key number 00) DES to AES DEFAULT");
+            // key version is fixed to 0x00
+            success = desfireLegacy.changeDesKeyToAes(Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_AES_DEFAULT, Constants.MASTER_APPLICATION_KEY_DES_DEFAULT, "key number 00");
+            errorCode = desfireLegacy.getErrorCode();
+            writeToUiAppend(desfireLegacy.getLogData());
+            if (success) {
+                writeToUiAppendBorderColor("change the Master Application key SUCCESS", COLOR_GREEN);
+            } else {
+                writeToUiAppend("change the Master Application key FAILURE, aborted");
+                writeToUiAppendBorderColor("change the Master Application key FAILURE with error code: "
+                        + EV3.getErrorCode(errorCode) + ", aborted", COLOR_RED);
+                return;
+            }
+            vibrateShort();
+        }
+
+
+
     /**
      * checks if the response has an 0x'91AE' at the end means
      * that an authentication with an appropriate key is missing
@@ -593,6 +654,9 @@ Keystore: KeyStore.TimaKeyStore available in provider: TimaKeyStore
                 }
                 if (rbChangeMasterAppKeyToDefault.isChecked()) {
                     runChangeMasterAppKeyToDefault();
+                }
+                if (rbChangeMasterAppKeyDesToAesDefault.isChecked()) {
+                    runChangeMasterAppKeyDesToAesDefault();
                 }
 
             }

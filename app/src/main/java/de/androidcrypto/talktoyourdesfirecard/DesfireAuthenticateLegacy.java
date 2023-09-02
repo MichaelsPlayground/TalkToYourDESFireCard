@@ -1013,7 +1013,7 @@ public class DesfireAuthenticateLegacy {
             //if (verbose) writeToUiAppend(logTextView, printData("leftRotatedRndB", leftRotatedRndB));
             // Concatenate the RndA and rotated RndB byte[] rndA_rndB = concatenate(rndA, leftRotatedRndB);
             byte[] rndA_rndB = concatenate(rndA, leftRotatedRndB);
-            if (verbose) //writeToUiAppend(logTextView, printData("rndA_rndB", rndA_rndB));
+            //if (verbose) writeToUiAppend(logTextView, printData("rndA_rndB", rndA_rndB));
 
             // Encrypt the bytes of the last step to get the challenge answer byte[] challengeAnswer = encrypt(rndA_rndB, defaultDESKey, IV);
             IV = challenge;
