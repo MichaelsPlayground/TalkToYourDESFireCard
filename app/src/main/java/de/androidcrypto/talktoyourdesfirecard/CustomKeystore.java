@@ -40,22 +40,26 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * This class is responsible for secure storing of Mifare DES and AES-128 keys in a Bouncy Castle Keystore (BKS)
- * For the first setup a 'passphrase' is used to derive the keystore password.
+ * This class is responsible for secure storage of Mifare DES and AES-128 keys in a Bouncy Castle Keystore (BKS).
+ * For the first setup a 'passphrase' is used to derive the keystore password using 'initialize(char[] passphrase)'.
  * The derived keystore password is stored in Encrypted Shared Preferences but the salt is stored in 'Standard' = unencrypted Shared Preferences.
  * The reason for that is simple: if the app & keystore is part of the regular Google Drive backup the Encrypted Shared Preferences don't get part
- * of the backup. If you re-enter the passphrase the correct keystore password is generated as well.
- * The password derivation is done using PBKDF2 with PBKDF2WithHmacSHA1 algorithm.
+ * of the backup. If you re-enter the passphrase the correct keystore password is re-generated.
+ * The password derivation is done using PBKDF2 with 'PBKDF2WithHmacSHA1' algorithm.
  * <p>
  * 1) add in build(app).gradle:
  * implementation 'androidx.security:security-crypto:1.0.0'
  * 2) construct the class with the context (e.g. 'CustomKeystore customKeystore = new CustomKeystore(getApplicationContext());')
  * 3a) first start: initialize the class with a passphrase
  * - or -
- * 3b) following starts: storeKey or readKey. You cn check successful initializing by 'getIsLibraryInitialized'
+ * 3b) following starts: storeKey or readKey. You can check successful initializing by 'getIsLibraryInitialized'
  * 4) store a secret key (DES or AES) by providing the key number
- * 5) read a secret key (DES or AES) by providing the key number, return null when key is not present
+ * 5) read a secret key (DES or AES) by providing the key number, return is null when key is not present
  * 6) getKeystoreAliases() returns a List<String> containing all stored key aliases ('key_x')
+ * <p>
+ * For recovery reasons you can re-enter the passphrase and the keystore password is derived using 'recoveryInitialization(char[] passphrase)'
+ * <p>
+ * Call 'lastErrorMessage' is you want to know why an operation failed
  * <p>
  * The minimum Android SDK version is 23 (M) due to Encrypted Shared Preferences (minimum SDK 23)
  */
@@ -97,13 +101,16 @@ public class CustomKeystore {
     private Context context;
     private boolean isAndroidSdkVersionTooLow = false;
     private boolean isLibraryInitialized = false;
+    private String lastErrorMessage = "";
 
 
     public CustomKeystore(Context context) {
+        lastErrorMessage = "";
         this.context = context;
         // this is a hardcoded check to prevent on working when Android SDK is < M = 23
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             Log.e(TAG, "The minimum Android SDK version is below 23 (M), aborted");
+            lastErrorMessage = "The minimum Android SDK version is below 23 (M), aborted";
             isAndroidSdkVersionTooLow = true;
             return;
         }
@@ -115,7 +122,9 @@ public class CustomKeystore {
         try {
             MAIN_KEY_ALIAS = MasterKeys.getOrCreate(keyGenParameterSpec);
         } catch (GeneralSecurityException | IOException e) {
-            e.printStackTrace();
+            Log.e(TAG, "Exception: " + e.getMessage());
+            lastErrorMessage = "Exception: " + e.getMessage();
+            return;
         }
         // create or open EncryptedSharedPreferences
         try {
@@ -127,20 +136,31 @@ public class CustomKeystore {
                     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
             );
         } catch (GeneralSecurityException | IOException e) {
-            e.printStackTrace();
+            Log.e(TAG, "Exception: " + e.getMessage());
+            lastErrorMessage = "Exception: " + e.getMessage();
+            return;
         }
         // generate keystore file
         if (!isFilePresent(keystoreFileName)) {
             boolean crSuc = createKeyStore();
-            Log.d(TAG, "crete keystore success ? : " + crSuc);
+            Log.d(TAG, "create keystore success ? : " + crSuc);
         }
         checkIsLibraryInitialized();
         Log.d(TAG, "initialized");
+        if (isLibraryInitialized) {
+            Log.d(TAG, "initialized");
+            lastErrorMessage = "initialized";
+        } else {
+            Log.d(TAG, "NOT initialized");
+            lastErrorMessage = "NOT initialized";
+        }
     }
 
     public boolean initialize(char[] passphrase) {
+        lastErrorMessage = "";
         if (isAndroidSdkVersionTooLow) {
             Log.e(TAG, "The minimum Android SDK version is below 23 (M), aborted");
+            lastErrorMessage = "The minimum Android SDK version is below 23 (M), aborted";
             return false;
         }
         try {
@@ -153,6 +173,7 @@ public class CustomKeystore {
             keystorePasswordBytes = secretKeyFactory.generateSecret(keySpec).getEncoded();
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
             Log.e(TAG, "Exception: " + e.getMessage());
+            lastErrorMessage = "Exception on generating the derived keystore password: " + e.getMessage();
             return false;
         }
         // store the unencrypted data
@@ -161,6 +182,7 @@ public class CustomKeystore {
             sharedPreferences.edit().putString(PBKDF2_SALT, base64Encoding(PBKDF2_SALT_BYTES)).apply();
         } catch (Exception e) {
             Log.e(TAG, "Error on storage of SALT: " + e.getMessage());
+            lastErrorMessage = "Exception: " + e.getMessage();
             return false;
         }
         Log.d(TAG, "storage of SALT SUCCESS");
@@ -172,6 +194,56 @@ public class CustomKeystore {
         //keystorePassword = bytesToChars(keystorePasswordBytes);
         keystorePassword = convertByteArrayToCharArray(keystorePasswordBytes);
         isLibraryInitialized = true;
+        lastErrorMessage = "library is initialized";
+        return true;
+    }
+
+    /**
+     * The recoveryInitialization is used after a recovery of app data using Google Drive. During recovery the keystore and the salt are restored
+     * but not the derived keystore password. This method recovers the derived keystore password.
+     *
+     * @param passphrase
+     * @return true on success
+     */
+    public boolean recoveryInitialization(char[] passphrase) {
+        lastErrorMessage = "";
+        if (isAndroidSdkVersionTooLow) {
+            Log.e(TAG, "The minimum Android SDK version is below 23 (M), aborted");
+            lastErrorMessage = "The minimum Android SDK version is below 23 (M), aborted";
+            return false;
+        }
+        // check that a salt is already stored
+        boolean success = getPbkdf2Salt();
+        if (!success) {
+            Log.e(TAG, "There is no PBKDF2 salt stored, aborted");
+            lastErrorMessage = "There is no PBKDF2 salt stored, aborted";
+            return false;
+        }
+        success = getPbkdf2NumberIterations();
+        if (!success) {
+            Log.e(TAG, "There is no PBKDF2 number of iterations stored, aborted");
+            lastErrorMessage = "There is no PBKDF2 number of iterations stored, aborted";
+            return false;
+        }
+        try {
+            // use the stored PBKDF2_SALT_BYTES
+            SecretKeyFactory secretKeyFactory = null;
+            secretKeyFactory = SecretKeyFactory.getInstance(PBKDF2_ALGORITHM);
+            KeySpec keySpec = new PBEKeySpec(passphrase, PBKDF2_SALT_BYTES, PBKDF2_NUMBER_ITERATIONS, PBKDF2_KEY_LENGTH);
+            keystorePasswordBytes = secretKeyFactory.generateSecret(keySpec).getEncoded();
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            Log.e(TAG, "Exception: " + e.getMessage());
+            lastErrorMessage = "Exception on generating the derived keystore password: " + e.getMessage();
+            return false;
+        }
+        // store the encrypted data
+        encryptedSharedPreferences
+                .edit()
+                .putString(KEYSTORE_PASSWORD_STORAGE, base64Encoding(keystorePasswordBytes))
+                .apply();
+        keystorePassword = convertByteArrayToCharArray(keystorePasswordBytes);
+        isLibraryInitialized = true;
+        lastErrorMessage = "library is initialized, the derived keystore password is restored";
         return true;
     }
 
@@ -223,9 +295,9 @@ public class CustomKeystore {
      */
 
     private boolean createKeyStore() {
-        boolean keystorePasswortAvailable = getKeystorePasswordBytes();
-        if (!keystorePasswortAvailable) {
-            Log.e(TAG, "No keystorePasswort present, aborted: " + keystoreFileName);
+        boolean keystorePasswordAvailable = getKeystorePasswordBytes();
+        if (!keystorePasswordAvailable) {
+            Log.e(TAG, "No keystorePassword present, aborted: " + keystoreFileName);
             return false;
         }
         KeyStore ks = null;
@@ -238,6 +310,7 @@ public class CustomKeystore {
         } catch (KeyStoreException | CertificateException | IOException |
                  NoSuchAlgorithmException e) {
             Log.e(TAG, "Exception: " + e.getMessage());
+            lastErrorMessage = "Exception: " + e.getMessage();
             return false;
         }
     }
@@ -246,15 +319,18 @@ public class CustomKeystore {
     public boolean storeKey(byte keyNumber, byte[] key) {
         if (isAndroidSdkVersionTooLow) {
             Log.e(TAG, "The minimum Android SDK version is below 23 (M), aborted");
+            lastErrorMessage = "The minimum Android SDK version is below 23 (M), aborted";
             return false;
         }
         // sanity checks on keys
         if (key == null) {
             Log.e(TAG, "key is NULL, aborted");
+            lastErrorMessage = "key is NULL, aborted";
             return false;
         }
         if ((key.length != 8) && (key.length != 16)) {
             Log.e(TAG, "key length is not 8 or 16, aborted");
+            lastErrorMessage = "key length is not 8 or 16, aborted";
             return false;
         }
         if (key.length == 16) isKeyAes = true;
@@ -264,13 +340,15 @@ public class CustomKeystore {
         sb.append(keyNumber);
         String alias = sb.toString();
         Log.d(TAG, "alias: " + alias);
-        boolean keystorePasswortAvailable = getKeystorePasswordBytes();
-        if (!keystorePasswortAvailable) {
-            Log.e(TAG, "No keystorePasswort present, aborted: " + keystoreFileName);
+        boolean keystorePasswordAvailable = getKeystorePasswordBytes();
+        if (!keystorePasswordAvailable) {
+            Log.e(TAG, "No keystorePassword present, aborted: " + keystoreFileName);
+            lastErrorMessage = "No keystorePassword present, aborted: " + keystoreFileName;
             return false;
         }
         if (!isFilePresent(keystoreFileName)) {
             Log.e(TAG, "No keystoreFile present, aborted: " + keystoreFileName);
+            lastErrorMessage = "No keystoreFile present, aborted: " + keystoreFileName;
             return false;
         }
         try {
@@ -295,11 +373,12 @@ public class CustomKeystore {
             Log.d(TAG, "key is stored");
             FileOutputStream fos = context.openFileOutput(keystoreFileName, Context.MODE_PRIVATE);
             keyStore.store(fos, keystorePassword);
+            lastErrorMessage = "key is stored";
             return true;
         } catch (IOException | GeneralSecurityException e) {
             Log.e(TAG, "Exception on keystore usage, aborted");
-            Log.e(TAG, e.getMessage());
-            e.printStackTrace();
+            Log.e(TAG, "Exception: " + e.getMessage());
+            lastErrorMessage = "Exception: " + e.getMessage();
             return false;
         }
     }
@@ -308,6 +387,7 @@ public class CustomKeystore {
     public byte[] readKey(byte keyNumber) {
         if (isAndroidSdkVersionTooLow) {
             Log.e(TAG, "The minimum Android SDK version is below 23 (M), aborted");
+            lastErrorMessage = "The minimum Android SDK version is below 23 (M), aborted";
             return null;
         }
         Log.d(TAG, "readKey");
@@ -317,13 +397,15 @@ public class CustomKeystore {
         sb.append(keyNumber);
         String alias = sb.toString();
         Log.d(TAG, "readKey, alias: " + alias);
-        boolean keystorePasswortAvailable = getKeystorePasswordBytes();
-        if (!keystorePasswortAvailable) {
-            Log.e(TAG, "No keystorePasswort present, aborted: " + keystoreFileName);
+        boolean keystorePasswordAvailable = getKeystorePasswordBytes();
+        if (!keystorePasswordAvailable) {
+            Log.e(TAG, "No keystorePassword present, aborted: " + keystoreFileName);
+            lastErrorMessage = "No keystorePassword present, aborted: " + keystoreFileName;
             return null;
         }
         if (!isFilePresent(keystoreFileName)) {
             Log.d(TAG, "No keystoreFile present, aborted: " + keystoreFileName);
+            lastErrorMessage = "No keystoreFile present, aborted: " + keystoreFileName;
             return null;
         } else {
             try {
@@ -337,16 +419,18 @@ public class CustomKeystore {
                 // Creating SecretKey object
                 if (secretKeyEnt == null) {
                     Log.e(TAG, "no entry found, aborted");
+                    lastErrorMessage = "no entry found, aborted";
                     return null;
                 }
                 SecretKey secretKey = secretKeyEnt.getSecretKey();
                 Log.d(TAG, "Algorithm used to generate key : " + secretKey.getAlgorithm());
                 byte[] retrievedKey = secretKey.getEncoded();
+                lastErrorMessage = "success";
                 return retrievedKey;
             } catch (IOException | GeneralSecurityException e) {
                 Log.e(TAG, "Exception on keystore usage, aborted");
-                Log.e(TAG, e.getMessage());
-                e.printStackTrace();
+                Log.e(TAG, "Exception: " + e.getMessage());
+                lastErrorMessage = "Exception: " + e.getMessage();
                 return null;
             }
         }
@@ -370,11 +454,12 @@ public class CustomKeystore {
                     list.add(ne);
                 }
                 Log.d(TAG, "list has entries: " + list.size());
+                lastErrorMessage = "success, list has entries: " + list.size();
                 return list;
             } catch (IOException | GeneralSecurityException e) {
                 Log.e(TAG, "Exception on keystore usage, aborted");
-                Log.e(TAG, e.getMessage());
-                e.printStackTrace();
+                Log.e(TAG, "Exception: " + e.getMessage());
+                lastErrorMessage = "Exception: " + e.getMessage();
                 return null;
             }
         }
@@ -421,15 +506,19 @@ public class CustomKeystore {
             b[bpos] = (byte) ((buffer[i] & 0xFF00) >> 8);
             b[bpos + 1] = (byte) (buffer[i] & 0x00FF);
         }
-            return b;
+        return b;
     }
 
-        /**
-         * section for getter
-         */
+    /**
+     * section for getter
+     */
 
-        public boolean isLibraryInitialized () {
-            return isLibraryInitialized;
-        }
+    public boolean isLibraryInitialized() {
+        return isLibraryInitialized;
     }
+
+    public String getLastErrorMessage() {
+        return lastErrorMessage;
+    }
+}
 
