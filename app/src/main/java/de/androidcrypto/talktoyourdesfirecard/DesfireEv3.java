@@ -114,6 +114,7 @@ public class DesfireEv3 {
     private byte[] errorCode = new byte[2];
     private String errorCodeReason = "";
 
+
     /**
      * external constants for NDEF application and files
      */
@@ -155,6 +156,7 @@ public class DesfireEv3 {
     private final byte GET_VERSION_INFO_COMMAND = (byte) 0x60;
     private final byte CREATE_APPLICATION_COMMAND = (byte) 0xCA;
     private final byte SELECT_APPLICATION_COMMAND = (byte) 0x5A;
+    private final byte SELECT_APPLICATION_ISO_COMMAND = (byte) 0xA4;
     private final byte DELETE_APPLICATION_COMMAND = (byte) 0xDA;
     private final byte GET_APPLICATION_IDS_COMMAND = (byte) 0x6A;
     private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
@@ -226,7 +228,7 @@ public class DesfireEv3 {
     private final int MAXIMUM_READ_MESSAGE_LENGTH = 40;
     private static final byte MAXIMUM_NUMBER_OF_KEYS = 5; // the maximum of keys per application is 14
     private final int MAXIMUM_NUMBER_OF_FILES = 32; // as per datasheet DESFire EV3 this is valid for EV1, EV2 and EV3
-    private static final int MAXIMUM_VALUES = 1000000;
+    private static final int MAXIMUM_VALUES = 2147483647;
     private static final byte[] TRANSACTION_MAC_READER_ID_DEFAULT = Utils.hexStringToByteArray("28BF1982BE086FBC60A22DAEB66613EE"); // see Mifare DESFire Light Features and Hints AN12343.pdf pages 61 - 65
 
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
@@ -260,6 +262,7 @@ public class DesfireEv3 {
     private static FileSettings[] APPLICATION_ALL_FILE_SETTINGS; // filled by getAllFileSettings and invalidated by selectApplication AND createFile
     private FileSettings selectedFileSetting; // takes the fileSettings of the actual file
     private FileSettings[] fileSettingsArray = new FileSettings[MAXIMUM_NUMBER_OF_FILES]; // after an 'select application' the fileSettings of all files are read
+    private boolean isApplicationSelected = false; // used by SetupLightEnvironment, filled by selectApplicationByDfName
     private boolean isTransactionMacFilePresent = false; // true when a Transaction MAC file is present in an application
     private FileSettings transactionMacFileSettings; // not null when a transactionMacFile is present
     private boolean isTransactionMacCommitReaderId = false;
@@ -605,6 +608,56 @@ public class DesfireEv3 {
             return true;
         } else {
             log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            return false;
+        }
+    }
+
+    /**
+     * selects an application on the discovered tag by application name (ISO command)
+     *
+     * @param dfApplicationName
+     * @return Note: The DESFire Light has ONE pre defined application with name "D2760000850101"
+     * see //NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints AN12196.pdf pages 25-26
+     */
+
+    public boolean selectApplicationIsoByDfName(byte[] dfApplicationName) {
+        String logData = "";
+        final String methodName = "selectApplicationByIsoByDfName";
+        log(methodName, "started", true);
+        log(methodName, printData("dfApplicationName", dfApplicationName));
+
+        if (isoDep == null) {
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "isoDep is NULL (maybe it is not a NTAG424DNA tag ?), aborted";
+            return false;
+        }
+        if (dfApplicationName == null) {
+            errorCode = RESPONSE_PARAMETER_ERROR.clone();
+            errorCodeReason = "dfApplicationName is NULL, aborted";
+            return false;
+        }
+        // build command
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write((byte) 0x00);
+        baos.write(SELECT_APPLICATION_ISO_COMMAND);
+        baos.write((byte) 0x04); // select by DF name
+        baos.write((byte) 0x0C); // return no FCI data
+        //baos.write((byte) 0x00); // return the content of FCI = file id 1F
+        baos.write(dfApplicationName.length);
+        baos.write(dfApplicationName, 0, dfApplicationName.length);
+        baos.write((byte) 0x00); // le
+        byte[] apdu = baos.toByteArray();
+        byte[] response = sendData(apdu);
+        if (checkResponseIso(response)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            isApplicationSelected = true;
+            return true;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = methodName + " FAILURE";
             return false;
         }
     }
@@ -1083,6 +1136,168 @@ public class DesfireEv3 {
         }
     }
 
+    public boolean createACyclicRecordFileIso(byte fileNumber, byte[] isoFileId, CommunicationSettings communicationSettings, byte[] accessRights, int recordSize, int maximumNumberOfRecords) {
+        final String methodName = "createACyclicRecordFileIso";
+        logData = "";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, printData("isoFileId", isoFileId));
+        log(methodName, "communicationSettings: " + communicationSettings.toString());
+        log(methodName, printData("accessRights", accessRights));
+        log(methodName, "recordSize: " + recordSize);
+        log(methodName, "maximumNumberOfRecords: " + maximumNumberOfRecords);
+        return createARecordFileIso(fileNumber, isoFileId, communicationSettings, accessRights, recordSize, maximumNumberOfRecords, false);
+    }
+
+    private boolean createARecordFileIso(byte fileNumber, byte[] isoFileId, CommunicationSettings communicationSettings, byte[] accessRights, int recordSize, int maximumNumberOfRecords, boolean isLinearRecordFile) {
+        final String methodName = "createARecordFileIso";
+        logData = "";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, printData("isoFileId", isoFileId));
+        log(methodName, "communicationSettings: " + communicationSettings.toString());
+        log(methodName, printData("accessRights", accessRights));
+        log(methodName, "recordSize: " + recordSize);
+        log(methodName, "maximumNumberOfRecords: " + maximumNumberOfRecords);
+        log(methodName, "isLinearRecordFile: " + isLinearRecordFile);
+
+        errorCode = new byte[2];
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false;
+        if (!checkAccessRights(accessRights)) return false;
+        if (recordSize < 1) {
+            log(methodName, "recordSize is < 1, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "recordSize is < 1";
+            return false;
+        }
+        if (maximumNumberOfRecords < 1) {
+            log(methodName, "maximumNumberOfRecords is < 1, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "maximumNumberOfRecords is < 1";
+            return false;
+        }
+        if (!checkIsoDep()) return false;
+        byte commSettings = (byte) 0;
+        if (communicationSettings == CommunicationSettings.Plain)
+            commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        if (communicationSettings == CommunicationSettings.MACed)
+            commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
+        if (communicationSettings == CommunicationSettings.Full)
+            commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
+
+        // build the command string
+        byte[] recordSizeBytes = intTo3ByteArrayInversed(recordSize);
+        byte[] maximumNumberOfRecordsBytes = intTo3ByteArrayInversed(maximumNumberOfRecords);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(isoFileId, 0, isoFileId.length);
+        baos.write(commSettings);
+        baos.write(accessRights, 0, accessRights.length);
+        baos.write(recordSizeBytes, 0, recordSizeBytes.length);
+        baos.write(maximumNumberOfRecordsBytes, 0, maximumNumberOfRecordsBytes.length);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+        try {
+            if (isLinearRecordFile) {
+                apdu = wrapMessage(CREATE_LINEAR_RECORD_FILE_COMMAND, commandParameter);
+            } else {
+                apdu = wrapMessage(CREATE_CYCLIC_RECORD_FILE_COMMAND, commandParameter);
+            }
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            log(methodName, "SUCCESS");
+            return true;
+        } else {
+            log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            errorCodeReason = "FAILURE";
+            return false;
+        }
+
+/*
+final String methodName = "createAStandardFileIso";
+        logData = "";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, printData("isoFileId", isoFileId));
+        log(methodName, "communicationSettings: " + communicationSettings.toString());
+        log(methodName, printData("accessRights", accessRights));
+        log(methodName, "fileSize: " + fileSize);
+        log(methodName, "preEnableSdm: " + preEnableSdm);
+        errorCode = new byte[2];
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false; // logFile and errorCode are updated
+        if ((isoFileId == null) || (isoFileId.length != 2)) {
+            log(methodName, "isoFileId is NULL or not of length range 2, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "applicationDfName is NULL or not length range 1..16";
+            return false;
+        }
+        if (!checkAccessRights(accessRights)) return false; // logFile and errorCode are updated
+        if ((fileSize < 1) || (fileSize > MAXIMUM_FILE_SIZE)) {
+            log(methodName, "fileSize is not in range 1..MAXIMUM_FILE_SIZE, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "fileSize is not in range 1..MAXIMUM_FILE_SIZE";
+            return false;
+        }
+        if (!checkIsoDep()) return false; // logFile and errorCode are updated
+
+        byte commSettings = (byte) 0;
+        if (communicationSettings == CommunicationSettings.Plain)
+            commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        if (communicationSettings == CommunicationSettings.MACed)
+            commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
+        if (communicationSettings == CommunicationSettings.Full)
+            commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
+        // add 0x40 for pre-enabled SDM
+        if (preEnableSdm) {
+            commSettings = (byte) (commSettings | (byte) 0x40);
+        }
+
+        byte[] fileSizeByte = Utils.intTo3ByteArrayInversed(fileSize);
+        // build the command string
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(fileNumber);
+        baos.write(isoFileId, 0, isoFileId.length);
+        baos.write(commSettings);
+        baos.write(accessRights, 0, accessRights.length);
+        baos.write(fileSizeByte, 0, fileSizeByte.length);
+        byte[] commandParameter = baos.toByteArray();
+        byte[] apdu;
+        byte[] response;
+
+        try {
+            apdu = wrapMessage(CREATE_STANDARD_FILE_COMMAND, commandParameter);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            log(methodName, "SUCCESS");
+            return true;
+        } else {
+            log(methodName, "FAILURE with " + printData("errorCode", errorCode));
+            return false;
+        }
+ */
+    }
+
 
     /**
      * create a Transaction MAC file in selected application using file Number
@@ -1137,7 +1352,7 @@ public class DesfireEv3 {
     /**
      * Create a Transaction MAC file in selected application using file Number
      * The execution is done using CommunicationMode.Full for security reasons (see below)
-     * Note: the created Transaction MAC file has CommunicationMode.Plain
+     * Note: the created Transaction MAC file has CommunicationMode.Plain -> changed to all Comm.Modes
      * Note: the file can be read as a Standard file with a file length of 12 bytes
      * <p>
      * From datasheet  MIFARE DESFire Light contactless application IC MF2DLHX0.pdf page 84
@@ -1296,6 +1511,227 @@ public class DesfireEv3 {
         ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
         baosCmdHeader.write(fileNumber);
         baosCmdHeader.write(FILE_COMMUNICATION_SETTINGS_PLAIN);
+        baosCmdHeader.write(tmacAccessRights, 0, tmacAccessRights.length);
+        baosCmdHeader.write(TMACKeyOption);
+        byte[] cmdHeader = baosCmdHeader.toByteArray();
+        log(methodName, printData("cmdHeader", cmdHeader));
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted Data))
+        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
+        baosMacInput.write(CREATE_TRANSACTION_MAC_FILE_COMMAND); // 0xCE
+        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
+        baosMacInput.write(encryptedData, 0, encryptedData.length);
+        byte[] macInput = baosMacInput.toByteArray();
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Data (CmdHeader || MAC)
+        // error in Features and Hints, page 84, point 30:
+        // Data (CmdHeader || MAC) is NOT correct
+        // correct is the following concatenation:
+
+        // second error in point 32: Data Message shown is PLAIN data, not AES Secure Messaging data
+
+        // Data (CmdHeader || Encrypted Data || MAC)
+        ByteArrayOutputStream baosWriteDataCommand = new ByteArrayOutputStream();
+        baosWriteDataCommand.write(cmdHeader, 0, cmdHeader.length);
+        baosWriteDataCommand.write(encryptedData, 0, encryptedData.length);
+        baosWriteDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] createTransactionMacFileCommand = baosWriteDataCommand.toByteArray();
+        log(methodName, printData("createTransactionMacFileCommand", createTransactionMacFileCommand));
+
+        byte[] response = new byte[0];
+        byte[] apdu = new byte[0];
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(CREATE_TRANSACTION_MAC_FILE_COMMAND, createTransactionMacFileCommand);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage());
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        if (verifyResponseMac(responseMACTruncatedReceived, null)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return true;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return false;
+        }
+    }
+
+    public boolean createATransactionMacFileFullNewLight(byte fileNumber, CommunicationSettings communicationSettings, int commitReaderIdAuthKeyNumber, int changeAccessRightsKeyNumber, int readAccessKeyNumber, boolean enableCommitReaderId, byte[] transactionMacKey) {
+        //public boolean createTransactionMacFileEv2(byte fileNumber, byte[] transactionMacAccessRights, byte[] key) {
+        // see Mifare DESFire Light Features and Hints AN12343.pdf pages 83 - 85
+        // this is based on the creation of a TransactionMac file on a DESFire Light card
+
+        // for access rights see MIFARE DESFire Light contactless application IC MF2DLHX0.pdf page 14
+        // the TMAC can be read like a Standard file with size 12 bytes
+        // Note that TMC and TMV can also be read out encrypted, if preferred. In this case, the
+        // TransactionMAC file should be configured for CommMode.Full. One can then use ReadData to
+        // retrieve this information, instead of requesting it within the response of CommitTransaction.
+        // see pages 40-48 (General overview as well)
+
+        // key settings for Transaction MAC file
+        //private final byte ACCESS_RIGHTS_RW_CAR_TMAC = (byte) 0x10; // Read&Write Access (key 01) & ChangeAccessRights (key 00)
+        //private final byte ACCESS_RIGHTS_RW_CAR_TMAC = (byte) 0xF0; // CommitReaderID disabled & ChangeAccessRights (key 00)
+        /**
+         * Note on Access Right 'RW' - see MIFARE DESFire Light contactless application IC MF2DLHX0.pdf page 14
+         * AppCommitReaderIDKey: Note that this access right has a specific meaning in the context of a TransactionMAC file
+         * as if defines the availability and configuration for the CommitReaderID command:
+         * 0h..4h: CommitReaderID enabled, requiring authentication with the specified application key index
+         * Eh    : CommitReaderID enabled with free access
+         * Fh    : CommitReaderID disabled
+         */
+        //private final byte ACCESS_RIGHTS_R_W_TMAC = (byte) 0x1F; // Read Access (key 01) & Write Access (no access)
+
+        final String methodName = "createATransactionMacFileFull";
+        //logData = "";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        log(methodName, "communicationSettings: " + communicationSettings.toString());
+        log(methodName, "commitReaderIdAuthKeyNumber: " + commitReaderIdAuthKeyNumber);
+        log(methodName, "changeAccessRightsKeyNumber: " + changeAccessRightsKeyNumber);
+        log(methodName, "readAccessKeyNumber: " + readAccessKeyNumber);
+        log(methodName, "enableCommitReaderId: " + enableCommitReaderId);
+        log(methodName, printData("transactionMacKey", transactionMacKey));
+        errorCode = new byte[2];
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false;
+        if (!checkKey(transactionMacKey)) return false;
+        if (!checkKeyNumber(commitReaderIdAuthKeyNumber)) return false;
+        if (!checkKeyNumber(changeAccessRightsKeyNumber)) return false;
+        if (!checkKeyNumber(readAccessKeyNumber)) return false;
+        if (!checkAuthentication()) return false;
+        if (!checkIsoDep()) return false;
+
+        // here we are building the tmacAccessRights depending on requests
+        // if enableCommitReaderId == true the commitReaderIdAuthKeyNumber needs to be in range 00..14
+        if ((enableCommitReaderId) && (commitReaderIdAuthKeyNumber > 14)) {
+            log(methodName, "enableCommitReaderId is true but commitReaderIdAuthKeyNumber is not in range 0..14, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "enableCommitReaderId is true but commitReaderIdAuthKeyNumber is not in range 0..14";
+            return false;
+        }
+        if ((!enableCommitReaderId) && (commitReaderIdAuthKeyNumber < 15)) {
+            log(methodName, "enableCommitReaderId is false but commitReaderIdAuthKeyNumber is not 15, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "enableCommitReaderId is false but commitReaderIdAuthKeyNumber is not 15";
+            return false;
+        }
+        byte accessRightsRwCar = (byte) ((commitReaderIdAuthKeyNumber << 4) | (changeAccessRightsKeyNumber & 0x0F)); // Read & Write Access key = CommitReaderId key || Change Access Rights key
+        byte accessRightsRW = (byte) ((readAccessKeyNumber << 4) | (15 & 0x0F));// Read Access key || Write Access = 15 = never (fixed)
+        byte[] tmacAccessRights = new byte[2];
+        tmacAccessRights[0] = accessRightsRwCar;
+        tmacAccessRights[1] = accessRightsRW;
+
+        byte commSettings = (byte) 0;
+        /*
+        if (communicationSettings == CommunicationSettings.MACed) {
+            log(methodName, "CommunicationSettings.Plain allowed only, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "tmacAccessRights are invalid";
+            return false;
+        }
+        if (communicationSettings == CommunicationSettings.Full) {
+            log(methodName, "CommunicationSettings.Plain allowed only, aborted");
+            System.arraycopy(RESPONSE_PARAMETER_ERROR, 0, errorCode, 0, 2);
+            errorCodeReason = "tmacAccessRights are invalid";
+            return false;
+        }
+         */
+        if (communicationSettings == CommunicationSettings.Plain)
+            commSettings = FILE_COMMUNICATION_SETTINGS_PLAIN;
+        if (communicationSettings == CommunicationSettings.MACed) commSettings = FILE_COMMUNICATION_SETTINGS_MACED;
+        if (communicationSettings == CommunicationSettings.Full) commSettings = FILE_COMMUNICATION_SETTINGS_FULL;
+
+        byte TMACKeyOption = (byte) 0x02; // AES
+        byte TMACKeyVersion = (byte) 0x00; // fixed
+
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
+        log(methodName, "CmdCounter: " + CmdCounter);
+        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
+        log(methodName, printData("TransactionIdentifier", TransactionIdentifier));
+        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
+        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
+        baosIvInput.write(IV_LABEL_ENC, 0, IV_LABEL_ENC.length);
+        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
+        baosIvInput.write(padding1, 0, padding1.length);
+        byte[] ivInput = baosIvInput.toByteArray();
+        log(methodName, printData("ivInput", ivInput));
+
+        // IV for CmdData = Enc(KSesAuthENC, IV_Input)
+        log(methodName, printData("SesAuthENCKey", SesAuthENCKey));
+        byte[] startingIv = new byte[16];
+        byte[] ivForCmdData = AES.encrypt(startingIv, SesAuthENCKey, ivInput);
+        log(methodName, printData("ivForCmdData", ivForCmdData));
+
+        // Data (New TMAC Key)
+        // taken from method header
+
+        // Encrypted Data = E(KSesAuthENC, Data)
+        byte[] keyEncrypted = AES.encrypt(ivForCmdData, SesAuthENCKey, transactionMacKey);
+        log(methodName, printData("keyEncrypted", keyEncrypted));
+        byte[] iv2 = keyEncrypted.clone();
+        log(methodName, printData("iv2", iv2));
+
+        // Data (TMACKeyVersion || Padding)
+        // taken from method header and don't forget to pad with 0x80..00
+        byte[] keyVersionPadded = new byte[16];
+        keyVersionPadded[0] = TMACKeyVersion;
+        // padding with full padding
+        System.arraycopy(PADDING_FULL, 0, keyVersionPadded, 1, (PADDING_FULL.length - 1));
+        log(methodName, printData("keyVersionPadded", keyVersionPadded));
+
+        // Encrypted Data = E(KSesAuthENC, Data)
+        byte[] keyVersionPaddedEncrypted = AES.encrypt(iv2, SesAuthENCKey, keyVersionPadded);
+        log(methodName, printData("keyVersionPaddedEncrypted", keyVersionPaddedEncrypted));
+
+        // Encrypted Data (both blocks)
+        byte[] encryptedData = concatenate(keyEncrypted, keyVersionPaddedEncrypted);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // Generating the MAC for the Command APDU
+        startingIv = new byte[16];
+
+        // this part is missing in the Feature & Hints document on page 84
+        // CmdHeader (FileNo || CommunicationSettings || RW_CAR keys || R_W keys || TMACKeyOption)
+        ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
+        baosCmdHeader.write(fileNumber);
+        //baosCmdHeader.write(FILE_COMMUNICATION_SETTINGS_PLAIN);
+        baosCmdHeader.write(commSettings);
         baosCmdHeader.write(tmacAccessRights, 0, tmacAccessRights.length);
         baosCmdHeader.write(TMACKeyOption);
         byte[] cmdHeader = baosCmdHeader.toByteArray();
@@ -9725,6 +10161,8 @@ fileSize: 128
      * getter
      */
 
+
+
     public byte[] getErrorCode() {
         return errorCode;
     }
@@ -9735,6 +10173,10 @@ fileSize: 128
 
     public String getLogData() {
         return logData;
+    }
+
+    public boolean isApplicationSelected() {
+        return isApplicationSelected;
     }
 
     public byte getKeyNumberUsedForAuthentication() {

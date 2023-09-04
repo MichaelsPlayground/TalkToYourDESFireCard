@@ -14,7 +14,8 @@
     <!-- strings for setup test environment -->
     <string name="header_setup_test_environment">Setup a test environment</string>
     <string name="description_setup_test_environment">For testing the features of the DesfireEv3 class this activity will prepare the PICC with all necessary application and files</string>
-    <string name="warning_setup_test_environment">WARNING: The app will IMMEDIATELY run all setups when attached without any further confirmation !\n</string>
+    <string name="warning_setup_test_environment">WARNING: The app will IMMEDIATELY run all setups when attached without any further confirmation !\n
+    This includes a FORMAT of the PICC - you will loose any existing applications and files on the PICC without recovery !</string>
     <string name="more_information_setup_test_environment">More Information about the application and file creations:\n
     1) The app will FORMAT the PICC so the complete PICC memory is available.\n
     2) The app will create a new application with applicationID A1A2A3. The app will have 5 AES based application keys.
@@ -66,9 +67,18 @@
     <string name="description_create_application">Creates an application on the PICC with AES keys</string>
     <string name="warning_create_application">This will create an application on the PICC without any further conformation</string>
     <string name="more_information_create_application">more\n</string>
+
     <string name="header_create_file">he</string>
     <string name="description_create_file">des</string>
     <string name="warning_create_file">wa</string>
+
+
+    <!-- strings for setup DESFire Light environment -->
+    <string name="header_setup_light_environment">Setup a DESFire Light environment</string>
+    <string name="description_setup_light_environment">For testing the features of the Desfire Light class this activity will prepare the PICC with all necessary application and files that are pre-installed on a DESFire Light tag</string>
+    <string name="warning_setup_light_environment">WARNING: The app will IMMEDIATELY run all setups when attached without any further confirmation !\n
+    This includes a FORMAT of the PICC - you will loose any existing applications and files on the PICC without recovery !</string>
+    <string name="more_information_setup_light_environment">more</string>
 
 
 </resources>

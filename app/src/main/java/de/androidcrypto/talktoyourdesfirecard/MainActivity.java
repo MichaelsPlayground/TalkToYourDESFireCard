@@ -2606,6 +2606,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        MenuItem mSetupLightEnvironment = menu.findItem(R.id.action_setup_light_environment);
+        mSetupLightEnvironment.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                Intent intent = new Intent(MainActivity.this, SetupLightEnvironmentActivity.class);
+                startActivity(intent);
+                return false;
+            }
+        });
 
         MenuItem mExportTextFile = menu.findItem(R.id.action_export_text_file);
         mExportTextFile.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {

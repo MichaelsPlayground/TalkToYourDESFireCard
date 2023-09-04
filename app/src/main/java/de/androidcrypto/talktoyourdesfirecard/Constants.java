@@ -22,6 +22,8 @@ public class Constants {
     public static final byte[] MASTER_APPLICATION_IDENTIFIER = Utils.hexStringToByteArray("000000"); // AID '00 00 00'
     public static final byte[] APPLICATION_IDENTIFIER_AES = Utils.hexStringToByteArray("A1A2A3"); // AID 'A1 A2 A3'
 
+
+
     /**
      * files
      */
@@ -88,4 +90,35 @@ public class Constants {
      * Transaction MAC feature
      */
     public static final byte[] TRANSACTION_MAC_KEY_AES = Utils.hexStringToByteArray("F7D23E0C44AFADE542BFDF2DC5C6AE02"); // taken from Mifare DESFire Light Features and Hints AN12343.pdf, pages 83-84
+
+
+    /**
+     * constants for a DESFire Light simulation
+     */
+
+    // a DESFire Light tag has one pre defined application with these data
+    public static final byte[] LIGHT_APPLICATION_IDENTIFIER_AES = Utils.hexStringToByteArray("E1E2E3"); // AID 'E1 E2 E3'
+    public static final byte[] LIGHT_APPLICATION_DF_NAME_DEFAULT = Utils.hexStringToByteArray("A00000039656434103F015400000000B"); // DESFire Light: only one application is  available
+    public static final byte[] LIGHT_APPLICATION_ISO_FILE_ID_DEFAULT = Utils.hexStringToByteArray("DF01");
+    public static final int LIGHT_APPLICATION_NUMBER_OF_KEYS = 5;
+    // there are in total 6 pre-defined files on a DESFire Light tag:
+    public static final byte LIGHT_STANDARD_FILE_00_FULL_NUMBER = (byte) 0x00;
+    public static final byte[] LIGHT_STANDARD_FILE_00_FULL_ISO_FILE_ID = Utils.hexStringToByteArray("EF00");
+    public static final byte[] LIGHT_FILE_ACCESS_RIGHTS_00 = Utils.hexStringToByteArray("301F"); // RW key || CAR key || R key || W key
+    public static final byte LIGHT_STANDARD_FILE_04_FULL_NUMBER = (byte) 0x04;
+    public static final byte[] LIGHT_STANDARD_FILE_04_FULL_ISO_FILE_ID = Utils.hexStringToByteArray("EF04");
+    public static final byte[] LIGHT_FILE_ACCESS_RIGHTS_04 = Utils.hexStringToByteArray("3012"); // RW key || CAR key || R key || W key
+    public static final byte LIGHT_STANDARD_FILE_31_PLAIN_NUMBER = (byte) 0x1F;
+    public static final byte[] LIGHT_STANDARD_FILE_31_PLAIN_ISO_FILE_ID = Utils.hexStringToByteArray("EF1F");
+    public static final byte[] LIGHT_FILE_ACCESS_RIGHTS_31 = Utils.hexStringToByteArray("30EF"); // RW key || CAR key || R key || W key
+    public static final byte LIGHT_CYCLIC_RECORD_FILE_01_FULL_NUMBER = (byte) 0x01;
+    public static final byte[] LIGHT_CYCLIC_RECORD_FILE_01_FULL_ISO_FILE_ID = Utils.hexStringToByteArray("EF01");
+    public static final byte[] LIGHT_FILE_ACCESS_RIGHTS_01 = Utils.hexStringToByteArray("3012"); // RW key || CAR key || R key || W key
+    public static final byte LIGHT_VALUE_FILE_03_FULL_NUMBER = (byte) 0x03; // no ISO_FILE_ID given
+    public static final byte[] LIGHT_FILE_ACCESS_RIGHTS_03 = Utils.hexStringToByteArray("3012"); // RW key || CAR key || R key || W key
+    public static final byte LIGHT_TRANSACTION_MAC_FILE_21_FULL_NUMBER = (byte) 0x15;
+    public static final byte[] LIGHT_FILE_ACCESS_RIGHTS_21 = Utils.hexStringToByteArray("101F"); // RW key || CAR key || R key || W key
+
+
+
 }
