@@ -36,10 +36,10 @@ will immediately run these steps without any further confirmation:
 7) authenticate the application with the Application Master Key (AES default)
 8) create a new Transaction MAC file
 
-## Setting of the application
+## Settings of the application
 
 The created application comes with these settings:
-- application identifier: **E1E2E3** (this is choosen by me)
+- application identifier: **E1E2E3** (this is chosen by me)
 - ISO file ID: **DF01**
 - ISO DF Name: **A00000039656434103F015400000000B**
 - Number of keys and key type: **5 AES keys**
@@ -49,7 +49,7 @@ DeleteFile is permitted also without application master key authentication (defa
 commands succeed independently of a preceding application master key authentication (default setting), Application master key is changeable 
 (authentication with the current application master key necessary, default setting)) 
 
-## Setting of the created files
+## Settings of the created files
 
 This are the available files on a DESFire Light tag with their default file settings:
 
@@ -86,6 +86,13 @@ Legend:
 | Notes | *1) a Limited Credit value of 111 is defined and a free access on read value is granted |  
 |       | *2) the TransactionMAC file is created with **enabled** CommitReaderId feature |
 |       | *3) this Standard file is the storage place for a **File Control Information (FCI)** template |
+
+## Key values
+
+All application keys (5 keys) are AES keys with default value = '00000000000000000000000000000000h'. During a tag personalization 
+all keys should get changed to individual keys.
+
+
 
 
 
