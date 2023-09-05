@@ -153,6 +153,8 @@ Want to know more about [DESFire Transaction MAC file operations](desfire_ev3_tr
 
 Want to know more about [DESFire authentication](desfire_ev3_authentication.md)
 
+How to prepare a DESFire EV3 to work as a DESFire Light tag: [setup DESFire Light environment](desfire_ev3_setup_desfire_light_environment.md)
+
 []()
 
 

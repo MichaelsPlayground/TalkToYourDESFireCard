@@ -98,11 +98,11 @@ public class SetupLightEnvironmentActivity extends AppCompatActivity implements 
          * 1) select Master Application ("000000")
          * 2) authenticate with MASTER_APPLICATION_KEY_DES_DEFAULT ("0000000000000000")
          * 3) format PICC
-         * 4) create a new application ("A1A2A3")
-         * 5) select the new application ("A1A2A3")
-         * 6) create a new file set Plain (Standard, Backup, Value, Linear Record and Cyclic Record files)
-         * 7) create a new file set MACed (Standard, Backup, Value, Linear Record and Cyclic Record files)
-         * 8) create a new file set Full (Standard, Backup, Value, Linear Record and Cyclic Record files)
+         * 4) create a new application ("E1E2E3")
+         * 5) select the new application ("E1E2E3")
+         * 6) create a new file set consisting of 5 files: 3 Standard files, 1 Value file and 1 Cyclic Record file
+         * 7) authenticate the application with the Application Master Key (AES default)
+         * 8) create a new Transaction MAC file
          */
 
         boolean success;
@@ -115,23 +115,18 @@ public class SetupLightEnvironmentActivity extends AppCompatActivity implements 
         writeToUiAppend("step 1: select Master Application with ID 0x000000");
         writeToUiAppend("step 2: authenticate with default DES Master Application Key");
         writeToUiAppend("step 3: format the PICC");
-        //success = desfireEv3.desfireD40.formatPicc();
         success = desfireD40.formatPicc();
-        //errorCode = desfireEv3.desfireD40.getErrorCode();
         errorCode = desfireD40.getErrorCode();
         if (success) {
             writeToUiAppendBorderColor("format of the PICC SUCCESS", COLOR_GREEN);
         } else {
-            writeToUiAppendBorderColor("format of the PICC FAILURE with error code: "
-                    + EV3.getErrorCode(errorCode) + ", aborted", COLOR_RED);
+            writeToUiAppendBorderColor("format of the PICC FAILURE, aborted", COLOR_RED);
             return;
         }
 
         // If there are any failures on creating the activity isn't ending because the application or file can exist
         writeToUiAppend("step 4: create a new application (\"E1E2E3\")");
-        //success = desfireEv3.createApplicationAes(Constants.APPLICATION_IDENTIFIER_AES, Constants.APPLICATION_NUMBER_OF_KEYS_DEFAULT);
         success = desfireEv3.createApplicationAesIso(Constants.LIGHT_APPLICATION_IDENTIFIER_AES, Constants.LIGHT_APPLICATION_ISO_FILE_ID_DEFAULT, Constants.LIGHT_APPLICATION_DF_NAME_DEFAULT, Constants.LIGHT_APPLICATION_NUMBER_OF_KEYS);
-
         errorCode = desfireEv3.getErrorCode();
         errorCodeReason = desfireEv3.getErrorCodeReason();
         if (success) {
@@ -144,7 +139,6 @@ public class SetupLightEnvironmentActivity extends AppCompatActivity implements 
         }
 
         writeToUiAppend("step 5: select the new application (\"E1E2E3\")");
-        //success = desfireEv3.selectApplicationByAid(Constants.APPLICATION_IDENTIFIER_AES);
         success = desfireEv3.selectApplicationIsoByDfName(Constants.LIGHT_APPLICATION_DF_NAME_DEFAULT);
         errorCode = desfireEv3.getErrorCode();
         errorCodeReason = desfireEv3.getErrorCodeReason();
@@ -159,21 +153,17 @@ public class SetupLightEnvironmentActivity extends AppCompatActivity implements 
 
         writeToUiAppend("step 6: create a new file set with 3 Standard, 1 Value and 1 Cyclic Record file in different comm modes");
         success = createLightFileSet();
-
         errorCode = desfireEv3.getErrorCode();
         errorCodeReason = desfireEv3.getErrorCodeReason();
         if (success) {
             writeToUiAppendBorderColor("create a new file set SUCCESS", COLOR_GREEN);
         } else {
-            writeToUiAppendBorderColor("create a new file set FAILURE with error code: "
-                    + EV3.getErrorCode(errorCode) + " = "
-                    + errorCodeReason + ", aborted", COLOR_RED);
+            writeToUiAppendBorderColor("create a new file set FAILURE, aborted", COLOR_RED);
             //return;
         }
 
         writeToUiAppend("step 7: authenticate with the application master key");
         success = desfireEv3.authenticateAesEv2First(Constants.APPLICATION_KEY_MASTER_NUMBER, Constants.APPLICATION_KEY_MASTER_AES_DEFAULT);
-
         errorCode = desfireEv3.getErrorCode();
         errorCodeReason = desfireEv3.getErrorCodeReason();
         if (success) {
@@ -204,7 +194,6 @@ public class SetupLightEnvironmentActivity extends AppCompatActivity implements 
     }
 
     private boolean createLightFileSet() {
-        // create 3 Standard files with communication modes Plain and FUll
         Log.d(TAG, "createLightFileSet");
         boolean createStandardFile00Full = desfireEv3.createAStandardFileIso(Constants.LIGHT_STANDARD_FILE_00_FULL_NUMBER, Constants.LIGHT_STANDARD_FILE_00_FULL_ISO_FILE_ID, DesfireEv3.CommunicationSettings.Full, Constants.LIGHT_FILE_ACCESS_RIGHTS_00, 256, false);
         Log.d(TAG, "createStandardFile00Full result: " + createStandardFile00Full);
@@ -217,18 +206,6 @@ public class SetupLightEnvironmentActivity extends AppCompatActivity implements 
 
         boolean createStandardFile31Plain = desfireEv3.createAStandardFileIso(Constants.LIGHT_STANDARD_FILE_31_PLAIN_NUMBER, Constants.LIGHT_STANDARD_FILE_31_PLAIN_ISO_FILE_ID , DesfireEv3.CommunicationSettings.Plain, Constants.LIGHT_FILE_ACCESS_RIGHTS_31, 32, false);
         Log.d(TAG, "createStandardFile31Plain result: " + createStandardFile31Plain);
-/*
- * @param fileNumber                  | in range 0..31
- * @param communicationSettings       | Plain mode only
- * @param commitReaderIdAuthKeyNumber | the number of the key that authenticates the Commit ReadId command (e.g. 1)
- * @param changeAccessRightsKeyNumber | the number of the Change Access Key (e.g. 2)
- * @param readAccessKeyNumber         | the number of the Read Access Key (e.g. 3)
- * @param enableCommitReaderId        | true for enabling the  Commit ReaderId feature
- * @param transactionMacKey           | a 16 bytes long AES key for encryption of Transaction MAC data
- *                                    | Note: the key version of this key is fixed to '0x00'
- * @return | true on success
- */
-
         return true;
     }
 
@@ -267,7 +244,6 @@ public class SetupLightEnvironmentActivity extends AppCompatActivity implements 
                     writeToUiAppendBorderColor("The tag is not a DESFire EV3 tag, stopping any further activities", COLOR_RED);
                     return;
                 }
-
                 desfireD40 = new DesfireAuthenticateLegacy(isoDep, false);
 
                 // get tag ID
@@ -275,7 +251,6 @@ public class SetupLightEnvironmentActivity extends AppCompatActivity implements 
                 writeToUiAppend("tag id: " + Utils.bytesToHex(tagIdByte));
                 Log.d(TAG, "tag id: " + Utils.bytesToHex(tagIdByte));
                 writeToUiAppendBorderColor("The app and DESFire EV3 tag are ready to use", COLOR_GREEN);
-
                 runSetupLightEnvironment();
 
             }
@@ -467,5 +442,4 @@ public class SetupLightEnvironmentActivity extends AppCompatActivity implements 
 
         return super.onCreateOptionsMenu(menu);
     }
-
 }

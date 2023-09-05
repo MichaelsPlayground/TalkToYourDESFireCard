@@ -1,4 +1,37 @@
-# DESFire EV3 file operations
+# DESFire EV3 Setup DESFire Light Environment
+
+Did you notice that another DESFire tag exists with the name **DESFire Light** ? This is a light weight version of 
+the DESFire EV2 tag specified for small applications. This is the introduction from the tag's datasheet:
+
+*MIFARE DESFire Light has a file-based memory structure compliant to ISO/IEC 7816-4 with a fixed,
+**pre-defined configuration** of **six individual files** (EF). The pre-defined configuration enables various
+use cases and allows the management of data according to best practice. Organized in one single
+directory (DF) and configurable access rights per file it enables different use cases of one issuing
+instance. MIFARE DESFire Light offers **three individual standard data files** with totally 544 bytes of
+memory for storage of application-specific data. The **value file** with a stored signed integer value
+and an upper and lower limit enables fast, flexible and secure implementation of monetary transactions,
+e.g. for micropayment applications. The **cyclic record file** with 4 entries of 16 bytes each enables an
+on-card logging of transactions.*
+
+As the application and the files are pre-created you can use the tag immediately without caring about the 
+application and file management. Most of the commands of a DESFire EV2/3 will work without any change but you 
+will notice that these tags are operating in **AES Secure Messaging**. 
+
+As it is a little bit tricky to get sample DESFire Light tags this activity will provide a remedy to the situation.
+
+When tapping a DESFire EV3 tag to the Android's card reader with this activity in the foreground the activity 
+will immediately run these steps without any further confirmation:
+
+1) select Master Application ("000000")
+2) authenticate with the MASTER APPLICATION KEY DES DEFAULT ("0000000000000000")
+3) format the PICC
+4) create a new application ("E1E2E3") with ISO File Id and ISO DF Name
+5) select the new application ("E1E2E3")
+6) create a new file set consisting of 5 files: 3 Standard files, 1 Value file and 1 Cyclic Record file (some of them with ISO File Id)
+7) authenticate the application with the Application Master Key (AES default)
+8) create a new Transaction MAC file
+
+
 
 On a Mifare DESFire EV3 tags six file types are available, each with a specific characteristic. Im describing all 
 of them in a short overview to understand what file is usage for which task:
