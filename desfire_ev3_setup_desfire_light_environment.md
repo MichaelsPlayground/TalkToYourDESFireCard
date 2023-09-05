@@ -19,6 +19,11 @@ will notice that these tags are operating in **AES Secure Messaging**.
 
 As it is a little bit tricky to get sample DESFire Light tags this activity will provide a remedy to the situation.
 
+## Serious warning when using this activity
+
+**WARNING: The app will IMMEDIATELY run all setups when attached without any further confirmation ! 
+This includes a FORMAT of the PICC - you will loose any existing applications and files on the PICC without recovery !**
+
 When tapping a DESFire EV3 tag to the Android's card reader with this activity in the foreground the activity 
 will immediately run these steps without any further confirmation:
 
@@ -30,6 +35,58 @@ will immediately run these steps without any further confirmation:
 6) create a new file set consisting of 5 files: 3 Standard files, 1 Value file and 1 Cyclic Record file (some of them with ISO File Id)
 7) authenticate the application with the Application Master Key (AES default)
 8) create a new Transaction MAC file
+
+## Setting of the application
+
+The created application comes with these settings:
+- application identifier: **E1E2E3** (this is choosen by me)
+- ISO file ID: **DF01**
+- ISO DF Name: **A00000039656434103F015400000000B**
+- Number of keys and key type: **5 AES keys**
+- application settings: **default values** (using fixed application settings '0x0f' meaning Application master key authentication is necessary 
+to change any key (default), the configuration is changeable if authenticated with the application master key (default setting), CreateFile / 
+DeleteFile is permitted also without application master key authentication (default setting), GetFileIDs, GetFileSettings and GetKeySettings 
+commands succeed independently of a preceding application master key authentication (default setting), Application master key is changeable 
+(authentication with the current application master key necessary, default setting)) 
+
+## Setting of the created files
+
+This are the available files on a DESFire Light tag with their default file settings:
+
+| F Nr | F Id |     F Type     | Size | RW | CAR |  R  |  W  | Deletable | Comm.Mode | Notes |
+|------|------|:--------------:|:----:|:--:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 00   | EF00 |    Standard    | 256  | 3 | 0 | 1 | 15 | no | Full | |
+| 01   | EF01 | Cyclic Record  | 4*16 | 3 | 0 | 1 | 2 | no | Full | |
+| 03   | -    |     Value      |  -   | 3 | 0 | 1 | 2 | no | Full | *1) |
+| 04   | EF04 |    Standard    | 256  | 3 | 0 | 1 | 2 | no | Full | |
+| 15   | -    | TransactionMAC |  12  | 1 | 0 | 1 | 15 | yes | Full | *2) |
+| 31   | EF1F |  FCI/Standard  |  32  | 3 | 0 | 14 | 15 | no | Plain | *3) |
+
+Legend:
+
+| Data | Description  |
+|-----|---------------------------|
+| F Nr | File number in decimal encoding   |
+| F Id | ISO File Identifier  |
+| F Type | File type as follows:   |
+| | Standard = Standard Data file |
+| | Cyclic = Cyclic Record file   |
+| | Value = Value file    |
+| | Transaction = Transaction MAC file  |
+| | FCI/Standard = File Control Information or Standard Data file                           |
+| Size | File size (Standard file) or number of records * record size (Cyclic Record file)       |
+| RW | Read & Write Access Rights key   |
+| CAR | Change Access Rights key   |
+| R | Read Access Rights key    |
+| W | Write Access Rights key   |
+| | key number 14 ('Eh') = free access (without any authentication)  |
+| | key number 15 ('Fh') = never access (no access) |
+| Deletable | only the Transaction MAC file can be deleted and created newly  |
+| Comm.Mode | Communication mode, can be Plain, MACed or Full enciphered |
+| Notes | *1) a Limited Credit value of 111 is defined and a free access on read value is granted |  
+|       | *2) the TransactionMAC file is created with **enabled** CommitReaderId feature |
+|       | *3) this Standard file is the storage place for a **File Control Information (FCI)** template |
+
 
 
 
