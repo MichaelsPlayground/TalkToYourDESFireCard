@@ -6,6 +6,7 @@ import static de.androidcrypto.talktoyourdesfirecard.Utils.intFrom4ByteArrayInve
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo2ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo3ByteArrayInversed;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.intTo4ByteArrayInversed;
+import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
 
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
@@ -159,6 +160,7 @@ public class DesfireEv3 {
     private final byte SELECT_APPLICATION_ISO_COMMAND = (byte) 0xA4;
     private final byte DELETE_APPLICATION_COMMAND = (byte) 0xDA;
     private final byte GET_APPLICATION_IDS_COMMAND = (byte) 0x6A;
+    private final byte GET_APPLICATION_DF_NAMES_COMMAND = (byte) 0x6D;
     private final byte CREATE_STANDARD_FILE_COMMAND = (byte) 0xCD;
     private final byte WRITE_STANDARD_FILE_COMMAND = (byte) 0x3D;
     private final byte READ_STANDARD_FILE_COMMAND = (byte) 0xBD;
@@ -259,6 +261,8 @@ public class DesfireEv3 {
      */
 
     private static byte[] APPLICATION_ALL_FILE_IDS; // filled by getAllFileIds and invalidated by selectApplication AND createFile
+    private List <byte[]> isoFileIdsList = new ArrayList<>(); // filled by getApplicationsIsoData and invalidated by onTagDiscovered
+    private List <byte[]> isoDfNamesList = new ArrayList<>(); // filled by getApplicationsIsoData and invalidated by onTagDiscovered
     private static FileSettings[] APPLICATION_ALL_FILE_SETTINGS; // filled by getAllFileSettings and invalidated by selectApplication AND createFile
     private FileSettings selectedFileSetting; // takes the fileSettings of the actual file
     private FileSettings[] fileSettingsArray = new FileSettings[MAXIMUM_NUMBER_OF_FILES]; // after an 'select application' the fileSettings of all files are read
@@ -280,6 +284,8 @@ public class DesfireEv3 {
         this.isoDep = isoDep;
         Log.i(TAG, "class is initialized");
         transactionMacReaderId = TRANSACTION_MAC_READER_ID_DEFAULT.clone();
+        isoFileIdsList = new ArrayList<>(); // filled by getApplicationsIsoData and invalidated by onTagDiscovered
+        isoDfNamesList = new ArrayList<>(); // filled by getApplicationsIsoData and invalidated by onTagDiscovered
     }
 
     /**
@@ -731,7 +737,112 @@ public class DesfireEv3 {
         return applicationIdList;
     }
 
-    ;
+    public byte[] getApplicationDfNames() {
+        final String methodName = "getApplicationDfNames";
+        logData = "";
+        log(methodName, "started", true);
+        errorCode = new byte[2];
+
+        // sanity checks
+        if (!checkIsMasterApplication()) return null; // select Master Application first
+        if (!checkIsoDep()) return null;
+
+        // get application ids
+        byte[] response;
+        response = sendRequest(GET_APPLICATION_DF_NAMES_COMMAND);
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (!checkResponse(response)) {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return null;
+        }
+        errorCode = RESPONSE_OK.clone();
+        errorCodeReason = "SUCCESS";
+        byte[] applicationListBytes = getData(response);
+        return applicationListBytes;
+    }
+
+    /**
+     *
+     * @return true on success
+     */
+
+    public boolean getApplicationsIsoData() {
+        byte[] dfNames = getApplicationDfNames();
+        if ((dfNames == null) || (dfNames.length < 6)) {
+            Log.e(TAG, "no DF names found, aborted");
+            return false;
+        }
+        Log.d(TAG, printData("dfNames", dfNames));
+        List<byte[]> appIdsList = getApplicationIdsList();
+        if  (appIdsList.size() < 1) {
+            Log.e(TAG, "no applications found, aborted");
+            return false;
+        }
+
+        // get iso file ids and df names by parsing through list
+        int dfNamesLength = dfNames.length;
+        isoFileIdsList = new ArrayList<>();
+        isoDfNamesList = new ArrayList<>();
+        int posAppId = -1;
+        int posAppIdLast = -1;
+        for (int i = 0; i < appIdsList.size(); i++) {
+            byte[] appId = appIdsList.get(i);
+            Log.d(TAG, "i: " + i + printData(" appId", appId));
+            posAppId = indexOf(dfNames, appId);
+            if (posAppId <= posAppIdLast) {
+                // this  happens if the appId is part of a former element
+                Log.e(TAG, "couldn't find the starting position, aborted");
+                return false;
+            }
+            if (posAppId > -1) {
+                Log.d(TAG, "found posAppId: " + posAppId);
+            } else {
+                Log.e(TAG, "appId not found in dfNames, aborted");
+                return false;
+            }
+            if (posAppId > 0) {
+                // skip the first id found
+                // get the data from the first element up to element - 1
+                Log.d(TAG, "get element data posAppIdLast: " + posAppIdLast + " posAppId: " + posAppId);
+                byte[] elementData = Arrays.copyOfRange(dfNames, posAppIdLast, posAppId);
+                Log.d(TAG, printData("elementData", elementData));
+                byte[] appIdTemp = Arrays.copyOfRange(elementData, 0, 3);
+                byte[] isoFileId = Arrays.copyOfRange(elementData, 3, 5);
+                byte[] dfName = Arrays.copyOfRange(elementData, 5, elementData.length);
+                isoFileIdsList.add(isoFileId);
+                isoDfNamesList.add(dfName);
+                Log.d(TAG, printData("appId",appIdTemp) + printData(" isoFileId", isoFileId) + printData(" dfName", dfName));
+            }
+            posAppIdLast = posAppId;
+            if (i == (appIdsList.size() - 1)) {
+                // grabbing the last element
+                Log.d(TAG, "grabbing the last element");
+                byte[] elementData = Arrays.copyOfRange(dfNames, posAppIdLast, dfNamesLength);
+                Log.d(TAG, printData("elementData", elementData));
+                byte[] appIdTemp = Arrays.copyOfRange(elementData, 0, 3);
+                byte[] isoFileId = Arrays.copyOfRange(elementData, 3, 5);
+                byte[] dfName = Arrays.copyOfRange(elementData, 5, elementData.length);
+                isoFileIdsList.add(isoFileId);
+                isoDfNamesList.add(dfName);
+                Log.d(TAG, printData("appId",appIdTemp) + printData(" isoFileId", isoFileId) + printData(" dfName", dfName));
+            }
+        }
+        Log.d(TAG, "isoFileIdsList size: " + isoFileIdsList.size());
+        Log.d(TAG, "isoDfNamesList size: " + isoDfNamesList.size());
+        for (int i = 0; i < isoFileIdsList.size(); i++) {
+            Log.d(TAG, "i: " + i + printData(" isoFileId", isoFileIdsList.get(i)));
+            Log.d(TAG, "i: " + i + printData(" isoDfName", isoDfNamesList.get(i)));
+        }
+        if ((isoFileIdsList.size() > 0) && (isoDfNamesList.size() > 1)) {
+            Log.d(TAG, "applicationIsoData is available, use getter");
+            return true;
+        } else {
+            Log.d(TAG, "applicationIsoData is NOT available");
+            return false;
+        }
+    }
 
 
     /**
@@ -5313,6 +5424,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         int fullRecords = fullLength / recordSize;
         Log.e(TAG, "fullRecords: " + fullRecords);
         byte[] readData = Arrays.copyOfRange(macedData, 0, (fullRecords * recordSize)); // just return the real data
+        //byte[] readData = Arrays.copyOfRange(decryptedData, 0, ((fullRecords - 1) * recordSize)); // just return the real data, -1 is for adjusting the padding
         log(methodName, printData("readData", readData));
 
         if (verifyResponseMac(responseMACTruncatedReceived, macedData)) {
@@ -5460,7 +5572,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         int fullLength = decryptedData.length;
         int fullRecords = fullLength / recordSize;
         Log.e(TAG, "fullRecords: " + fullRecords);
-        byte[] readData = Arrays.copyOfRange(decryptedData, 0, (fullRecords * recordSize)); // just return the real data
+        //byte[] readData = Arrays.copyOfRange(decryptedData, 0, (fullRecords * recordSize)); // just return the real data
+        byte[] readData = Arrays.copyOfRange(decryptedData, 0, ((fullRecords - 1) * recordSize)); // just return the real data, -1 is for adjusting the padding
         log(methodName, printData("readData", readData));
 
         if (verifyResponseMac(responseMACTruncatedReceived, encryptedData)) {
@@ -5899,7 +6012,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // here we are using just the commit command without preceding commitReaderId command
         // Constructing the full CommitTransaction Command APDU
-        final byte COMMIT_TRANSACTION_OPTION_DISABLED = (byte) 0x00; // 01 meaning TMC and TMV to be returned in the R-APDU
+        final byte COMMIT_TRANSACTION_OPTION_DISABLED = (byte) 0x00; // 00 meaning TMC and TMV NOT to be returned in the R-APDU
         final byte COMMIT_TRANSACTION_OPTION_ENABLED = (byte) 0x01; // 01 meaning TMC and TMV to be returned in the R-APDU
         byte commitTransactionOptionEnabledReturnTmcv;
         if (isEnabledReturnTmcv) {
@@ -5994,6 +6107,14 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
     private boolean commitReaderIdFull() {
         final String methodName = "commitReaderIdFull";
         log(methodName, "started", true);
+
+        // MIFARE DESFire Light contactless application IC MF2DLHX0.pdf page 109 ff
+        // AUTHENTICATION_ERROR AEh : No active authentication with AppCommitReaderIDKey
+        /*
+        The AppCommitReaderIDKey refers to one of the AppKey and is used for the Transaction MAC feature is
+        described in Section 10.3. Its key number is specified in Section 8.2.3.6 and is assigned at creation
+        time of the TransactionMAC file.
+         */
 
         // sanity checks
         if (!checkAuthentication()) return false;
@@ -10107,6 +10228,27 @@ fileSize: 128
         return result;
     }
 
+    /**
+     * checks the position of a smallerArray within a larger=outer array
+     * @param outerArray
+     * @param smallerArray
+     * @return position on success or -1 on failure
+     */
+
+    public int indexOf(byte[] outerArray, byte[] smallerArray) {
+        for(int i = 0; i < outerArray.length - smallerArray.length+1; ++i) {
+            boolean found = true;
+            for(int j = 0; j < smallerArray.length; ++j) {
+                if (outerArray[i+j] != smallerArray[j]) {
+                    found = false;
+                    break;
+                }
+            }
+            if (found) return i;
+        }
+        return -1;
+    }
+
     private void invalidateAllNonAuthenticationData() {
         selectedApplicationId = null;
         APPLICATION_ALL_FILE_SETTINGS = null;
@@ -10209,6 +10351,14 @@ fileSize: 128
 
     public static FileSettings[] getApplicationAllFileSettings() {
         return APPLICATION_ALL_FILE_SETTINGS;
+    }
+
+    public List<byte[]> getIsoFileIdsList() {
+        return isoFileIdsList;
+    }
+
+    public List<byte[]> getIsoDfNamesList() {
+        return isoDfNamesList;
     }
 
     public boolean isTransactionMacFilePresent() {

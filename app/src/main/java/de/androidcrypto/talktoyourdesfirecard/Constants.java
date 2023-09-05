@@ -90,7 +90,7 @@ public class Constants {
      * Transaction MAC feature
      */
     public static final byte[] TRANSACTION_MAC_KEY_AES = Utils.hexStringToByteArray("F7D23E0C44AFADE542BFDF2DC5C6AE02"); // taken from Mifare DESFire Light Features and Hints AN12343.pdf, pages 83-84
-
+    public static final byte[] TRANSACTION_MAC_KEY_AES_DEFAULT = Utils.hexStringToByteArray("00000000000000000000000000000000");
 
     /**
      * constants for a DESFire Light simulation

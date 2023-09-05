@@ -46,6 +46,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -111,7 +112,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      */
 
     private LinearLayout llSectionFileActions;
-    private Button changeFileSettings0000, changeFileSettings1234;
+    private Button changeFileSettings0000, changeFileSettings1234, deleteFile;
 
     /**
      * section for Transaction MAC file
@@ -263,6 +264,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         llSectionFileActions = findViewById(R.id.llSectionFileActions);
         changeFileSettings0000 = findViewById(R.id.btnChangeFileSettings0000);
         changeFileSettings1234 = findViewById(R.id.btnChangeFileSettings1234);
+        deleteFile = findViewById(R.id.btnDeleteFile);
 
         // transaction mac file workflow
         fileTransactionMacCreate = findViewById(R.id.btnTransactionMacFileCreate);
@@ -1480,6 +1482,50 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        deleteFile.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "delete a file";
+                writeToUiAppend(output, logString);
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+
+                // pre-check if fileNumber is existing
+                boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
+                if (!isFileExisting) {
+                    writeToUiAppend(output, logString + " The file does not exist, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
+                    return;
+                }
+                writeToUiAppend(output, "Note: DO NOT authenticate with the Application Master Key first !");
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireEv3.deleteFile(fileIdByte);
+                responseData = desfireEv3.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
+            }
+        });
+
 
         /**
          * section for Transaction MAC file handling
@@ -1914,16 +1960,124 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             @Override
             public void onClick(View view) {
                 clearOutputFields();
-                String logString = "Test change Main Application Key to AES DEFAULT";
+                String logString = "Get Application DF-Names";
                 writeToUiAppend(output, logString);
 
+
+
+                boolean success;
+                String stepString = "1 select Master Application";
+                success = desfireEv3.selectApplicationByAid(DesfireEv3.MASTER_APPLICATION_IDENTIFIER);
+                writeToUiAppend(output, stepString + " success ? : " + success);
+                if (!success) return;
+
+                writeToUiAppend(output, "step 4: create a new application (\"E1E2E4\")");
+                final byte[] APPLICATION_IDENTIFIER_AES_1 = Utils.hexStringToByteArray("E1E2E4");
+                final byte[] APPLICATION_ISO_FILE_ID_1 = Utils.hexStringToByteArray("DD01");
+                final byte[] APPLICATION_DF_NAME_1 = Utils.hexStringToByteArray("A0DDEE039656434103F015400000000B");
+                success = desfireEv3.createApplicationAesIso(APPLICATION_IDENTIFIER_AES_1, APPLICATION_ISO_FILE_ID_1, APPLICATION_DF_NAME_1, 5);
+                if (success) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout,"create a new application SUCCESS", COLOR_GREEN);
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "create a new application FAILURE", COLOR_RED);
+                    //return;
+                }
+
+                writeToUiAppend(output, "step 4: create a new application (\"E1E2E5\")");
+                final byte[] APPLICATION_IDENTIFIER_AES_2 = Utils.hexStringToByteArray("E1E2E5");
+                final byte[] APPLICATION_ISO_FILE_ID_2 = Utils.hexStringToByteArray("DD02");
+                final byte[] APPLICATION_DF_NAME_2 = Utils.hexStringToByteArray("A2DD");
+                success = desfireEv3.createApplicationAesIso(APPLICATION_IDENTIFIER_AES_2, APPLICATION_ISO_FILE_ID_2, APPLICATION_DF_NAME_2, 5);
+                if (success) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout,"create a new application SUCCESS", COLOR_GREEN);
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "create a new application FAILURE", COLOR_RED);
+                    //return;
+                }
+
+                writeToUiAppend(output, "step 4: create a new application (\"E1E2E5\")");
+                final byte[] APPLICATION_IDENTIFIER_AES_3 = Utils.hexStringToByteArray("E1E2E6");
+                final byte[] APPLICATION_ISO_FILE_ID_3 = Utils.hexStringToByteArray("DD03");
+                final byte[] APPLICATION_DF_NAME_3 = Utils.hexStringToByteArray("A3DD03");
+                success = desfireEv3.createApplicationAesIso(APPLICATION_IDENTIFIER_AES_3, APPLICATION_ISO_FILE_ID_3, APPLICATION_DF_NAME_3, 5);
+                if (success) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout,"create a new application SUCCESS", COLOR_GREEN);
+                } else {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "create a new application FAILURE", COLOR_RED);
+                    //return;
+                }
+
+                byte[] dfNames = desfireEv3.getApplicationDfNames();
+                // 2 ids
+                // e1e2e3 df01 a00000039656434103f015400000000b e1e2e4 dd01 a0ddee039656434103f015400000000b
+                // 3 ids
+                // e1e2e3 df01 a00000039656434103f015400000000b e1e2e4 dd01 a0ddee039656434103f015400000000b e1e2e5 dd02 a2dd
+                // 4 ids
+                // e1e2e3df01a00000039656434103f015400000000be1e2e4dd01a0ddee039656434103f015400000000b      e1e2e5 dd02 a2dd e1e2e6 dd03 a3dd03
+
+                List<byte[]> appIdsList = desfireEv3.getApplicationIdsList();
+                // get iso file ids and df names by parsing through list
+                Log.d(TAG, printData("dfNames", dfNames));
+                int dfNamesLength = dfNames.length;
+                List <byte[]> isoFileIdsList = new ArrayList<>();
+                List <byte[]> isoDfNamesList = new ArrayList<>();
+                int posAppId = -1;
+                int posAppIdLast = -1;
+                for (int i = 0; i < appIdsList.size(); i++) {
+                    byte[] appId = appIdsList.get(i);
+                    Log.d(TAG, "i: " + i + printData(" appId", appId));
+                    posAppId = indexOf(dfNames, appId);
+                    if (posAppId <= posAppIdLast) {
+                        // this  happens if the appId is part of a former element
+                        Log.e(TAG, "couldn't find the starting position, aborted");
+                        return;
+                    }
+                    if (posAppId > -1) {
+                        Log.d(TAG, "found posAppId: " + posAppId);
+                    } else {
+                        Log.e(TAG, "appId not found in dfNames, aborted");
+                        return;
+                    }
+                    if (posAppId > 0) {
+                        // skip the first id found
+                        // get the data from the first element up to element - 1
+                        Log.d(TAG, "get element data posAppIdLast: " + posAppIdLast + " posAppId: " + posAppId);
+                        byte[] elementData = Arrays.copyOfRange(dfNames, posAppIdLast, posAppId);
+                        Log.d(TAG, printData("elementData", elementData));
+                        byte[] appIdTemp = Arrays.copyOfRange(elementData, 0, 3);
+                        byte[] isoFileId = Arrays.copyOfRange(elementData, 3, 5);
+                        byte[] dfName = Arrays.copyOfRange(elementData, 5, elementData.length);
+                        isoFileIdsList.add(isoFileId);
+                        isoDfNamesList.add(dfName);
+                        Log.d(TAG, printData("appId",appIdTemp) + printData(" isoFileId", isoFileId) + printData(" dfName", dfName));
+                    }
+                    posAppIdLast = posAppId;
+                    if (i == (appIdsList.size() - 1)) {
+                        // grabbing the last element
+                        Log.d(TAG, "grabbing the last element");
+                        byte[] elementData = Arrays.copyOfRange(dfNames, posAppIdLast, dfNamesLength);
+                        Log.d(TAG, printData("elementData", elementData));
+                        byte[] appIdTemp = Arrays.copyOfRange(elementData, 0, 3);
+                        byte[] isoFileId = Arrays.copyOfRange(elementData, 3, 5);
+                        byte[] dfName = Arrays.copyOfRange(elementData, 5, elementData.length);
+                        isoFileIdsList.add(isoFileId);
+                        isoDfNamesList.add(dfName);
+                        Log.d(TAG, printData("appId",appIdTemp) + printData(" isoFileId", isoFileId) + printData(" dfName", dfName));
+                    }
+                }
+                Log.d(TAG, "isoFileIdsList size: " + isoFileIdsList.size());
+                Log.d(TAG, "isoDfNamesList size: " + isoDfNamesList.size());
+                for (int i = 0; i < isoFileIdsList.size(); i++) {
+                    Log.d(TAG, "i: " + i + printData(" isoFileId", isoFileIdsList.get(i)));
+                    Log.d(TAG, "i: " + i + printData(" isoDfName", isoDfNamesList.get(i)));
+                }
+
+                /*
                 boolean success;
                 String stepString = "1 select Master Application";
                 success = desfireAuthenticateLegacy.selectApplication(DesfireAuthenticateLegacy.MASTER_APPLICATION_IDENTIFIER);
                 writeToUiAppend(output, stepString + " success ? : " + success);
                 if (!success) return;
-
-                /*
                 // this is DES to AES
                 stepString = "2 authenticate Master Application with DEFAULT DES key";
                 success = desfireAuthenticateLegacy.authenticateD40(Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_DES_DEFAULT);
@@ -1936,6 +2090,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 if (!success) return;
                 */
 
+
+
+                /*
                 // this is AES to DES
                 stepString = "2 authenticate Master Application with DEFAULT AES key";
                 byte[] responseData = new byte[2];
@@ -1948,12 +2105,26 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 //success = desfireEv3.changeApplicationKeyToDesFull(Constants.MASTER_APPLICATION_KEY_NUMBER, (byte) 0x00, Constants.MASTER_APPLICATION_KEY_DES_DEFAULT, Constants.MASTER_APPLICATION_KEY_AES_DEFAULT);
                 writeToUiAppend(output, stepString + " success ? : " + success);
                 if (!success) return;
-
+*/
 
             }
 
         });
 
+    }
+
+    public int indexOf(byte[] outerArray, byte[] smallerArray) {
+        for(int i = 0; i < outerArray.length - smallerArray.length+1; ++i) {
+            boolean found = true;
+            for(int j = 0; j < smallerArray.length; ++j) {
+                if (outerArray[i+j] != smallerArray[j]) {
+                    found = false;
+                    break;
+                }
+            }
+            if (found) return i;
+        }
+        return -1;
     }
 
     /**

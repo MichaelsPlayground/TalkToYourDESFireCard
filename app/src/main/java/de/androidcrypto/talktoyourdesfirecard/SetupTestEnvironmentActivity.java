@@ -59,6 +59,7 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
     private IsoDep isoDep;
     private byte[] tagIdByte;
     private DesfireEv3 desfireEv3;
+    private DesfireAuthenticateLegacy desfireD40;
     private FileSettings fileSettings;
     private boolean isDesfireEv3 = false;
 
@@ -114,8 +115,10 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
         writeToUiAppend("step 1: select Master Application with ID 0x000000");
         writeToUiAppend("step 2: authenticate with default DES Master Application Key");
         writeToUiAppend("step 3: format the PICC");
-        success = desfireEv3.formatPicc();
-        errorCode = desfireEv3.getErrorCode();
+        //success = desfireEv3.desfireD40.formatPicc();
+        success = desfireD40.formatPicc();
+        //errorCode = desfireEv3.desfireD40.getErrorCode();
+        errorCode = desfireD40.getErrorCode();
         if (success) {
             writeToUiAppendBorderColor("format of the PICC SUCCESS", COLOR_GREEN);
         } else {
@@ -317,6 +320,8 @@ public class SetupTestEnvironmentActivity extends AppCompatActivity implements N
                     writeToUiAppendBorderColor("The tag is not a DESFire EV3 tag, stopping any further activities", COLOR_RED);
                     return;
                 }
+
+                desfireD40 = new DesfireAuthenticateLegacy(isoDep, false);
 
                 // get tag ID
                 tagIdByte = tag.getId();

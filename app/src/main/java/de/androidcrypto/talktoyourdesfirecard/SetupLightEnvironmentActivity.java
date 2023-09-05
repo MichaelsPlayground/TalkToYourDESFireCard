@@ -59,6 +59,7 @@ public class SetupLightEnvironmentActivity extends AppCompatActivity implements 
     private IsoDep isoDep;
     private byte[] tagIdByte;
     private DesfireEv3 desfireEv3;
+    private DesfireAuthenticateLegacy desfireD40;
     private FileSettings fileSettings;
     private boolean isDesfireEv3 = false;
 
@@ -110,12 +111,14 @@ public class SetupLightEnvironmentActivity extends AppCompatActivity implements 
         writeToUiAppend(output, "");
 
         // the 'formatPicc' methods runs the 3 tasks in once
-/*
+
         writeToUiAppend("step 1: select Master Application with ID 0x000000");
         writeToUiAppend("step 2: authenticate with default DES Master Application Key");
         writeToUiAppend("step 3: format the PICC");
-        success = desfireEv3.formatPicc();
-        errorCode = desfireEv3.getErrorCode();
+        //success = desfireEv3.desfireD40.formatPicc();
+        success = desfireD40.formatPicc();
+        //errorCode = desfireEv3.desfireD40.getErrorCode();
+        errorCode = desfireD40.getErrorCode();
         if (success) {
             writeToUiAppendBorderColor("format of the PICC SUCCESS", COLOR_GREEN);
         } else {
@@ -123,7 +126,6 @@ public class SetupLightEnvironmentActivity extends AppCompatActivity implements 
                     + EV3.getErrorCode(errorCode) + ", aborted", COLOR_RED);
             return;
         }
-*/
 
         // If there are any failures on creating the activity isn't ending because the application or file can exist
         writeToUiAppend("step 4: create a new application (\"E1E2E3\")");
@@ -185,7 +187,7 @@ public class SetupLightEnvironmentActivity extends AppCompatActivity implements 
 
         // the creation needs a preceding authentication with the application master key
         writeToUiAppend("step 8: create a TransactionMAC file");
-        success = desfireEv3.createATransactionMacFileFullNewLight(Constants.LIGHT_TRANSACTION_MAC_FILE_21_FULL_NUMBER, DesfireEv3.CommunicationSettings.Plain, 1, 0, 1, true, Constants.TRANSACTION_MAC_KEY_AES);
+        success = desfireEv3.createATransactionMacFileFullNewLight(Constants.LIGHT_TRANSACTION_MAC_FILE_21_FULL_NUMBER, DesfireEv3.CommunicationSettings.Full, 3, 0, 1, true, Constants.TRANSACTION_MAC_KEY_AES_DEFAULT);
         errorCode = desfireEv3.getErrorCode();
         errorCodeReason = desfireEv3.getErrorCodeReason();
         if (success) {
@@ -265,6 +267,8 @@ public class SetupLightEnvironmentActivity extends AppCompatActivity implements 
                     writeToUiAppendBorderColor("The tag is not a DESFire EV3 tag, stopping any further activities", COLOR_RED);
                     return;
                 }
+
+                desfireD40 = new DesfireAuthenticateLegacy(isoDep, false);
 
                 // get tag ID
                 tagIdByte = tag.getId();

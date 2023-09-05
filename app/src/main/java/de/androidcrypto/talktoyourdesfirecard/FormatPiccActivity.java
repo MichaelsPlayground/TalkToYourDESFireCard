@@ -61,6 +61,7 @@ public class FormatPiccActivity extends AppCompatActivity implements NfcAdapter.
     private byte[] tagIdByte;
 
     private DesfireEv3 desfireEv3;
+    private DesfireAuthenticateLegacy desfireD40;
 
     private FileSettings fileSettings;
     private boolean isDesfireEv3 = false;
@@ -114,8 +115,10 @@ public class FormatPiccActivity extends AppCompatActivity implements NfcAdapter.
         stepString = "3 format the PICC";
         writeToUiAppend(output, stepString);
 
-        success = desfireEv3.desfireD40.formatPicc();
-        errorCode = desfireEv3.desfireD40.getErrorCode();
+        //success = desfireEv3.desfireD40.formatPicc();
+        success = desfireD40.formatPicc();
+        //errorCode = desfireEv3.desfireD40.getErrorCode();
+        errorCode = desfireD40.getErrorCode();
         if (success) {
             writeToUiAppendBorderColor(stepString + " SUCCESS", COLOR_GREEN);
         } else {
@@ -165,6 +168,8 @@ public class FormatPiccActivity extends AppCompatActivity implements NfcAdapter.
                     writeToUiAppendBorderColor("The tag is not a DESFire EV3 tag, stopping any further activities", COLOR_RED);
                     return;
                 }
+
+                desfireD40 = new DesfireAuthenticateLegacy(isoDep, false);
 
                 // get tag ID
                 tagIdByte = tag.getId();
