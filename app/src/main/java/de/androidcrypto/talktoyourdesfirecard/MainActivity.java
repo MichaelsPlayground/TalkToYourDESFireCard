@@ -2015,6 +2015,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 // 4 ids
                 // e1e2e3df01a00000039656434103f015400000000be1e2e4dd01a0ddee039656434103f015400000000b      e1e2e5 dd02 a2dd e1e2e6 dd03 a3dd03
 
+
+
+                /*
                 List<byte[]> appIdsList = desfireEv3.getApplicationIdsList();
                 // get iso file ids and df names by parsing through list
                 Log.d(TAG, printData("dfNames", dfNames));
@@ -2065,6 +2068,17 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         Log.d(TAG, printData("appId",appIdTemp) + printData(" isoFileId", isoFileId) + printData(" dfName", dfName));
                     }
                 }
+
+                 */
+                List <byte[]> isoFileIdsList = new ArrayList<>();
+                List <byte[]> isoDfNamesList = new ArrayList<>();
+                success = desfireEv3.getApplicationsIsoData();
+                if (!success) {
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, "getApplicationsIsoData FAILURE", COLOR_RED);
+                    return;
+                }
+                isoFileIdsList = desfireEv3.getIsoFileIdsList();
+                isoDfNamesList = desfireEv3.getIsoDfNamesList();
                 Log.d(TAG, "isoFileIdsList size: " + isoFileIdsList.size());
                 Log.d(TAG, "isoDfNamesList size: " + isoDfNamesList.size());
                 for (int i = 0; i < isoFileIdsList.size(); i++) {

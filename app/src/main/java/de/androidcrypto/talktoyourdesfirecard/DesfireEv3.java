@@ -764,7 +764,9 @@ public class DesfireEv3 {
     }
 
     /**
-     *
+     * tries to get the ISO File IDs and ISO DF Names from the application on the tag
+     * On success retrieve the data by using the getters 'getIsoDfNamesList()' and
+     * 'getIsoFileIdsList()', they return a List<byte[]>'
      * @return true on success
      */
 
