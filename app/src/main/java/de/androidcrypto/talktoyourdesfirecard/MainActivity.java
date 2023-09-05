@@ -138,6 +138,13 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private byte selectedFileType; // cached data, filled by file select
 
     /**
+     * section for proximity checks
+     */
+
+    private Button proxChangeKeys, proxCheck;
+
+
+    /**
      * section for tests
      */
 
@@ -274,6 +281,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
         getFileSettings = findViewById(R.id.btnGetFileSettings);
 
+        // proximity check handling
+        proxChangeKeys = findViewById(R.id.btnProxChangeKeys);
+        proxCheck = findViewById(R.id.btnProxCheck);
+
+
         // general handling
         getTagVersion = findViewById(R.id.btnGetTagVersion);
         formatPicc = findViewById(R.id.btnFormatPicc);
@@ -282,6 +294,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         test = findViewById(R.id.btnTest);
 
         allLayoutsInvisible(); // except select application & file
+
+        // hide soft keyboard from showing up on startup
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+
+        mNfcAdapter = NfcAdapter.getDefaultAdapter(this);
 
 
         /**
@@ -424,7 +441,6 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     String communicationMode = fileSettings.getCommunicationSettingsName();
                     fileList[i] = String.valueOf(fileId) + " (" + fileTypeName + "|" + communicationMode + ")";
                 }
-
 
                 // setup the alert builder
                 AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
@@ -1700,10 +1716,164 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
-        // hide soft keyboard from showing up on startup
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+        /**
+         * section for proximity check handling
+         */
 
-        mNfcAdapter = NfcAdapter.getDefaultAdapter(this);
+        proxChangeKeys.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "change the keys for proximity check";
+                writeToUiAppend(output, logString);
+/*
+                if (selectedApplicationId == null) {
+                    writeToUiAppend(output, "You need to select an application first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+*/
+
+                String stepString;
+                boolean success;
+                byte[] responseData;
+                byte keyVersion = (byte) 0x01;
+                byte vcConfigKeyNumber = (byte) 0x20;
+                byte vcProximityCheckKeyNumber = (byte) 0x21;
+                byte[] vcKey = new byte[16];
+
+                // now authenticate with the newly changed key
+                stepString = "1 authenticate with Master Application key 0x00";
+                success = desfireEv3.authenticateAesEv2First(Constants.MASTER_APPLICATION_KEY_NUMBER, Constants.MASTER_APPLICATION_KEY_AES_DEFAULT);
+                responseData = desfireEv3.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    //vibrateShort();
+                } else {
+                    writeToUiAppend(output, stepString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a APPLICATION MASTER KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
+
+                stepString = "2 change key 0x20";
+
+                success = desfireEv3.changeMasterApplicationKeyFull(vcConfigKeyNumber, keyVersion, vcKey, vcKey);
+                responseData = desfireEv3.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, stepString + " keyVersion " + keyVersion + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    //vibrateShort();
+                } else {
+                    writeToUiAppend(output, stepString + " keyVersion " + keyVersion + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a APPLICATION MASTER KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
+
+                // now authenticate with the newly changed key
+                stepString = "3 authenticate with changed key 0x20";
+                success = desfireEv3.authenticateAesEv2FirstProximity(vcConfigKeyNumber, vcKey);
+                responseData = desfireEv3.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    //vibrateShort();
+                } else {
+                    writeToUiAppend(output, stepString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a APPLICATION MASTER KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
+
+                stepString = "4 change key 0x21";
+                success = desfireEv3.changeMasterApplicationKeyFull(vcProximityCheckKeyNumber, keyVersion, vcKey, vcKey);
+                responseData = desfireEv3.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, stepString + " keyVersion " + keyVersion + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    //vibrateShort();
+                } else {
+                    writeToUiAppend(output, stepString + " keyVersion " + keyVersion + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a APPLICATION MASTER KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
+                vibrateShort();
+            }
+        });
+
+        proxCheck.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "run the proximity check";
+                writeToUiAppend(output, logString);
+
+                boolean success;
+                byte[] responseData;
+
+                String stepString = "1 authenticate with changed key 0x20";
+                byte vcConfigKeyNumber = (byte) 0x20;
+                byte vcProximityCheckKeyNumber = (byte) 0x21;
+                byte[] vcKey = new byte[16];
+                success = desfireEv3.authenticateAesEv2FirstProximity(Constants.MASTER_APPLICATION_KEY_NUMBER, vcKey);
+                responseData = desfireEv3.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    //vibrateShort();
+                } else {
+                    writeToUiAppend(output, stepString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a APPLICATION MASTER KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
+
+
+                stepString = "2 run the proximity check";
+                success = desfireEv3.runProximityCheck();
+                responseData = desfireEv3.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                    //vibrateShort();
+                } else {
+                    writeToUiAppend(output, stepString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a APPLICATION MASTER KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
+                vibrateShort();
+
+            }
+        });
+
 
 
         /**
