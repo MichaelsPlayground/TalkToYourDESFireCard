@@ -657,17 +657,19 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 if (selectedFileSettings.getFileType() == FileSettings.STANDARD_FILE_TYPE) {
                     vibrateShort();
                 }
-                ;
 
                 if (selectedFileSettings.getFileType() == FileSettings.BACKUP_FILE_TYPE) {
                     // it is a Backup file where we need to submit a commit command to confirm the write
                     writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Backup file, run COMMIT");
                     byte commMode = selectedFileSettings.getCommunicationSettings();
+
                     if (commMode == (byte) 0x00) {
                         // Plain
                         // this fails when a Transaction MAC file with enabled Commit ReaderId option is existent
                         success = desfireEv3.commitTransactionPlain();
                     }
+
+                    //if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03) || (commMode == (byte) 0x00)) {
                     if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03)) {
                         // MACed or Full enciphered
                         if (desfireEv3.isTransactionMacFilePresent()) {
@@ -2383,6 +2385,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             } else {
                 // the switch is visible but not checked
                 success = desfireEv3.authenticateAesLegacy(keyNumber, keyForAuthentication);
+                //success = desfireEv3.authenticateAesEv2First(keyNumber, keyForAuthentication);
             }
         }
         if (commMode == (byte) 0x01) {

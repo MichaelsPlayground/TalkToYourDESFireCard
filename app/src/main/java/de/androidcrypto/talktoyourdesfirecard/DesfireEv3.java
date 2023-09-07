@@ -3301,15 +3301,6 @@ final String methodName = "createAStandardFileIso";
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted CmdData )
         byte[] macInput = getMacInput(WRITE_DATA_FILE_SECURE_COMMAND, cmdHeader, encryptedData);
-        /*
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(WRITE_DATA_FILE_SECURE_COMMAND); // 0x8D
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
-        baosMacInput.write(encryptedData, 0, encryptedData.length);
-        byte[] macInput = baosMacInput.toByteArray();
-        */
         log(methodName, printData("macInput", macInput));
 
         // generate the MAC (CMAC) with the SesAuthMACKey
@@ -3436,7 +3427,6 @@ final String methodName = "createAStandardFileIso";
                 errorCodeReason = "missing legacy authentication";
                 return null;
             }
-            ;
         } else {
             if (!checkAuthentication()) return null;
         }
@@ -3729,18 +3719,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader || CmdData )
         byte[] macInput = getMacInput(READ_DATA_FILE_SECURE_COMMAND, cmdHeader);
-/*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(READ_DATA_FILE_SECURE_COMMAND); // 0xAD
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
-        byte[] macInput = baosMacInput.toByteArray();
-
- */
         log(methodName, printData("macInput", macInput));
 
         // MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -3884,18 +3862,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // MAC_Input
         byte[] macInput = getMacInput(READ_DATA_FILE_SECURE_COMMAND, cmdHeader);
-        /*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(READ_DATA_FILE_SECURE_COMMAND); // 0xAD
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
-        byte[] macInput = baosMacInput.toByteArray();
-        */
-
         log(methodName, printData("macInput", macInput));
 
         // generate the MAC (CMAC) with the SesAuthMACKey
@@ -4034,7 +4000,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
                 errorCodeReason = "missing legacy authentication";
                 return -1;
             }
-            ;
         } else {
             if (!checkAuthentication()) return -1;
         }
@@ -4124,17 +4089,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader ( = File number) )
         byte[] macInput = getMacInput(GET_VALUE_COMMAND, new byte[]{fileNumber});
-        /*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(GET_VALUE_COMMAND); // 0x6C
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(fileNumber);
-        byte[] macInput = baosMacInput.toByteArray();
-        */
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -4220,17 +4174,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader ( = File number) )
         byte[] macInput = getMacInput(GET_VALUE_COMMAND, new byte[]{fileNumber});
-        /*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(GET_VALUE_COMMAND); // 0x6C
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(fileNumber);
-        byte[] macInput = baosMacInput.toByteArray();
-        */
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -4362,7 +4305,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
                 errorCodeReason = "missing legacy authentication";
                 return false;
             }
-            ;
         } else {
             if (!checkAuthentication()) return false;
         }
@@ -4391,7 +4333,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             }
         }
     }
-
 
     /**
      * credits or debits the value of a Value file in Communication mode Plain.
@@ -4490,24 +4431,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         } else {
             macInput = getMacInput(DEBIT_VALUE_FILE_COMMAND, new byte[]{fileNumber}, changeValueBytes);
         }
-        /*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        byte[] changeValueBytes = intTo4ByteArrayInversed(changeValue);
-        log(methodName, printData("changeValueBytes", changeValueBytes));
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        if (isCredit) {
-            baosMacInput.write(CREDIT_VALUE_FILE_COMMAND); // 0x0C
-        } else {
-            baosMacInput.write(DEBIT_VALUE_FILE_COMMAND); // 0xDC
-        }
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(fileNumber);
-        baosMacInput.write(changeValueBytes, 0, changeValueBytes.length);
-        byte[] macInput = baosMacInput.toByteArray();
-        */
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -4607,17 +4530,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         // encrypting the command data
         // IV_Input (IV_Label || TI || CmdCounter || Padding)
         byte[] ivInput = getIvInput();
-        /*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
-        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
-        baosIvInput.write(IV_LABEL_ENC, 0, IV_LABEL_ENC.length);
-        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosIvInput.write(padding1, 0, padding1.length);
-        byte[] ivInput = baosIvInput.toByteArray();*/
         log(methodName, printData("ivInput", ivInput));
 
         // IV for CmdData = Enc(KSesAuthENC, IV_Input)
@@ -4649,20 +4561,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         } else {
             macInput = getMacInput(DEBIT_VALUE_FILE_COMMAND, new byte[]{fileNumber}, encryptedData);
         }
-
-        /*
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        if (isCredit) {
-            baosMacInput.write(CREDIT_VALUE_FILE_COMMAND); // 0x0C
-        } else {
-            baosMacInput.write(DEBIT_VALUE_FILE_COMMAND); // 0xDC
-        }
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(fileNumber);
-        baosMacInput.write(encryptedData, 0, encryptedData.length);
-        byte[] macInput = baosMacInput.toByteArray();
-        */
         log(methodName, printData("macInput", macInput));
 
         // generate the MAC (CMAC) with the SesAuthMACKey
@@ -4922,16 +4820,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         // MAC_Input
         //(Ins || CmdCounter || TI || CmdHeader || CmdData )
         byte[] macInput = getMacInput(WRITE_RECORD_FILE_SECURE_COMMAND, cmdHeader, data);
-        /*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(WRITE_RECORD_FILE_SECURE_COMMAND); // 0x8D
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
-        baosMacInput.write(data, 0, data.length);
-        byte[] macInput = baosMacInput.toByteArray();
-        */
         log(methodName, printData("macInput", macInput));
 
         // MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -5024,18 +4912,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         // Encrypting the Command Data
         // IV_Input (IV_Label || TI || CmdCounter || Padding)
         byte[] ivInput = getIvInput();
-        /*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
-        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
-        baosIvInput.write(IV_LABEL_ENC, 0, IV_LABEL_ENC.length);
-        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosIvInput.write(padding1, 0, padding1.length);
-        byte[] ivInput = baosIvInput.toByteArray();
-        */
         log(methodName, printData("ivInput", ivInput));
 
         // IV for CmdData = Enc(KSesAuthENC, IV_Input)
@@ -5087,16 +4963,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader || Encrypted CmdData )
         byte[] macInput = getMacInput(WRITE_RECORD_FILE_SECURE_COMMAND, cmdHeader, encryptedData);
-        /*
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(WRITE_RECORD_FILE_SECURE_COMMAND); // 0x8B
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
-        baosMacInput.write(encryptedData, 0, encryptedData.length);
-        byte[] macInput = baosMacInput.toByteArray();
-
-         */
         log(methodName, printData("macInput", macInput));
 
         // generate the MAC (CMAC) with the SesAuthMACKey
@@ -5222,7 +5088,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
                 errorCodeReason = "missing legacy authentication";
                 return null;
             }
-            ;
         } else {
             if (!checkAuthentication()) return null;
         }
@@ -5359,17 +5224,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader || CmdData )
         byte[] macInput = getMacInput(READ_RECORD_FILE_COMMAND, cmdHeader);
-        /*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(READ_RECORD_FILE_COMMAND); // 0xBB
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
-        byte[] macInput = baosMacInput.toByteArray();
-        */
         log(methodName, printData("macInput", macInput));
 
         // MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -5488,18 +5342,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader )
         byte[] macInput = getMacInput(READ_RECORD_FILE_COMMAND, cmdHeader);
-        /*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(READ_RECORD_FILE_COMMAND); // 0xAB
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(cmdHeader, 0, cmdHeader.length);
-        byte[] macInput = baosMacInput.toByteArray();
-
-         */
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -5639,16 +5481,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader = fileNumber)
         byte[] macInput = getMacInput(DELETE_TRANSACTION_MAC_FILE_COMMAND, new byte[]{fileNumber});
-        /*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(DELETE_TRANSACTION_MAC_FILE_COMMAND); // 0xDF
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(fileNumber);
-        byte[] macInput = baosMacInput.toByteArray();*/
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -5711,31 +5543,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
-
- /*
-        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
-        responseMacBaos.write((byte) 0x00); // response code 00 means success
-        responseMacBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
-        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        byte[] macInput2 = responseMacBaos.toByteArray();
-        log(methodName, printData("macInput2", macInput2));
-        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput2);
-        log(methodName, printData("responseMACCalculated", responseMACCalculated));
-        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
-        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
-        log(methodName, printData("responseMACTruncatedReceived  ", responseMACTruncatedReceived));
-        // compare the responseMAC's
-        if (Arrays.equals(responseMACTruncatedCalculated, responseMACTruncatedReceived)) {
-            Log.d(TAG, "responseMAC SUCCESS");
-            System.arraycopy(RESPONSE_OK, 0, errorCode, 0, RESPONSE_OK.length);
-            return true;
-        } else {
-            Log.d(TAG, "responseMAC FAILURE");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
-            return false;
-        }
-
-  */
     }
 
 
@@ -5808,8 +5615,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             }
         }
          */
-
-
     }
 
     public boolean commitTransactionPlain() {
@@ -5825,6 +5630,57 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         try {
             apdu = wrapMessage(COMMIT_TRANSACTION_COMMAND, new byte[]{COMMIT_TRANSACTION_OPTION});
             response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        System.arraycopy(returnStatusBytes(response), 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public boolean commitTransactionPlainNew() {
+        // status: not working after authentication with authenticateEv2First/NonFirst
+        String logData = "";
+        final String methodName = "commitTransactionPlain";
+        log(methodName, "started", true);
+        // sanity checks
+        if (!checkIsoDep()) return false;
+        //byte COMMIT_TRANSACTION_OPTION = (byte) 0x00; // 01 meaning TMC and TMV to be returned in the R-APDU
+
+        //byte[] macInput = getMacInput(COMMIT_TRANSACTION_COMMAND, new byte[]{COMMIT_TRANSACTION_OPTION});
+        byte[] macInput = getMacInput(COMMIT_TRANSACTION_COMMAND, null);
+        // MAC = CMAC(KSesAuthMAC, MAC_ Input)
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Constructing the full WriteData Command APDU
+        // Data (FileNo || Offset || DataLenght || Data)
+        ByteArrayOutputStream baosWriteDataCommand = new ByteArrayOutputStream();
+        //baosWriteDataCommand.write(COMMIT_TRANSACTION_OPTION);
+        baosWriteDataCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] writeDataCommand = baosWriteDataCommand.toByteArray();
+
+        byte[] apdu;
+        byte[] response;
+        //response = sendData(writeDataCommand);
+
+        try {
+            //apdu = wrapMessage(COMMIT_TRANSACTION_COMMAND, new byte[]{COMMIT_TRANSACTION_OPTION});
+            apdu = wrapMessage(COMMIT_TRANSACTION_COMMAND, null);
+            response = sendData(apdu);
+            //response = sendData(writeDataCommand);
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
@@ -6333,17 +6189,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader (=Option) )
         byte[] macInput = getMacInput(COMMIT_TRANSACTION_COMMAND, new byte[]{COMMIT_TRANSACTION_OPTION});
-        /*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(COMMIT_TRANSACTION_COMMAND); // 0xC7
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(COMMIT_TRANSACTION_OPTION);
-        byte[] macInput = baosMacInput.toByteArray();
-        */
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -6443,17 +6288,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader (=Option) )
         byte[] macInput = getMacInput(COMMIT_TRANSACTION_COMMAND, new byte[]{COMMIT_TRANSACTION_OPTION_ENABLED});
-        /*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(COMMIT_TRANSACTION_COMMAND); // 0xC7
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        //baosMacInput.write(COMMIT_TRANSACTION_OPTION);
-        baosMacInput.write(COMMIT_TRANSACTION_OPTION_ENABLED);
-        byte[] macInput = baosMacInput.toByteArray();*/
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -6560,17 +6394,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // MAC_Input (Ins || CmdCounter || TI || CmdHeader (=Option) )
         byte[] macInput = getMacInput(COMMIT_TRANSACTION_COMMAND, new byte[]{COMMIT_TRANSACTION_OPTION_ENABLED});
-        /*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(COMMIT_TRANSACTION_COMMAND); // 0xC7
-        baosMacInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        //baosMacInput.write(COMMIT_TRANSACTION_OPTION);
-        baosMacInput.write(COMMIT_TRANSACTION_OPTION_ENABLED);
-        byte[] macInput = baosMacInput.toByteArray();*/
         log(methodName, printData("macInput", macInput));
 
         // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -6685,16 +6508,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
 
         // MAC_Input (Ins || CmdCounter || TI || Data (= Reader ID) )
         byte[] macInputReader = getMacInput(COMMIT_READER_ID_SECURE_COMMAND, READER_ID);
-        /*
-        byte[] commandCounterLsb1Reader = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1Reader));
-        ByteArrayOutputStream baosMacInputReader = new ByteArrayOutputStream();
-        baosMacInputReader.write(COMMIT_READER_ID_SECURE_COMMAND); // 0xC8
-        baosMacInputReader.write(commandCounterLsb1Reader, 0, commandCounterLsb1Reader.length);
-        baosMacInputReader.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInputReader.write(READER_ID, 0, READER_ID.length);
-        byte[] macInputReader = baosMacInputReader.toByteArray();*/
         log(methodName, printData("macInputReader", macInputReader));
 
         // MAC = CMAC(KSesAuthMAC, MAC_ Input)
@@ -7341,18 +7154,6 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         // IV_Input (IV_Label || TI || CmdCounter || Padding)
         // Generating the MAC for the Command APDU
         byte[] ivInput = getIvInput();
-        /*
-        byte[] commandCounterLsb = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb", commandCounterLsb));
-        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
-        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
-        baosIvInput.write(HEADER_MAC, 0, HEADER_MAC.length);
-        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosIvInput.write(commandCounterLsb, 0, commandCounterLsb.length);
-        baosIvInput.write(padding1, 0, padding1.length);
-        byte[] ivInput = baosIvInput.toByteArray();
-        */
         log(methodName, printData("ivInput", ivInput));
 
         // IV for CmdData = Enc(KSesAuthENC, IV_Input)
@@ -7395,15 +7196,6 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         // Generating the MAC for the Command APDU
         // Cmd || CmdCounter || TI || CmdHeader = fileNumber || E(KSesAuthENC, CmdData)
         byte[] macInput = getMacInput(CHANGE_FILE_SETTINGS_COMMAND, new byte[]{fileNumber}, encryptedData);
-        /*
-        ByteArrayOutputStream baosMacInput = new ByteArrayOutputStream();
-        baosMacInput.write(CHANGE_FILE_SETTINGS_COMMAND); // 0x5F
-        baosMacInput.write(commandCounterLsb, 0, commandCounterLsb.length);
-        baosMacInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosMacInput.write(fileNumber);
-        baosMacInput.write(encryptedData, 0, encryptedData.length);
-        byte[] macInput = baosMacInput.toByteArray();
-        */
         log(methodName, printData("macInput", macInput));
 
         // generate the MAC (CMAC) with the SesAuthMACKey
