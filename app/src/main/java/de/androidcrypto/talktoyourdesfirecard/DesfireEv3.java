@@ -5629,6 +5629,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         byte[] response;
         try {
             apdu = wrapMessage(COMMIT_TRANSACTION_COMMAND, new byte[]{COMMIT_TRANSACTION_OPTION});
+            apdu = Utils.hexStringToByteArray("90c70000010000");
             response = sendData(apdu);
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
