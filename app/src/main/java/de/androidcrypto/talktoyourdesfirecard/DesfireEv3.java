@@ -3408,6 +3408,7 @@ final String methodName = "createAStandardFileIso";
         if (!checkIsDataFileType(fileNumber)) return null;
         // the check on authentication depends on the communication mode in file settings:
         byte commMode = fileSettings.getCommunicationSettings();
+        /*
         if (commMode == (byte) 0x00) {
             // Plain
             if (!authenticateAesLegacySuccess) {
@@ -3419,6 +3420,8 @@ final String methodName = "createAStandardFileIso";
         } else {
             if (!checkAuthentication()) return null;
         }
+
+         */
         if (!checkIsoDep()) return null; // logFile and errorCode are updated
         boolean isPlainMode = false;
         boolean isMacedMode = false;
