@@ -2853,6 +2853,11 @@ final String methodName = "createAStandardFileIso";
             errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
+
+        // note: after sending data to the card the commandCounter is increased by 1, even when working in CommMode Plain
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
         byte[] responseBytes = returnStatusBytes(response);
         System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
