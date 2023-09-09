@@ -141,6 +141,59 @@ There are some more methods available, see the  manual on desfire_ev3_more_opera
 
 A new feature on DESFire EV3 tags is the  **Transaction MAC file**, for more information on this see the desfire_ev3_transaction_mac_file_operations page.
 
+## What commands are supported by the library ?
+
+The library isn't supporting all commands, but all core commands are supported.
+
+### Application section commands
+
+As all files are located within an application the most used command is the **selectApplicationByAid**. THe seconds way of selecting is 
+**selectApplicationByIsoDfName**. For tag exploring the library supports the **getApplicationIds** command.
+
+### Data Files section commands
+
+Two file types are covered by Data Files: **Standard Files** and **Backup Files**. As both work mostly identical they are condensed 
+under Data Files. The library supports the **createDataFile** command. As a Data File can be setup in communication modes Plain, MACed or Full there 
+are 3 different methods respectively for **readADataFile** and **writeADataFile**. Just a note on Backup files: after firing ther writeADataFile 
+command you need to commit the transaction (see below).
+
+### Value Files section commands
+
+The library supports the **createValueFile** and the **readValueFile** commands. As we cannot directly write a new value the value is changed 
+by the **creditValueFile** and **debitValueFile**. Just a note on Value files: after firing the credit- or debit value file 
+command you need to commit the transaction (see below).
+
+### Record Files section commands
+
+Two file types are covered by Record Files: **Linear Record File** and **C<clic Record File**. The command handling is identical (just the 
+behaviour of the file is different, see above) for **createRecordFile**, **writeToRecordFile** and **readARecordFile**. Just a note on Record 
+files: after firing the write to a record file command you need to commit the transaction (see below).
+
+### Several File section commands
+
+For tag exploring the library supports the **getFileIds** and **getApplicationDfNames** commands. When an application is selected the library 
+internally get all file ids and **getFileSettings** for all existing files. If you want to change some settings simply use the **changeFileSettings** 
+command. The **deleteFile** is supported (please remember: the deletion of a file does not release the used memory of the file).
+
+### Commit section commands
+
+
+
+### Key commands
+
+To receive the version of a key the **getKeyVersion** is supported. The change of the key value can be done by **changeApplicationKey**. To avoid 
+any damage on the tag the library prohibits the change of keys on Master Application level.
+
+### Authenticate section commands
+
+The most important command is the **authentication**. The app is using two different authentication methods depending on the communication 
+mode: when a file is in communication mode **Plain** the library is using the legacy **authenticateD40** method whereas when a file is in 
+communication modes **MACed** or **Full enciphered** the app is using the modern **authenticateAesEv2First** or **authenticateAesEv2NonFirst** 
+methods. The app is authenticating only on application level and with **AES-128 keys** only.
+
+
+
+
 ## Why does the app stops working ?
 
 Sometimes the app seems to freeze and does no longer communicate with the tag. This happens as there are timeouts in the tag reader and the tag itself. On 
