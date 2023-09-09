@@ -116,6 +116,7 @@ public class DesfireEv3 {
     private String errorCodeReason = "";
 
 
+
     /**
      * external constants for NDEF application and files
      */
@@ -181,6 +182,7 @@ public class DesfireEv3 {
     private static final byte READ_RECORD_FILE_COMMAND = (byte) 0xBB;
     private static final byte READ_RECORD_FILE_SECURE_COMMAND = (byte) 0xAB;
     private static final byte WRITE_RECORD_FILE_SECURE_COMMAND = (byte) 0x8B;
+    private static final byte CLEAR_RECORD_FILE_COMMAND = (byte) 0xEB;
     private final byte COMMIT_TRANSACTION_COMMAND = (byte) 0xC7;
     private final byte SET_CONFIGURATION_SECURE_COMMAND = (byte) 0x5C;
     private final byte COMMIT_READER_ID_SECURE_COMMAND = (byte) 0xC8;
@@ -3062,18 +3064,6 @@ final String methodName = "createAStandardFileIso";
         // Encrypting the Command Data
         // IV_Input (IV_Label || TI || CmdCounter || Padding)
         byte[] ivInput = getIvInput();
-        /*
-        byte[] commandCounterLsb1 = intTo2ByteArrayInversed(CmdCounter);
-        log(methodName, "CmdCounter: " + CmdCounter);
-        log(methodName, printData("commandCounterLsb1", commandCounterLsb1));
-        byte[] padding1 = hexStringToByteArray("0000000000000000"); // 8 bytes
-        ByteArrayOutputStream baosIvInput = new ByteArrayOutputStream();
-        baosIvInput.write(IV_LABEL_ENC, 0, IV_LABEL_ENC.length);
-        baosIvInput.write(TransactionIdentifier, 0, TransactionIdentifier.length);
-        baosIvInput.write(commandCounterLsb1, 0, commandCounterLsb1.length);
-        baosIvInput.write(padding1, 0, padding1.length);
-        byte[] ivInput = baosIvInput.toByteArray();
-        */
         log(methodName, printData("ivInput", ivInput));
 
         // IV for CmdData = Enc(KSesAuthENC, IV_Input)
@@ -3163,7 +3153,7 @@ final String methodName = "createAStandardFileIso";
         byte[] responseBytes = returnStatusBytes(response);
         System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
-            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+            Log.d(TAG, methodName + " SUCCESS, now verifying the MAC");
         } else {
             Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
             Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
@@ -5434,6 +5424,90 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             errorCode = RESPONSE_OK.clone();
             errorCodeReason = methodName + " FAILURE";
             return null;
+        }
+    }
+
+    public boolean clearARecordFile(byte fileNumber) {
+        String logData = "";
+        final String methodName = "clearARecordFile";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return false;
+        if (!checkAuthentication()) return false;
+        if (!checkIsoDep()) return false;
+        if (!checkFileNumberExisting(fileNumber)) return false;
+        // checking fileSettings for Communication.mode
+        FileSettings fileSettings;
+        try {
+            fileSettings = APPLICATION_ALL_FILE_SETTINGS[fileNumber];
+        } catch (NullPointerException e) {
+            Log.e(TAG, methodName + " could not read fileSettings, aborted");
+            log(methodName, "could not read fileSettings, aborted");
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "could not read fileSettings, aborted";
+            return false;
+        }
+        if (!checkIsRecordFileType(fileNumber)) return false;
+
+        // Generating the MAC for the Command APDU
+        // CmdHeader (FileNo)
+        ByteArrayOutputStream baosCmdHeader = new ByteArrayOutputStream();
+        baosCmdHeader.write(fileNumber);
+        byte[] cmdHeader = baosCmdHeader.toByteArray();
+        log(methodName, printData("cmdHeader", cmdHeader));
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader || CmdData )
+        byte[] macInput = getMacInput(CLEAR_RECORD_FILE_COMMAND, cmdHeader);
+        log(methodName, printData("macInput", macInput));
+
+        // MAC = CMAC(KSesAuthMAC, MAC_ Input)
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Constructing the full ReadData Command APDU
+        // Data (FileNo || Offset || DataLength)
+        ByteArrayOutputStream baosCommand = new ByteArrayOutputStream();
+        baosCommand.write(cmdHeader, 0, cmdHeader.length);
+        baosCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] clearRecordFileCommand = baosCommand.toByteArray();
+        log(methodName, printData("clearRecordFileCommand", clearRecordFileCommand));
+
+        byte[] response;
+        byte[] fullMacedData;
+        byte[] macedData;
+        byte[] responseMACTruncatedReceived;
+        response = sendRequest(CLEAR_RECORD_FILE_COMMAND, clearRecordFileCommand);
+
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now verifying the MAC");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        //byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+        responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        if (verifyResponseMac(responseMACTruncatedReceived, null)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return true;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return false;
         }
     }
 

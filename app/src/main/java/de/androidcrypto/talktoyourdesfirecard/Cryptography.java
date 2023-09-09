@@ -35,7 +35,7 @@ public class Cryptography {
 
     private static final String TAG = Cryptography.class.getName();
 
-    private final String EC_CURVE = "secp256k1";
+    private final String EC_CURVE = "secp256r1";
     private final String SIGNATURE_ALGORITHM = "EC";
     private final String ECDSA_ALGORITHM = "SHA256withECDSA";
 
@@ -54,19 +54,37 @@ public class Cryptography {
     }
 
     public PrivateKey getEcPrivateKeyFromKeyPair(KeyPair keyPair) {
-        return keyPair.getPrivate();
+        if (keyPair != null) {
+            return keyPair.getPrivate();
+        } else {
+            return null;
+        }
     }
 
     public PublicKey getEcPublicKeyFromKeyPair(KeyPair keyPair) {
-        return keyPair.getPublic();
+        if (keyPair != null) {
+            return keyPair.getPublic();
+        } else {
+            return null;
+        }
     }
 
+    // the encoded private key of a secp256r1 curve is 138 bytes long
     public byte[] getEcPrivateKeyEncoded(PrivateKey privateKeyEc) {
-        return privateKeyEc.getEncoded();
+        if (privateKeyEc != null) {
+            return privateKeyEc.getEncoded();
+        } else {
+            return null;
+        }
     };
 
+    // the encoded public key of a secp256r1 curve is 91 bytes long
     public byte[] getEcPublicKeyEncoded(PublicKey publicKeyEc) {
-        return publicKeyEc.getEncoded();
+        if (publicKeyEc != null) {
+            return publicKeyEc.getEncoded();
+        } else {
+            return null;
+        }
     }
 
     public PrivateKey getEcPrivateKeyFromEncoded(byte[] privateKeyEcEncoded) {
@@ -99,6 +117,8 @@ public class Cryptography {
     }
 
     public byte[] signAMessageEcdsa(PrivateKey privateKeyEc, byte[] message) {
+        if (privateKeyEc == null) return null;
+        if ((message == null) || (message.length < 1)) return null;
         Signature ecdsaSign = null;
         try {
             ecdsaSign = Signature.getInstance(ECDSA_ALGORITHM);
@@ -113,17 +133,51 @@ public class Cryptography {
     }
 
     public boolean verifyAMessageEcdsa(PublicKey publicKey, byte[] message, byte[] signature) {
+        if (publicKey == null) return false;
+        if ((message == null) || (message.length < 1)) return false;
+        if ((signature == null) || (signature.length < 1)) return false;
         try {
-            KeyFactory kf = KeyFactory.getInstance(SIGNATURE_ALGORITHM);
             Signature ecdsaSgnature = Signature.getInstance(ECDSA_ALGORITHM);
             ecdsaSgnature.initVerify(publicKey);
             ecdsaSgnature.update(message);
             boolean result = ecdsaSgnature.verify(signature);
+            Log.d(TAG, "verify result: " + result);
             return result;
         } catch (NoSuchAlgorithmException | SignatureException | InvalidKeyException e) {
             Log.e(TAG, "verifyAMessageEcdsa Exception: " + e.getMessage());
             return false;
         }
     }
+
+/*
+usage example:
+Cryptography cryptography = new Cryptography();
+KeyPair keyPair = cryptography.generateAnEcdsaKeypair();
+PrivateKey privateKey = cryptography.getEcPrivateKeyFromKeyPair(keyPair);
+PublicKey publicKey = cryptography.getEcPublicKeyFromKeyPair(keyPair);
+byte[] privateKeyEncoded = cryptography.getEcPrivateKeyEncoded(privateKey);
+byte[] publicKeyEncoded = cryptography.getEcPublicKeyEncoded(publicKey);
+Log.d(TAG, printData("private key encoded", privateKeyEncoded));
+Log.d(TAG, printData("public  key encoded", publicKeyEncoded));
+// do what you want with the encoded forms
+PrivateKey privateKeyRestored = cryptography.getEcPrivateKeyFromEncoded(privateKeyEncoded);
+PublicKey publicKeyRestored = cryptography.getEcPublicKeyFromEncoded(publicKeyEncoded);
+byte[] message = "The quick brown fox jumps over the lazy dog".getBytes(StandardCharsets.UTF_8);
+byte[] signature = cryptography.signAMessageEcdsa(privateKeyRestored, message);
+boolean verification = cryptography.verifyAMessageEcdsa(publicKeyRestored, message, signature);
+Log.d(TAG, printData("message", message));
+Log.d(TAG, printData("signature", signature));
+Log.d(TAG, "The signature is verified: " + verification);
+ */
+/*
+example output
+private key encoded length: 138 data: 308187020100301306072a8648ce3d020106082a8648ce3d030107046d306b020101042046f79ca71265a50d67250ee86fa7f6c837aeac79454a2562625f74a790e9ebcea1440342000488459472add2368cda06dccc99b4a9d067f99961b371a6e83324dea11f2d0f0fa2dab91dbd54dd08b3601be805278879d42728fba0a93221fb4acd642a681249
+public  key encoded length: 91 data: 3059301306072a8648ce3d020106082a8648ce3d0301070342000488459472add2368cda06dccc99b4a9d067f99961b371a6e83324dea11f2d0f0fa2dab91dbd54dd08b3601be805278879d42728fba0a93221fb4acd642a681249
+message length: 43 data: 54686520717569636b2062726f776e20666f78206a756d7073206f76657220746865206c617a7920646f67
+signature length: 71 data: 3045022042e80cf47d0a1dda5d8153d0483af9c7dc81d76d27b93c77881e2210984bcab6022100e46015e80917a3e4346a54c7b3c3bf345a4418a5c6a86ce32c34ca6cba854e75
+The signature is verified: true
+ */
+
+
 
 }

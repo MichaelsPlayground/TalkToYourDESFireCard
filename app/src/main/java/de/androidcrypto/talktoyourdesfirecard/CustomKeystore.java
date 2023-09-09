@@ -17,10 +17,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -30,7 +26,6 @@ import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.List;
 
@@ -64,11 +59,13 @@ import javax.crypto.spec.SecretKeySpec;
  * The minimum Android SDK version is 23 (M) due to Encrypted Shared Preferences (minimum SDK 23)
  */
 
+
+
 public class CustomKeystore {
 
     private static final String TAG = CustomKeystore.class.getName();
     private final String keystoreType = "BKS"; // Bouncy Castle Keystore, available on Android SDK 1+
-    private final String keystoreFileName = "customkeystore.bks"; // located in internal storage / files
+    private final String keystoreFileName = "customkeystorebc.bks"; // located in internal storage / files
     private char[] keystorePassword;
     private byte[] keystorePasswordBytes;
     private final String PBKDF2_ALGORITHM = "PBKDF2WithHmacSHA1";
@@ -94,15 +91,19 @@ public class CustomKeystore {
     private final String ENCRYPTED_PREFERENCES_FILENAME = "encrypted_custom_keystore_prefs";
     private final String KEYSTORE_PASSWORD_STORAGE = "keystore_password";
 
+    // storing of a private and public EC keypair
+    private final String ENCRYPTED_EC_PRIVATE_KEY = "encrypted_ec_private_key";
+    private final String ENCRYPTED_EC_PUBLIC_KEY = "encrypted_ec_public_key";
+
     /**
      * general use
      */
 
     private Context context;
     private boolean isAndroidSdkVersionTooLow = false;
+    private boolean isUnencryptedDataAvailable = false; // checks for a first run
     private boolean isLibraryInitialized = false;
     private String lastErrorMessage = "";
-
 
     public CustomKeystore(Context context) {
         lastErrorMessage = "";
@@ -114,6 +115,19 @@ public class CustomKeystore {
             isAndroidSdkVersionTooLow = true;
             return;
         }
+        // check for first run
+        if (!isUnencryptedDataAvailable) {
+            // store the parameter
+            try {
+                sharedPreferences.edit().putInt(PBKDF2_ITERATIONS, PBKDF2_NUMBER_ITERATIONS).apply();
+                sharedPreferences.edit().putString(PBKDF2_SALT, base64Encoding(PBKDF2_SALT_BYTES)).apply();
+            } catch (Exception e) {
+                Log.e(TAG, "Error on storage of SALT: " + e.getMessage());
+                lastErrorMessage = "Exception: " + e.getMessage();
+                return;
+            }
+        }
+
         sharedPreferences = context.getSharedPreferences(UNENCRYPTED_PREFERENCES_FILENAME, Context.MODE_PRIVATE);
         // encrypted shared preferences
         // Although you can define your own key generation parameter specification, it's
@@ -278,6 +292,19 @@ public class CustomKeystore {
         }
         return false;
     }
+
+
+    // checks if the salt and iteration is available from storage
+    private boolean checkIsUnencryptedDataAvailable() {
+        if ((getPbkdf2NumberIterations()) && (getPbkdf2Salt())) {
+            isUnencryptedDataAvailable = true;
+            return true;
+        } else {
+            isUnencryptedDataAvailable = false;
+            return false;
+        }
+    }
+
 
     // checks if the salt, iteration and keystore password is available from storage
     private boolean checkIsLibraryInitialized() {
@@ -463,6 +490,50 @@ public class CustomKeystore {
                 return null;
             }
         }
+    }
+
+    /**
+     * section for Encrypted Shared Preferences
+     */
+
+    public boolean saveEcPrivateKey(byte[] privateKeyBytesEc) {
+        if ((privateKeyBytesEc == null) || (privateKeyBytesEc.length < 1)) return false;
+        return saveToEncryptedSharedPreferences(ENCRYPTED_EC_PRIVATE_KEY, privateKeyBytesEc);
+    }
+
+    public boolean saveEcPublicKey(byte[] publicKeyBytesEc) {
+        if ((publicKeyBytesEc == null) || (publicKeyBytesEc.length < 1)) return false;
+        return saveToEncryptedSharedPreferences(ENCRYPTED_EC_PUBLIC_KEY, publicKeyBytesEc);
+    }
+
+    public byte[] readEcPrivateKeyEncoded() {
+        return readFromEncryptedSharedPreferences(ENCRYPTED_EC_PRIVATE_KEY);
+    }
+
+    public byte[] readEcPublicKeyEncoded() {
+        return readFromEncryptedSharedPreferences(ENCRYPTED_EC_PUBLIC_KEY);
+    }
+
+    private boolean saveToEncryptedSharedPreferences(String keyName, byte[] key) {
+        // store the encrypted data
+        encryptedSharedPreferences
+                .edit()
+                .putString(keyName, base64Encoding(key))
+                .apply();
+        return true;
+    }
+
+    private byte[] readFromEncryptedSharedPreferences(String keyName) {
+        String data = encryptedSharedPreferences.getString(keyName, "");
+        if (!TextUtils.isEmpty(data)) {
+            byte[] keyBytes = base64Decoding(data);
+            if (keyBytes == null) {
+                Log.e(TAG, "getKeyBytes failed");
+                return null;
+            }
+            return keyBytes;
+        }
+        return null;
     }
 
     /**

@@ -46,6 +46,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -86,7 +89,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button fileValueRead, fileValueCredit, fileValueDebit;
 
     private LinearLayout llSectionRecordFiles;
-    private Button fileRecordRead, fileRecordWrite;
+    private Button fileRecordRead, fileRecordWrite, fileRecordClear;
 
 
     /**
@@ -242,6 +245,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         llSectionRecordFiles = findViewById(R.id.llSectionRecordFiles);
         fileRecordRead = findViewById(R.id.btnRecordFileRead);
         fileRecordWrite = findViewById(R.id.btnRecordFileWrite);
+        fileRecordClear = findViewById(R.id.btnRecordFileClear);
         llSectionRecordFiles.setVisibility(View.GONE);
 
         // authenticate workflow
@@ -1133,6 +1137,100 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        fileRecordClear.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "clear a record file";
+                writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                int fileSizeInt = selectedFileSettings.getRecordSizeInt();
+
+                // pre-check if fileNumber is existing
+                boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
+                if (!isFileExisting) {
+                    writeToUiAppend(output, logString + " The file does not exist, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
+                    return;
+                }
+
+                byte[] responseData = new byte[2];
+                boolean success = desfireEv3.clearARecordFile(fileIdByte);
+                responseData = desfireEv3.getErrorCode();
+
+                if (success) {
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                } else {
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with a WRITE ACCESS KEY ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                    return;
+                }
+                if ((selectedFileSettings.getFileType() == FileSettings.LINEAR_RECORD_FILE_TYPE) || (selectedFileSettings.getFileType() == FileSettings.CYCLIC_RECORD_FILE_TYPE)) {
+                    // it is a Record file where we need to submit a commit command to confirm the write
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Record file, run COMMIT");
+                    byte commMode = selectedFileSettings.getCommunicationSettings();
+                    if (commMode == (byte) 0x00) {
+                        // Plain
+                        // this fails when a Transaction MAC file with enabled Commit ReaderId option is existent
+                        success = desfireEv3.commitTransactionPlain();
+                    }
+                    if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03)) {
+                        // MACed or Full enciphered
+
+                        if (desfireEv3.isTransactionMacFilePresent()) {
+                            if (desfireEv3.isTransactionMacCommitReaderId()) {
+                                // this  is hardcoded when working with TransactionMAC files AND enabled CommitReaderId feature
+                                writeToUiAppend(output, "A TransactionMAC file is present with ENABLED CommitReaderId");
+                                success = desfireEv3.commitTransactionFull(true);
+                            } else {
+                                writeToUiAppend(output, "A TransactionMAC file is present with DISABLED CommitReaderId");
+                                success = desfireEv3.commitTransactionFullReturnTmv();
+                            }
+                        } else {
+                            // no transaction mac file is present
+                            writeToUiAppend(output, "A TransactionMAC file is NOT present, running regular commitTransaction");
+                            success = desfireEv3.commitTransactionWithoutTmacFull();
+                            Log.d(TAG, desfireEv3.getLogData());
+                        }
+                    }
+
+                    responseData = desfireEv3.getErrorCode();
+                    if (success) {
+                        writeToUiAppend(output, "cleared the Record file number " + fileIdByte);
+                        // return the Transaction MAC counter and value
+                        if (isTransactionMacFilePresent) {
+                            byte[] returnedTmacCV = desfireEv3.getTransactionMacFileReturnedTmcv();
+                            writeToUiAppend(output, printData("returned TMAC counter and value", returnedTmacCV));
+                            if ((returnedTmacCV != null) && (returnedTmacCV.length == 12)) {
+                                byte[] tmc = Arrays.copyOfRange(returnedTmacCV, 0, 4);
+                                byte[] tmacEnc = Arrays.copyOfRange(returnedTmacCV, 4, 12);
+                                int tmcInt = Utils.intFrom4ByteArrayInversed(tmc);
+                                writeToUiAppend(output, "TMAC counter: " + tmcInt + printData(" tmacEnc", tmacEnc));
+                            }
+                        }
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
+                        vibrateShort();
+                    } else {
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit" + " FAILURE with error code: " + EV3.getErrorCode(responseData), COLOR_RED);
+                        writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                        return;
+                    }
+                }
+            }
+        });
 
         /**
          * section for authentication using Legacy authenticationEv2First in DESFire EV3 class
@@ -2132,9 +2230,35 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             @Override
             public void onClick(View view) {
                 clearOutputFields();
-                String logString = "Get Application DF-Names";
+                String logString = "Test signatures";
                 writeToUiAppend(output, logString);
 
+                Cryptography cryptography = new Cryptography();
+                KeyPair keyPair = cryptography.generateAnEcdsaKeypair();
+                PrivateKey privateKey = cryptography.getEcPrivateKeyFromKeyPair(keyPair);
+                PublicKey publicKey = cryptography.getEcPublicKeyFromKeyPair(keyPair);
+                byte[] privateKeyEncoded = cryptography.getEcPrivateKeyEncoded(privateKey);
+                byte[] publicKeyEncoded = cryptography.getEcPublicKeyEncoded(publicKey);
+                Log.d(TAG, printData("private key encoded", privateKeyEncoded));
+                Log.d(TAG, printData("public  key encoded", publicKeyEncoded));
+
+                // do what you want with the encoded forms
+                CustomKeystore customKeystore = new CustomKeystore(view.getContext());
+                boolean succPri = customKeystore.saveEcPrivateKey(privateKeyEncoded);
+                boolean succPub = customKeystore.saveEcPublicKey(publicKeyEncoded);
+                Log.d(TAG, "storing keys to Encrypted Shared Preferences, PRI: " + succPri + " PUB: " + succPub);
+                // loading keys
+                byte[] privateKeyEncodedLoad = customKeystore.readEcPrivateKeyEncoded();
+                byte[] publicKeyEncodedLoad = customKeystore.readEcPublicKeyEncoded();
+
+                PrivateKey privateKeyRestored = cryptography.getEcPrivateKeyFromEncoded(privateKeyEncodedLoad);
+                PublicKey publicKeyRestored = cryptography.getEcPublicKeyFromEncoded(publicKeyEncodedLoad);
+                byte[] message = "The quick brown fox jumps over the lazy dog".getBytes(StandardCharsets.UTF_8);
+                byte[] signature = cryptography.signAMessageEcdsa(privateKeyRestored, message);
+                boolean verification = cryptography.verifyAMessageEcdsa(publicKeyRestored, message, signature);
+                Log.d(TAG, printData("message", message));
+                Log.d(TAG, printData("signature", signature));
+                Log.d(TAG, "The signature is verified: " + verification);
 
 
                 boolean success;
