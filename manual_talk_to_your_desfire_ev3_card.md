@@ -177,6 +177,17 @@ command. The **deleteFile** is supported (please remember: the deletion of a fil
 
 ### Commit section commands
 
+Write operations to a Backup-, Value-, Linear Record- or Cyclic Record file needs to get commit before they are written finally. You need to fire this 
+command from (Main) activites side as the general workflow allows to send data to several files in the same application and commit all write operations 
+in one commit command (**commitTransaction**). As there is an optional file type available (**Transaction MAC file**) there might be some extra steps 
+to run before committing a transaction (**commitReaderId**), see Transaction MAC file for details.
+
+### Transaction MAC File section commands
+
+The Transaction MAC file is a special feature available on DESFire EV2/EV3 and DESFire Light tags only. This file stores the last transactions 
+on the tag so a backend server is been able to prove that all transactions had been processed correctly. 
+
+
 
 
 ### Key commands
