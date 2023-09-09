@@ -115,8 +115,6 @@ public class DesfireEv3 {
     private byte[] errorCode = new byte[2];
     private String errorCodeReason = "";
 
-
-
     /**
      * external constants for NDEF application and files
      */
@@ -184,6 +182,7 @@ public class DesfireEv3 {
     private static final byte WRITE_RECORD_FILE_SECURE_COMMAND = (byte) 0x8B;
     private static final byte CLEAR_RECORD_FILE_COMMAND = (byte) 0xEB;
     private final byte COMMIT_TRANSACTION_COMMAND = (byte) 0xC7;
+    private final byte ABORT_TRANSACTION_COMMAND = (byte) 0xA7;
     private final byte SET_CONFIGURATION_SECURE_COMMAND = (byte) 0x5C;
     private final byte COMMIT_READER_ID_SECURE_COMMAND = (byte) 0xC8;
 
@@ -5492,7 +5491,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
             return false;
         }
-
         // note: after sending data to the card the commandCounter is increased by 1
         CmdCounter++;
         log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
@@ -6038,7 +6036,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
-
     }
 
     private boolean commitReaderIdFull() {
@@ -6156,6 +6153,75 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return false;
         }
 
+    }
+
+    public boolean abortATransaction() {
+        String logData = "";
+        final String methodName = "abortATransaction";
+        log(methodName, "started", true);
+        // sanity checks
+        if (!checkAuthentication()) return false;
+        if (!checkIsoDep()) return false;
+
+        // here we are using just the abort command
+        // Constructing the full AbortTransaction Command APDU
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader (=Option) )
+        byte[] macInput = getMacInput(ABORT_TRANSACTION_COMMAND, null);
+        log(methodName, printData("macInput", macInput));
+
+        // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // construction the abort Transaction
+        ByteArrayOutputStream baosAbortTransactionCommand = new ByteArrayOutputStream();
+        baosAbortTransactionCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] abortTransactionCommand = baosAbortTransactionCommand.toByteArray();
+        log(methodName, printData("abortTransactionCommand", abortTransactionCommand));
+        byte[] apdu = new byte[0];
+        byte[] response = new byte[0];
+        byte[] fullResponseData;
+        try {
+            apdu = wrapMessage(ABORT_TRANSACTION_COMMAND, abortTransactionCommand);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return false;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now verifying the received MAC");
+            fullResponseData = Arrays.copyOf(response, response.length - 2);
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return false;
+        }
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+        //byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+        byte[] responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
+        if (verifyResponseMac(responseMACTruncatedReceived, null)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return true;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return false;
+        }
     }
 
     /**

@@ -429,8 +429,49 @@
 
                 </LinearLayout>
 
-            </LinearLayout>
+                <com.google.android.material.divider.MaterialDivider
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    app:dividerInsetEnd="16dp"
+                    app:dividerInsetStart="16dp" />
 
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/swRecordFileSeparatedCommit"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="8dp"
+                    android:layout_marginRight="8dp"
+                    android:checked="true"
+                    android:textSize="16sp"
+                    android:text="use integrated (automatic) commit after writing" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnCommitTransaction"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:enabled="false"
+                        android:text="commit" />
+
+                    <Button
+                        android:id="@+id/btnAbortTransaction"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:enabled="false"
+                        android:text="abort" />
+
+                </LinearLayout>
+
+            </LinearLayout>
 
             <LinearLayout
                 android:id="@+id/llSectionAuthentication"

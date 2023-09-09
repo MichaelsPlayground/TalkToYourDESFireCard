@@ -26,6 +26,7 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -90,6 +91,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private LinearLayout llSectionRecordFiles;
     private Button fileRecordRead, fileRecordWrite, fileRecordClear;
+    private SwitchCompat swFileRecordIntegratedCommit;
+    private Button commitTransaction, abortTransaction;
 
 
     /**
@@ -246,6 +249,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         fileRecordRead = findViewById(R.id.btnRecordFileRead);
         fileRecordWrite = findViewById(R.id.btnRecordFileWrite);
         fileRecordClear = findViewById(R.id.btnRecordFileClear);
+        swFileRecordIntegratedCommit = findViewById(R.id.swRecordFileSeparatedCommit);
+        commitTransaction = findViewById(R.id.btnCommitTransaction);
+        abortTransaction = findViewById(R.id.btnAbortTransaction);
         llSectionRecordFiles.setVisibility(View.GONE);
 
         // authenticate workflow
@@ -1084,6 +1090,14 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     return;
                 }
                 if ((selectedFileSettings.getFileType() == FileSettings.LINEAR_RECORD_FILE_TYPE) || (selectedFileSettings.getFileType() == FileSettings.CYCLIC_RECORD_FILE_TYPE)) {
+
+                    if (!swFileRecordIntegratedCommit.isChecked()) {
+                        // not checked = do the commit commands on your own, don't forget
+                        writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Record file, run COMMIT");
+                        writeToUiAppend(output, "Don't forget - you need to run the commit commands on your own !");
+                        return;
+                    }
+
                     // it is a Record file where we need to submit a commit command to confirm the write
                     writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Record file, run COMMIT");
                     byte commMode = selectedFileSettings.getCommunicationSettings();
@@ -1225,6 +1239,147 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         vibrateShort();
                     } else {
                         writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit" + " FAILURE with error code: " + EV3.getErrorCode(responseData), COLOR_RED);
+                        writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                        return;
+                    }
+                }
+            }
+        });
+
+        /**
+         * section for separated committing of a transaction. When switch 'swFileRecordIntegratedCommit' is activated then fileRecordWrite method
+         * will end after writing the file, then - depending if the TransactionMac file forces a CommitReaderId and the the Commit Transaction
+         * command
+         */
+
+        swFileRecordIntegratedCommit.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                // true if the switch is in the On position
+                setRecordButtonsEnabled(!isChecked); // if it is 'integrated' = isChecked the buttons get disabled
+            }
+        });
+
+        commitTransaction.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "commit a transaction";
+                writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                int fileSizeInt = selectedFileSettings.getRecordSizeInt();
+
+                // pre-check if fileNumber is existing
+                boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
+                if (!isFileExisting) {
+                    writeToUiAppend(output, logString + " The file does not exist, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
+                    return;
+                }
+
+                boolean success = false;
+                byte[] responseData;
+                if ((selectedFileSettings.getFileType() == FileSettings.LINEAR_RECORD_FILE_TYPE) || (selectedFileSettings.getFileType() == FileSettings.CYCLIC_RECORD_FILE_TYPE)) {
+                    // it is a Record file where we need to submit a commit command to confirm the write
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Record file, run COMMIT");
+                    byte commMode = selectedFileSettings.getCommunicationSettings();
+                    if (commMode == (byte) 0x00) {
+                        // Plain
+                        // this fails when a Transaction MAC file with enabled Commit ReaderId option is existent
+                        success = desfireEv3.commitTransactionPlain();
+                    }
+                    if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03)) {
+                        // MACed or Full enciphered
+
+                        if (desfireEv3.isTransactionMacFilePresent()) {
+                            if (desfireEv3.isTransactionMacCommitReaderId()) {
+                                // this  is hardcoded when working with TransactionMAC files AND enabled CommitReaderId feature
+                                writeToUiAppend(output, "A TransactionMAC file is present with ENABLED CommitReaderId");
+                                success = desfireEv3.commitTransactionFull(true);
+                            } else {
+                                writeToUiAppend(output, "A TransactionMAC file is present with DISABLED CommitReaderId");
+                                success = desfireEv3.commitTransactionFullReturnTmv();
+                            }
+                        } else {
+                            // no transaction mac file is present
+                            writeToUiAppend(output, "A TransactionMAC file is NOT present, running regular commitTransaction");
+                            success = desfireEv3.commitTransactionWithoutTmacFull();
+                            Log.d(TAG, desfireEv3.getLogData());
+                        }
+                    }
+
+                    responseData = desfireEv3.getErrorCode();
+                    if (success) {
+                        writeToUiAppend(output, "data is written to Record file number " + fileIdByte);
+                        // return the Transaction MAC counter and value
+                        if (isTransactionMacFilePresent) {
+                            byte[] returnedTmacCV = desfireEv3.getTransactionMacFileReturnedTmcv();
+                            writeToUiAppend(output, printData("returned TMAC counter and value", returnedTmacCV));
+                            if ((returnedTmacCV != null) && (returnedTmacCV.length == 12)) {
+                                byte[] tmc = Arrays.copyOfRange(returnedTmacCV, 0, 4);
+                                byte[] tmacEnc = Arrays.copyOfRange(returnedTmacCV, 4, 12);
+                                int tmcInt = Utils.intFrom4ByteArrayInversed(tmc);
+                                writeToUiAppend(output, "TMAC counter: " + tmcInt + printData(" tmacEnc", tmacEnc));
+                            }
+                        }
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit SUCCESS", COLOR_GREEN);
+                        vibrateShort();
+                    } else {
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "commit" + " FAILURE with error code: " + EV3.getErrorCode(responseData), COLOR_RED);
+                        writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
+                        return;
+                    }
+                }
+            }
+        });
+
+        abortTransaction.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "abort all transactions";
+                writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                int fileSizeInt = selectedFileSettings.getRecordSizeInt();
+
+                // pre-check if fileNumber is existing
+                boolean isFileExisting = desfireEv3.checkFileNumberExisting(fileIdByte);
+                if (!isFileExisting) {
+                    writeToUiAppend(output, logString + " The file does not exist, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " File not found error", COLOR_RED);
+                    return;
+                }
+
+                boolean success = false;
+                byte[] responseData;
+                if ((selectedFileSettings.getFileType() == FileSettings.LINEAR_RECORD_FILE_TYPE) || (selectedFileSettings.getFileType() == FileSettings.CYCLIC_RECORD_FILE_TYPE)) {
+                    // it is a Record file where we need to submit a commit command to confirm the write
+                    writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Record file, run COMMIT");
+
+                    success = desfireEv3.abortATransaction();
+
+                    responseData = desfireEv3.getErrorCode();
+                    if (success) {
+                        writeToUiAppend(output, "all transactions got aborted");
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "abort SUCCESS", COLOR_GREEN);
+                        vibrateShort();
+                    } else {
+                        writeToUiAppendBorderColor(errorCode, errorCodeLayout, "abort" + " FAILURE with error code: " + EV3.getErrorCode(responseData), COLOR_RED);
                         writeToUiAppend(errorCode, "Error reason: " + desfireEv3.getErrorCodeReason());
                         return;
                     }
@@ -2423,6 +2578,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     }
 
+
+
     public int indexOf(byte[] outerArray, byte[] smallerArray) {
         for(int i = 0; i < outerArray.length - smallerArray.length+1; ++i) {
             boolean found = true;
@@ -2852,6 +3009,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         swAuthenticateEv2First.setChecked(false);
     }
 
+    private void setRecordButtonsEnabled(boolean isChecked) {
+        // is the switch 'swRecordFileSeparatedCommit' is enabled the buttons are in enabled state
+        commitTransaction.setEnabled(isChecked);
+        abortTransaction.setEnabled(isChecked);
+    }
     /**
      * section for UI handling
      */
