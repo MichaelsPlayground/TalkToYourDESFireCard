@@ -324,6 +324,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 if (!isDesfireEv3Available()) return;
 
                 isFileListRead = false; // invalidates the data
+                invalidateAllSelections();
 
                 // select Master Application first
                 boolean success = desfireEv3.selectApplicationByAid(DesfireEv3.MASTER_APPLICATION_IDENTIFIER);
@@ -385,7 +386,10 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                         if ((allFileSettings == null) || (allFileSettings.length == 0)) {
                             writeToUiAppend(output, "no file settings found, aborted");
                             writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                            getFileSettings.setEnabled(false);
                             return;
+                        } else {
+                            getFileSettings.setEnabled(true);
                         }
                         isFileListRead = true;
                         isTransactionMacFilePresent = desfireEv3.isTransactionMacFilePresent();
@@ -431,13 +435,17 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     if ((allFileSettings == null) || (allFileSettings.length == 0)) {
                         writeToUiAppend(output, "no file settings found, aborted");
                         writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                        getFileSettings.setEnabled(false);
                         return;
+                    } else {
+                        getFileSettings.setEnabled(true);
                     }
                     isFileListRead = true;
                     isTransactionMacFilePresent = desfireEv3.isTransactionMacFilePresent();
                     isCommitReaderIdEnabled = desfireEv3.isTransactionMacCommitReaderId();
                 } else {
                     Log.d(TAG, "getAllFileIds and allFileSettings SKIPPED");
+                    getFileSettings.setEnabled(true);
                 }
 
                 String[] fileList = new String[allFileIds.length];
@@ -461,6 +469,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         allLayoutsInvisible();
+
                         writeToUiAppend(output, "you  selected nr " + which + " = " + fileList[which]);
                         selectedFileId = String.valueOf(allFileIds[which]);
                         // here we are reading the fileSettings
@@ -515,6 +524,52 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        // this reads out the cached file settings after applicationSelect or fileSelect
+        getFileSettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "get file settings";
+                writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+                // check that a file was selected before
+                if (TextUtils.isEmpty(selectedFileId)) {
+                    writeToUiAppend(output, "You need to select a file first, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
+                    return;
+                }
+                byte fileIdByte = Byte.parseByte(selectedFileId);
+                byte[] responseData = new byte[2];
+                byte[] result = desfireEv3.getFileSettings(fileIdByte);
+                responseData = desfireEv3.getErrorCode();
+                //byte[] result = desfireAuthenticateLegacy.getFileSettings(fileIdByte);
+                //responseData = desfireAuthenticateLegacy.getErrorCode();
+                if (result == null) {
+                    // something gone wrong
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    if (checkResponseMoreData(responseData)) {
+                        writeToUiAppend(output, "the data I'm receiving is too long to read, sorry");
+                    }
+                    if (checkAuthenticationError(responseData)) {
+                        writeToUiAppend(output, "as we received an Authentication Error - did you forget to AUTHENTICATE with the Application Master Key ?");
+                    }
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    writeToUiAppend(output, desfireAuthenticateLegacy.getLogData());
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " ID: " + fileIdByte + printData(" data", result));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    // get the data in the  FileSettings class
+                    selectedFileSettings = new FileSettings(fileIdByte, result);
+                    writeToUiAppend(output, selectedFileSettings.dump());
+                    vibrateShort();
+                }
+            }
+        });
+
+
+        /*
+        // this method reads the  data directly from the tag, does not work when authenticateEv2 was run
         getFileSettings.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -554,6 +609,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
             }
         });
+
+         */
 
         /**
          * data file actions - could be a Standard or Backup file
@@ -823,12 +880,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     // it is a Value file where we need to submit a commit command to confirm the write
                     writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Value file, run COMMIT");
                     byte commMode = selectedFileSettings.getCommunicationSettings();
+/*
                     if (commMode == (byte) 0x00) {
                         // Plain
                         // this fails when a Transaction MAC file with enabled Commit ReaderId option is existent
                         success = desfireEv3.commitTransactionPlain();
                     }
-                    if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03)) {
+*/
+                    if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03) || (commMode == (byte) 0x00)) {
+                    //if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03)) {
                         // MACed or Full enciphered
                         if (desfireEv3.isTransactionMacFilePresent()) {
                             if (desfireEv3.isTransactionMacCommitReaderId()) {
@@ -923,12 +983,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     // it is a Value file where we need to submit a commit command to confirm the write
                     writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Value file, run COMMIT");
                     byte commMode = selectedFileSettings.getCommunicationSettings();
+/*
                     if (commMode == (byte) 0x00) {
                         // Plain
                         // this fails when a Transaction MAC file with enabled Commit ReaderId option is existent
                         success = desfireEv3.commitTransactionPlain();
                     }
-                    if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03)) {
+*/
+                    if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03) || (commMode == (byte) 0x00)) {
+                    //if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03)) {
                         // MACed or Full enciphered
                         if (desfireEv3.isTransactionMacFilePresent()) {
                             if (desfireEv3.isTransactionMacCommitReaderId()) {
@@ -1101,12 +1164,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     // it is a Record file where we need to submit a commit command to confirm the write
                     writeToUiAppend(output, logString + " fileNumber " + fileIdByte + " is a Record file, run COMMIT");
                     byte commMode = selectedFileSettings.getCommunicationSettings();
+/*
                     if (commMode == (byte) 0x00) {
                         // Plain
                         // this fails when a Transaction MAC file with enabled Commit ReaderId option is existent
                         success = desfireEv3.commitTransactionPlain();
                     }
-                    if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03)) {
+*/
+                    if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03) || (commMode == (byte) 0x00)) {
+                    //if ((commMode == (byte) 0x01) || (commMode == (byte) 0x03)) {
                         // MACed or Full enciphered
 
                         if (desfireEv3.isTransactionMacFilePresent()) {
@@ -3105,6 +3171,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         runOnUiThread(() -> {
             applicationSelected.setText("");
             fileSelected.setText("");
+            getFileSettings.setEnabled(false);
         });
     }
 

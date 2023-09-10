@@ -3629,6 +3629,11 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         baos.write(lengthBytes, 0, lengthBytes.length);
         byte[] commandParameter = baos.toByteArray();
         byte[] response = sendRequest(READ_DATA_FILE_COMMAND, commandParameter);
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
         byte[] responseBytes = returnStatusBytes(response);
         System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         if (!checkResponse(response)) {
@@ -3988,6 +3993,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         // the check on authentication depends on the communication mode in file settings:
         byte commMode = fileSettings.getCommunicationSettings();
         boolean isPlainCommunicationMode = false;
+        /*
         if (commMode == (byte) 0x00) {
             // Plain or MACed
             isPlainCommunicationMode = true;
@@ -4000,6 +4006,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         } else {
             if (!checkAuthentication()) return -1;
         }
+        */
         if (!checkIsoDep()) return -1;
 
         boolean isPlainMode = false;
@@ -4054,6 +4061,10 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return -1;
         }
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
         byte[] responseBytes = returnStatusBytes(response);
         System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
@@ -4293,6 +4304,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         // the check on authentication depends on the communication mode in file settings:
         byte commMode = fileSettings.getCommunicationSettings();
         boolean isPlainCommunicationMode = false;
+        /*
         if ((commMode == (byte) 0x00)) {
             // Plain
             isPlainCommunicationMode = true;
@@ -4305,6 +4317,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         } else {
             if (!checkAuthentication()) return false;
         }
+
+         */
         if (!checkIsoDep()) return false;
 
         boolean isPlainMode = false;
@@ -4373,6 +4387,10 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
+        // note: after sending data to the card the commandCounter is increased by 1, even when working in CommMode Plain
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
         byte[] responseBytes = returnStatusBytes(response);
         System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
@@ -4780,6 +4798,11 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
         byte[] responseBytes = returnStatusBytes(response);
         System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
@@ -5004,6 +5027,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         // note: after sending data to the card the commandCounter is increased by 1
         CmdCounter++;
         log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
         byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
 
         responseMACTruncatedReceived = Arrays.copyOf(response, response.length - 2);
@@ -5077,6 +5101,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         if (!checkIsRecordFileType(fileNumber)) return null;
         // the check on authentication depends on the communication mode in file settings:
         byte commMode = fileSettings.getCommunicationSettings();
+/*
         if (commMode == (byte) 0x00) {
             // Plain
             if (!authenticateAesLegacySuccess) {
@@ -5088,6 +5113,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         } else {
             if (!checkAuthentication()) return null;
         }
+
+ */
         if (!checkIsoDep()) return null; // logFile and errorCode are updated
 
         boolean isPlainMode = false;
@@ -5164,6 +5191,11 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         byte[] response;
         byte[] fullData;
         response = sendRequest(READ_RECORD_FILE_COMMAND, commandParameter);
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
         byte[] responseBytes = returnStatusBytes(response);
         System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
@@ -5893,6 +5925,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         } else {
             Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
             Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            errorCodeReason = "checkResponseData failed";
             return false;
         }
         // note: after sending data to the card the commandCounter is increased by 1
@@ -7239,6 +7272,12 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         // sanity checks
         if (!checkFileNumber(fileNumber)) return null;
         if (!checkIsoDep()) return null;
+
+        if (checkAuthentication()) {
+            log(methodName, "previous authenticateAesEv2First/NonFirst, run getFileSettingsMac");
+            return getFileSettingsMac(fileNumber);
+        }
+
         byte[] getFileSettingsParameters = new byte[1];
         getFileSettingsParameters[0] = fileNumber;
         byte[] apdu;
@@ -7254,6 +7293,90 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         } else {
             Log.d(TAG, "response FAILURE");
             //System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, RESPONSE_FAILURE.length);
+            return null;
+        }
+    }
+
+    /**
+     * get the file settings of a file within an application after a preceding authenticateAesEv2First/NonFirst
+     * Note: depending on the application master key settings this requires a preceding authentication
+     * with the application master key
+     * This is called from getFileSettings after successful checkAuthentication
+     * @return an array of bytes with all available fileSettings
+     * @fileNumber: the file number we need to read the settings from
+     */
+
+    private byte[] getFileSettingsMac(byte fileNumber) {
+        // this is using MACed communication - use this after a authenticateAesEv2First/NonFirst
+        String logData = "";
+        final String methodName = "getFileSettingsMac";
+        log(methodName, "started", true);
+        log(methodName, "fileNumber: " + fileNumber);
+        // sanity checks
+        if (!checkFileNumber(fileNumber)) return null;
+        // Constructing the full GetFileSettings Command APDU
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader (=Option) )
+        byte[] macInput = getMacInput(GET_FILE_SETTINGS_COMMAND, new byte[]{fileNumber});
+        log(methodName, printData("macInput", macInput));
+
+        // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // construction the abort Transaction
+        ByteArrayOutputStream baosGetFileSettingsCommand = new ByteArrayOutputStream();
+        baosGetFileSettingsCommand.write(fileNumber);
+        baosGetFileSettingsCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] getFileSettingsCommand = baosGetFileSettingsCommand.toByteArray();
+        log(methodName, printData("getFileSettingsCommand", getFileSettingsCommand));
+        //byte[] apdu = new byte[0];
+        byte[] response = new byte[0];
+        byte[] fullResponseData;
+        response = sendRequest(GET_FILE_SETTINGS_COMMAND, getFileSettingsCommand);
+        //response = sendData(apdu);
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now verifying the received MAC");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            errorCodeReason = "checkResponse data failure";
+            return null;
+        }
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
+        byte[] fullMacedData = getData(response);
+        if ((fullMacedData == null) || (fullMacedData.length < 6)) {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            errorCodeReason = "data returned too small";
+            return null;
+        }
+        int macedDataLength = fullMacedData.length - 8;
+        log(methodName, "The fullMacedData is of length " + fullMacedData.length + " that includes 8 bytes for MAC");
+        log(methodName, "The macedData length is " + macedDataLength);
+        byte[] macedData = Arrays.copyOfRange(fullMacedData, 0, macedDataLength);
+        byte[] responseMACTruncatedReceived = Arrays.copyOfRange(fullMacedData, macedDataLength, fullMacedData.length);
+        log(methodName, printData("macedData", macedData));
+        byte[] readData = Arrays.copyOfRange(macedData, 0, macedDataLength);
+        log(methodName, printData("readData", readData));
+        if (verifyResponseMac(responseMACTruncatedReceived, macedData)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return readData;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
             return null;
         }
     }
