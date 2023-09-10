@@ -162,6 +162,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
     private Button getTagVersion, getKeySettings, formatPicc;
 
+    private LinearLayout llSectionOriginalitySignature;
+    private Button readSignature, verifySignature;
+
 
     /**
      * section for constants
@@ -300,6 +303,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         getTagVersion = findViewById(R.id.btnGetTagVersion);
         getKeySettings = findViewById(R.id.btnGetKeySettings);
         formatPicc = findViewById(R.id.btnFormatPicc);
+
+        readSignature = findViewById(R.id.btnReadSignature);
+        verifySignature = findViewById(R.id.btnVerifySignature);
 
         // test section
         test = findViewById(R.id.btnTest);
@@ -2463,6 +2469,32 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         .setPositiveButton(android.R.string.yes, dialogClickListener)
         .setNegativeButton(android.R.string.no, dialogClickListener)
          */
+            }
+        });
+
+        /**
+         * section for originality signature
+         */
+
+        readSignature.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // get the tag version data
+                clearOutputFields();
+                String logString = "readSignature";
+                writeToUiAppend(output, logString);
+
+                byte[] result = desfireEv3.readSignature();
+                byte[] responseData = desfireEv3.getErrorCode();
+                if ((result == null) || (result.length < 1)) {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                } else {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppend(output, printData("signature", result));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }
             }
         });
 

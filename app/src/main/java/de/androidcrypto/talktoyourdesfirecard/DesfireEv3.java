@@ -186,6 +186,7 @@ public class DesfireEv3 {
     private final byte ABORT_TRANSACTION_COMMAND = (byte) 0xA7;
     private final byte SET_CONFIGURATION_SECURE_COMMAND = (byte) 0x5C;
     private final byte COMMIT_READER_ID_SECURE_COMMAND = (byte) 0xC8;
+    private final byte READ_SIGNATURE_COMMAND = (byte) 0x3C;
 
     // section for Transaction MAC files
     private final byte CREATE_TRANSACTION_MAC_FILE_COMMAND = (byte) 0xCE;
@@ -236,6 +237,7 @@ public class DesfireEv3 {
     private static final byte[] TRANSACTION_MAC_READER_ID_DEFAULT = Utils.hexStringToByteArray("28BF1982BE086FBC60A22DAEB66613EE"); // see Mifare DESFire Light Features and Hints AN12343.pdf pages 61 - 65
 
     private final byte[] RESPONSE_OK = new byte[]{(byte) 0x91, (byte) 0x00};
+    private final byte[] RESPONSE_UNAUTHENTICATED_OK = new byte[]{(byte) 0x91, (byte) 0x90};
     private final byte[] RESPONSE_ISO_OK = new byte[]{(byte) 0x90, (byte) 0x00};
     public static final byte[] RESPONSE_LENGTH_ERROR = new byte[]{(byte) 0x91, (byte) 0x7E};
     private final byte[] RESPONSE_PERMISSION_DENIED_ERROR = new byte[]{(byte) 0x91, (byte) 0x9D};
@@ -10206,7 +10208,6 @@ fileSize: 128
         try {
             apdu = wrapMessage(GET_KEY_SETTINGS_COMMAND, null);
             response = sendData(apdu);
-
         } catch (IOException e) {
             log(methodName, "IOException: " + e.getMessage());
             errorCode = RESPONSE_FAILURE.clone();
@@ -10221,7 +10222,6 @@ fileSize: 128
             errorCodeReason = "checkResponse failure";
             return null;
         }
-
     }
 
     /**
@@ -10305,6 +10305,80 @@ fileSize: 128
         }
     }
 
+
+    /*
+    Mifare DESFire Light MF2DLHX0.pdf pages 117 ff:
+    The asymmetric originality signature is based on ECC and only requires a public key for the verification, which is done
+    outside the card. The Read_Sig command can be used in both ISO/IEC 14443-3 and ISO/IEC 14443-4 protocols to retrieve the
+    signature. If the PICC is not configured for Random ID, the command is freely available. There is no authentication
+    required. If the PICC is configured for Random ID, an authentication is required.
+
+    The Read_Sig retrieves the asymmetric originality signature based on an asymmetric cryptographic algorithm Elliptic Curve
+    Cryptography Digital Signature Algorithm (ECDSA), see [14] and can be used in both ISO/IEC 14443-3 and ISO/IEC 14443-4
+    protocol. The purpose of originality check signature is to protect from mass copying of non NXP originated ICs. The
+    purpose of originality check signature is not to completely prevent HW copy or emulation of individual ICs.
+    A public key is required for the verification, which is done outside the card. The NXPOriginalitySignature is computed
+    over the UID and written during manufacturing. If the PICC is not configured for Random ID, the command is freely available.
+    There is no authentication required. If the PICC is configured for Random ID, an authentication with any authentication key
+    is required. If there is an active authentication, the command requires encrypted secure messaging.
+    Remark: The originality function is provided to prove that the IC has been manufactured by NXP Semiconductors.
+     */
+
+
+    public byte[] readSignature() {
+
+        // Mifare DESFire Light MF2DLHX0.pdf pages 117 ff
+        // returns 2 bytes: key settings || max number of keys
+        logData = "";
+        final String methodName = "readSignature";
+        log(methodName, methodName + " started");
+
+        // sanity checks
+        if (!checkIsoDep()) return null;
+
+        if (checkAuthentication()) {
+            log(methodName, "previous authenticateAesEv2First/NonFirst, run readSignatureFull");
+            return readSignatureFull();
+        }
+        byte[] response;
+        byte[] apdu;
+        try {
+            apdu = wrapMessage(READ_SIGNATURE_COMMAND, new byte[]{(byte) 0x00});
+            response = sendData(apdu);
+            System.out.println(printData("res1", response));
+        } catch (IOException e) {
+            log(methodName, "IOException: " + e.getMessage());
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return null;
+        }
+        System.out.println(printData("res", response));
+        System.arraycopy(response, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            errorCodeReason = "success";
+            return getData(response);
+        } else {
+            // additional check for 0x9190
+            if (checkResponseUnauthenticated(response)) {
+                errorCodeReason = "success";
+                return getData(response);
+            }
+            errorCodeReason = "checkResponse failure";
+            return null;
+        }
+    }
+
+    private byte[] readSignatureFull() {
+        logData = "";
+        final String methodName = "readSignatureFull";
+        log(methodName, methodName + " started");
+
+        // todo fill with code for FULL
+
+
+
+        return null;
+    }
 
     /**
      * section for command and response handling
@@ -10458,6 +10532,20 @@ fileSize: 128
             return false;
         } // not ok
         if (Arrays.equals(RESPONSE_OK, returnStatusBytes(data))) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    // this may occur when a command is run in Plain communication, it better should be run in MACed or Full communication (e.g. readSignature)
+    private boolean checkResponseUnauthenticated(byte[] data) {
+        if (data == null) return false;
+        // simple sanity check
+        if (data.length < 2) {
+            return false;
+        } // not ok
+        if (Arrays.equals(RESPONSE_UNAUTHENTICATED_OK, returnStatusBytes(data))) {
             return true;
         } else {
             return false;
