@@ -729,7 +729,7 @@ public class DesfireAuthenticateLegacy {
         success = authenticateD40(MASTER_APPLICATION_KEY_NUMBER, MASTER_APPLICATION_KEY_DES_DEFAULT);
         if (!success) {
             log(methodName,"authenticate failed, aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            //System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2); // authenticateD40 already provided an errorCode
             return false;
         }
 
@@ -816,8 +816,8 @@ public class DesfireAuthenticateLegacy {
         System.arraycopy(responseBytes, 0, errorCode, 0, 2);
         // we are expecting that the status code is 0xAF means more data need to get exchanged
         if (!checkResponseMoreData(responseBytes)) {
-            log(methodName, "expected to get get 0xAF as error code but  found: " + printData("errorCode", responseBytes) + ", aborted");
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            log(methodName, "expected to get get 0xAF as error code but found: " + printData("errorCode", responseBytes) + ", aborted");
+            //System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return false;
         }
         // now we know that we can work with the response

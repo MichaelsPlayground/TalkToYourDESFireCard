@@ -154,6 +154,7 @@ public class DesfireEv3 {
     private final byte AUTHENTICATE_AES_COMMAND = (byte) 0xAA;
     private final byte MORE_DATA_COMMAND = (byte) 0xAF;
     private final byte GET_VERSION_INFO_COMMAND = (byte) 0x60;
+    private final byte GET_KEY_SETTINGS_COMMAND = (byte) 0x45;
     private final byte CREATE_APPLICATION_COMMAND = (byte) 0xCA;
     private final byte SELECT_APPLICATION_COMMAND = (byte) 0x5A;
     private final byte SELECT_APPLICATION_ISO_COMMAND = (byte) 0xA4;
@@ -10157,6 +10158,16 @@ fileSize: 128
             return false;
         }
     }
+
+    public byte[] getKeySettings() {
+
+        // todo fill with life, see protocol page 5 and D40 page 36
+        // returns 2 bytes: key settings || max number of keys
+
+        return null;
+    }
+
+
 
     /**
      * section for command and response handling

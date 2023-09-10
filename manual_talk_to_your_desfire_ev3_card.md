@@ -154,7 +154,7 @@ As all files are located within an application the most used command is the **se
 
 Two file types are covered by Data Files: **Standard Files** and **Backup Files**. As both work mostly identical they are condensed 
 under Data Files. The library supports the **createDataFile** command. As a Data File can be setup in communication modes Plain, MACed or Full there 
-are 3 different methods respectively for **readADataFile** and **writeADataFile**. Just a note on Backup files: after firing ther writeADataFile 
+are 3 different methods respectively for **readADataFile** and **writeADataFile**. Just a note on Backup files only: after firing the writeADataFile 
 command you need to commit the transaction (see below).
 
 ### Value Files section commands
@@ -178,17 +178,19 @@ command. The **deleteFile** is supported (please remember: the deletion of a fil
 ### Commit section commands
 
 Write operations to a Backup-, Value-, Linear Record- or Cyclic Record file needs to get commit before they are written finally. You need to fire this 
-command from (Main) activites side as the general workflow allows to send data to several files in the same application and commit all write operations 
+command from (Main) activities side as the general workflow allows to send data to several files in the same application and commit all write operations 
 in one commit command (**commitTransaction**). As there is an optional file type available (**Transaction MAC file**) there might be some extra steps 
-to run before committing a transaction (**commitReaderId**), see Transaction MAC file for details.
+to run before committing a transaction, see Transaction MAC file for details. The opposite command of a commitTransaction is the 
+**abortTransaction** command that cancels all write operations done after an selectApplication or commitTransaction command.
 
 ### Transaction MAC File section commands
 
-The Transaction MAC file is a special feature available on DESFire EV2/EV3 and DESFire Light tags only. This file stores the last transactions 
-on the tag so a backend server is been able to prove that all transactions had been processed correctly. 
+The Transaction MAC file (TMAC file) is a special feature available on DESFire EV2/EV3 and DESFire Light tags only. This file stores the last transactions 
+on the tag so a backend server is been able to prove that all transactions had been processed correctly. The library does NOT support any 
+methods to validate the data in this file but can request the return of the updated value after a successful COMMIT command.
 
-
-
+There is an additional option during creation of a TMAC file - running a preceding **commitReaderId**. If this option is set a commitTransaction 
+command will fail unless a previous commitReaderId command is fired. The TMAC file includes the reader Id in the calculation.
 
 ### Key commands
 
@@ -202,8 +204,22 @@ mode: when a file is in communication mode **Plain** the library is using the le
 communication modes **MACed** or **Full enciphered** the app is using the modern **authenticateAesEv2First** or **authenticateAesEv2NonFirst** 
 methods. The app is authenticating only on application level and with **AES-128 keys** only.
 
+### General commands
 
+On creation of new files you may encounter an "out of memory" error due to insufficient user memory on the tag. This happens very quickly when 
+you create too large Data files, Record files with too many records or applications with a large number of application keys (each key gets part of the application memory usage). 
+The **getFreeMemory** lets you find out how many bytes are available on the tag. As mentioned before, the deletion of files does not release 
+the storage space. The only way to release the tag's memory is the  **formatPicc** command that comes with a confirmation dialog (available on 
+UI level only, not on library level). This command runs after a successful authentication with the Master Application Key only.
 
+An interesting command is the **getVersion** command. It retrieves the tag specific data like storage size, hardware type and production date. 
+This information is used during tag discovery to determine that the tag is of type **Mifare DESFire EV2 or EV3**. If the tag is not of these
+("allowed") types the further processing is disabled to avoid any (unwanted) damage of unknown or wrong tags. The value return by the command 
+is processed in the 'VersionInfo' class that allows an easy access to all returned data fields.
+
+A note on the Master Application and it's authentication. As this app isn't touching the Master Application this command is bundled in the UI 
+with an 'authenticateLegacy' call to the 'AuthenticateDesfireLegacy' class. If your Master Application Key is changed to an AES key this comand 
+won't run properly.
 
 ## Why does the app stops working ?
 
