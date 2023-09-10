@@ -1701,7 +1701,7 @@ final String methodName = "createAStandardFileIso";
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -1924,7 +1924,7 @@ final String methodName = "createAStandardFileIso";
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -2130,7 +2130,7 @@ final String methodName = "createAStandardFileIso";
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -2365,7 +2365,7 @@ final String methodName = "createAStandardFileIso";
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -2517,7 +2517,8 @@ final String methodName = "createAStandardFileIso";
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -2543,7 +2544,7 @@ final String methodName = "createAStandardFileIso";
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -2997,7 +2998,7 @@ final String methodName = "createAStandardFileIso";
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -3098,6 +3099,8 @@ final String methodName = "createAStandardFileIso";
             } catch (IOException e) {
                 Log.e(TAG, "IOException on concatenating encrypted dataBlocks, aborted\n" +
                         e.getMessage());
+                errorCode = RESPONSE_FAILURE.clone();
+                errorCodeReason = "IOException: transceive failed: " + e.getMessage();
                 return false;
             }
         }
@@ -3177,7 +3180,7 @@ final String methodName = "createAStandardFileIso";
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -3275,6 +3278,8 @@ final String methodName = "createAStandardFileIso";
             } catch (IOException e) {
                 Log.e(TAG, "IOException on concatenating encrypted dataBlocks, aborted\n" +
                         e.getMessage());
+                errorCode = RESPONSE_FAILURE.clone();
+                errorCodeReason = "IOException: transceive failed: " + e.getMessage();
                 return false;
             }
         }
@@ -3353,7 +3358,7 @@ final String methodName = "createAStandardFileIso";
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -3785,7 +3790,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return readData;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return null;
         }
@@ -3945,7 +3950,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return readData;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return null;
         }
@@ -4160,7 +4165,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return byteArrayLength4InversedToInt(data);
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return -1;
         }
@@ -4267,7 +4272,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return byteArrayLength4InversedToInt(decryptedData);
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return -1;
         }
@@ -4478,7 +4483,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -4503,7 +4509,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -4614,7 +4620,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -4639,7 +4646,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -4896,7 +4903,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -4962,6 +4969,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             } catch (IOException e) {
                 Log.e(TAG, "IOException on concatenating encrypted dataBlocks, aborted\n" +
                         e.getMessage());
+                errorCode = RESPONSE_FAILURE.clone();
+                errorCodeReason = "IOException: transceive failed: " + e.getMessage();
                 return false;
             }
         }
@@ -5039,7 +5048,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -5324,7 +5333,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return readData;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return null;
         }
@@ -5461,7 +5470,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return readData;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return null;
         }
@@ -5544,7 +5553,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -5623,7 +5632,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -5652,7 +5662,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -5934,7 +5944,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -6048,7 +6058,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -6164,7 +6174,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -6234,7 +6244,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -6416,7 +6426,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -6519,7 +6529,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -6625,7 +6635,7 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -6695,7 +6705,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -6811,7 +6822,8 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         responseBytes = returnStatusBytes(response);
@@ -7023,7 +7035,8 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -7350,7 +7363,7 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
             return readData;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return null;
         }
@@ -7504,7 +7517,7 @@ PERMISSION_DENIED
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -7806,7 +7819,7 @@ PERMISSION_DENIED
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -8040,6 +8053,8 @@ fileSize: 128
                 } catch (IOException e) {
                     Log.e(TAG, "IOException on concatenating encrypted dataBlocks, aborted\n" +
                             e.getMessage());
+                    errorCode = RESPONSE_FAILURE.clone();
+                    errorCodeReason = "IOException: transceive failed: " + e.getMessage();
                     return false;
                 }
             }
@@ -8116,7 +8131,7 @@ fileSize: 128
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -8245,6 +8260,8 @@ fileSize: 128
                 } catch (IOException e) {
                     Log.e(TAG, "IOException on concatenating encrypted dataBlocks, aborted\n" +
                             e.getMessage());
+                    errorCode = RESPONSE_FAILURE.clone();
+                    errorCodeReason = "IOException: transceive failed: " + e.getMessage();
                     return false;
                 }
             }
@@ -8319,7 +8336,7 @@ fileSize: 128
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -9535,7 +9552,8 @@ fileSize: 128
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -9567,7 +9585,7 @@ fileSize: 128
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -9704,7 +9722,8 @@ fileSize: 128
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -9736,7 +9755,7 @@ fileSize: 128
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -9853,7 +9872,8 @@ fileSize: 128
         } catch (IOException e) {
             Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
             log(methodName, "transceive failed: " + e.getMessage(), false);
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
         byte[] responseBytes = returnStatusBytes(response);
@@ -9885,7 +9905,7 @@ fileSize: 128
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }
@@ -9926,7 +9946,8 @@ fileSize: 128
         } catch (IOException e) {
             Log.d(TAG, stepString + " FAILURE, Exception: " + e.getMessage());
             log(methodName, "IOException: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
 
@@ -10128,10 +10149,18 @@ fileSize: 128
             }
         } catch (IOException e) {
             log(methodName, "IOException: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return false;
         }
     }
+
+    /**
+     * get the key settings of the actual = selected application. If no application was
+     * selected the key settings of the MASTER APPLICATION get returned.
+     * Uses the helper library 'ApplicationKeySettings' for convenient support
+     * @return
+     */
 
     public ApplicationKeySettings getApplicationKeySettings() {
         if (!checkIsoDep()) return null;
@@ -10150,6 +10179,13 @@ fileSize: 128
         return new ApplicationKeySettings(selAppId, keySettings);
     }
 
+    /**
+     * Get the key settings of the actual = selected application. If no application was
+     * selected the key settings of the MASTER APPLICATION get returned.
+     * If a preceding authentication was done the methods calls 'getKeySettingsMac'
+     * @return a 2 byte array on success or null on failure
+     */
+
     public byte[] getKeySettings() {
 
         // todo fill with life, see protocol page 5 and D40 page 36
@@ -10165,8 +10201,7 @@ fileSize: 128
             log(methodName, "previous authenticateAesEv2First/NonFirst, run getFileSettingsMac");
             return getKeySettingsMac();
         }
-        // todo code clearing
-        byte[] response = new byte[0];
+        byte[] response;
         byte[] apdu;
         try {
             apdu = wrapMessage(GET_KEY_SETTINGS_COMMAND, null);
@@ -10174,13 +10209,16 @@ fileSize: 128
 
         } catch (IOException e) {
             log(methodName, "IOException: " + e.getMessage());
-            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return null;
         }
         System.arraycopy(response, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
+            errorCodeReason = "success";
             return getData(response);
         } else {
+            errorCodeReason = "checkResponse failure";
             return null;
         }
 
@@ -10191,7 +10229,7 @@ fileSize: 128
      * Note: depending on the application master key settings this requires a preceding authentication
      * with the application master key
      * This is called from getKeySettings after successful checkAuthentication
-     * @return an array of bytes with all available keySettings
+     * @return a 2 byte array on success or null on failure
      */
 
     private byte[] getKeySettingsMac() {
@@ -10261,7 +10299,7 @@ fileSize: 128
             return readData;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return null;
         }
@@ -11422,7 +11460,7 @@ fileSize: 128
             return readData;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return null;
         }
@@ -11547,6 +11585,8 @@ fileSize: 128
             } catch (IOException e) {
                 Log.e(TAG, "IOException on concatenating encrypted dataBlocks, aborted\n" +
                         e.getMessage());
+                errorCode = RESPONSE_FAILURE.clone();
+                errorCodeReason = "IOException: transceive failed: " + e.getMessage();
                 return false;
             }
         }
@@ -11636,7 +11676,7 @@ fileSize: 128
             return true;
         } else {
             log(methodName, methodName + " FAILURE");
-            errorCode = RESPONSE_OK.clone();
+            errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = methodName + " FAILURE";
             return false;
         }

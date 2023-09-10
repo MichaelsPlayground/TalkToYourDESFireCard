@@ -2,6 +2,15 @@ package de.androidcrypto.talktoyourdesfirecard;
 
 import java.util.Arrays;
 
+/**
+ * This class takes the output of the getKeySettings command and analyzes the data for an easy access.
+ * Before using the data check 'isKeySettingsValid()' - only on 'true' use the data
+ * The first data of the constructor (applicationIdentifier) is used to determine if some data are analyzed
+ * or not, so please fill it with the application identifier of the actual application (use '0x000000' in case
+ * the MAIN APPLICATION IDENTIFIER is the source of data.
+ * For convenient printouts use 'dump()'
+ */
+
 public class ApplicationKeySettings {
 
     private byte[] applicationIdentifier;
@@ -160,5 +169,85 @@ public class ApplicationKeySettings {
             sb.append("-----------------").append("\n");
         }
         return sb.toString();
+    }
+
+    /**
+     * section for getter
+     */
+
+    public int getKeyType() {
+        return keyType;
+    }
+
+    public String getKeyTypeName() {
+        return keyTypeName;
+    }
+
+    public boolean isKeyTypeDes() {
+        return isKeyTypeDes;
+    }
+
+    public boolean isKeyTypeTDes() {
+        return isKeyTypeTDes;
+    }
+
+    public boolean isKeyTypeAes() {
+        return isKeyTypeAes;
+    }
+
+    public boolean isKeyTypeUnknown() {
+        return isKeyTypeUnknown;
+    }
+
+    public int getNumberOfKeys() {
+        return numberOfKeys;
+    }
+
+    public int getCarKeyNumber() {
+        return carKeyNumber;
+    }
+
+    public boolean isMasterKeyAuthenticationNecessaryToChangeAnyKey() {
+        return isMasterKeyAuthenticationNecessaryToChangeAnyKey;
+    }
+
+    public boolean isApplicationKeyAuthenticationNecessaryToChangeAnyKey() {
+        return isApplicationKeyAuthenticationNecessaryToChangeAnyKey;
+    }
+
+    public boolean isKeyAuthenticationNecessaryToChangeThisKey() {
+        return isKeyAuthenticationNecessaryToChangeThisKey;
+    }
+
+    public boolean isApplicationKeysChangeFrozen() {
+        return isApplicationKeysChangeFrozen;
+    }
+
+    public boolean isMasterKeyChangeable() {
+        return isMasterKeyChangeable;
+    }
+
+    public boolean isMasterKeyAuthenticationNeededForFileDirectoryAccess() {
+        return isMasterKeyAuthenticationNeededForFileDirectoryAccess;
+    }
+
+    public boolean isMasterKeyAuthenticationNeededForCreateDeleteFile() {
+        return isMasterKeyAuthenticationNeededForCreateDeleteFile;
+    }
+
+    public boolean isChangeOfMasterKeySettingsAllowed() {
+        return isChangeOfMasterKeySettingsAllowed;
+    }
+
+    public boolean isMasterApplicationSettings() {
+        return isMasterApplicationSettings;
+    }
+
+    public byte[] getMasterApplicationIdentifier() {
+        return MasterApplicationIdentifier;
+    }
+
+    public boolean isKeySettingsValid() {
+        return isKeySettingsValid;
     }
 }

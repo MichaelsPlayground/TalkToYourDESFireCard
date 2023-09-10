@@ -160,7 +160,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for general
      */
 
-    private Button getTagVersion, formatPicc;
+    private Button getTagVersion, getKeySettings, formatPicc;
 
 
     /**
@@ -298,6 +298,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
         // general handling
         getTagVersion = findViewById(R.id.btnGetTagVersion);
+        getKeySettings = findViewById(R.id.btnGetKeySettings);
         formatPicc = findViewById(R.id.btnFormatPicc);
 
         // test section
@@ -2391,6 +2392,28 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        getKeySettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // get the tag version data
+                clearOutputFields();
+                String logString = "getKeySettings";
+                writeToUiAppend(output, logString);
+                if ((selectedApplicationId == null) || (Arrays.equals(selectedApplicationId, DesfireEv3.MASTER_APPLICATION_IDENTIFIER))) {
+                    writeToUiAppend(output, "get the key settings of MASTER APPLICATION 000000");
+                } else {
+                    writeToUiAppend(output, "get the key settings of " + printData("APPLICATION", selectedApplicationId));
+                }
+
+                ApplicationKeySettings applicationKeySettings = desfireEv3.getApplicationKeySettings();
+                if ((applicationKeySettings != null) && (applicationKeySettings.isKeySettingsValid()))
+                {
+                    writeToUiAppend(output, desfireEv3.getApplicationKeySettings().dump());
+                }
+                vibrateShort();
+            }
+        });
+
 
         formatPicc.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -2463,7 +2486,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 int byte1UpperNibbleInt = Utils.byteToUpperNibbleInt(byte1);
                 writeToUiAppend(output, "byte1LowerNibbleInt (numberOfKeys): " + byte1LowerNibbleInt + " byte1UpperNibbleInt (keyType): " + byte1UpperNibbleInt);
 
-                writeToUiAppend(output, desfireEv3.getApplicationKeySettings().dump());
+                ApplicationKeySettings applicationKeySettings = desfireEv3.getApplicationKeySettings();
+                if ((applicationKeySettings != null) && (applicationKeySettings.isKeySettingsValid()))
+                {
+                    writeToUiAppend(output, desfireEv3.getApplicationKeySettings().dump());
+                }
 /*
                 String logString = "Test signatures";
                 writeToUiAppend(output, logString);
