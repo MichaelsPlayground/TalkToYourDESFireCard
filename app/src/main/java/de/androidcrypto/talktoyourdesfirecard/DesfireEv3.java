@@ -5702,32 +5702,6 @@ padding add up to 16 bytes. As the data is always a multiple of 16 bytes, no pad
             return false;
         }
 
-
-        /*
-        if (!isTransactionMacFilePresent) {
-            if (isEnabledReturnTmcv) {
-                log(methodName, "As no TransactionMAC file is present in the application the enabled ReturnTmcv setting is discarded");
-            }
-            return commitTransactionWithoutTmacFull();
-        } else {
-            // tmac file is  present
-            // check for commitReaderId option
-            boolean isEnabledCommitReaderIdFeature = transactionMacFileSettings.isEnabledCommitReaderIdFeature();
-            if (!isEnabledCommitReaderIdFeature) {
-                log(methodName, "A TransactionMAC file is present in the application wit DISABLED Commit Reader Id Feature");
-                return commitTransactionWithTmacFull(isEnabledReturnTmcv);
-            } else {
-                log(methodName, "A TransactionMAC file is present in the application with ENABLED Commit Reader Id Feature");
-                // before sending the CommitTransaction command we need to send a CommitReaderId command
-                boolean successCommitReaderId = commitReaderIdFull();
-                if (!successCommitReaderId) {
-                    log(methodName, "commitReaderId FAILURE"); // commitReaderId updated the errorCodes
-                    return false;
-                }
-                return commitTransactionWithTmacFull(isEnabledReturnTmcv);
-            }
-        }
-         */
     }
 
     public boolean commitTransactionPlain() {
@@ -7116,7 +7090,7 @@ Executing Cmd.SetConfiguration in CommMode.Full and Option 0x09 for updating the
         if (!checkApplicationIdentifier(selectedApplicationId))
             return false; // logFile and errorCode are updated
         if (checkAuthentication()) {
-            // as the command won't run in authenticated state the  method denies to work further
+            // as the command won't run in authenticated state the method denies to work further
             Log.e(TAG, methodName + " cannot run this command after authentication, aborted");
             log(methodName, "cannot run this command after authentication, aborted");
             errorCode = RESPONSE_FAILURE.clone();
@@ -10159,14 +10133,139 @@ fileSize: 128
         }
     }
 
+    public ApplicationKeySettings getApplicationKeySettings() {
+        if (!checkIsoDep()) return null;
+        byte[] keySettings = getKeySettings();
+        if ((keySettings == null) || (keySettings.length != 2)) {
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "could not retrieve the key settings";
+            return null;
+        }
+        byte[] selAppId;
+        if ((selectedApplicationId == null) || (selectedApplicationId.length != 3)) {
+            selAppId = MASTER_APPLICATION_IDENTIFIER.clone();
+        } else {
+            selAppId = selectedApplicationId.clone();
+        }
+        return new ApplicationKeySettings(selAppId, keySettings);
+    }
+
     public byte[] getKeySettings() {
 
         // todo fill with life, see protocol page 5 and D40 page 36
         // returns 2 bytes: key settings || max number of keys
+        logData = "";
+        final String methodName = "getKeySettings";
+        log(methodName, methodName + " started");
 
-        return null;
+        // sanity checks
+        if (!checkIsoDep()) return null;
+
+        if (checkAuthentication()) {
+            log(methodName, "previous authenticateAesEv2First/NonFirst, run getFileSettingsMac");
+            return getKeySettingsMac();
+        }
+        // todo code clearing
+        byte[] response = new byte[0];
+        byte[] apdu;
+        try {
+            apdu = wrapMessage(GET_KEY_SETTINGS_COMMAND, null);
+            response = sendData(apdu);
+
+        } catch (IOException e) {
+            log(methodName, "IOException: " + e.getMessage());
+            System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
+            return null;
+        }
+        System.arraycopy(response, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            return getData(response);
+        } else {
+            return null;
+        }
+
     }
 
+    /**
+     * get the get key settings of an application after a preceding authenticateAesEv2First/NonFirst
+     * Note: depending on the application master key settings this requires a preceding authentication
+     * with the application master key
+     * This is called from getKeySettings after successful checkAuthentication
+     * @return an array of bytes with all available keySettings
+     */
+
+    private byte[] getKeySettingsMac() {
+        // this is using MACed communication - use this after a authenticateAesEv2First/NonFirst
+        String logData = "";
+        final String methodName = "getKeySettingsMac";
+        log(methodName, "started", true);
+        // sanity checks
+
+        // Constructing the full GetKeySettings Command APDU
+
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader (=Option) )
+        byte[] macInput = getMacInput(GET_KEY_SETTINGS_COMMAND, null);
+        log(methodName, printData("macInput", macInput));
+
+        // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // construction the abort Transaction
+        ByteArrayOutputStream baosGetKeySettingsCommand = new ByteArrayOutputStream();
+        baosGetKeySettingsCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] getKeySettingsCommand = baosGetKeySettingsCommand.toByteArray();
+        log(methodName, printData("getKeySettingsCommand", getKeySettingsCommand));
+        //byte[] apdu = new byte[0];
+        byte[] response = new byte[0];
+        byte[] fullResponseData;
+        response = sendRequest(GET_KEY_SETTINGS_COMMAND, getKeySettingsCommand);
+        //response = sendData(apdu);
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now verifying the received MAC");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            errorCodeReason = "checkResponse data failure";
+            return null;
+        }
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
+        byte[] fullMacedData = getData(response);
+        if ((fullMacedData == null) || (fullMacedData.length < 6)) {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            errorCodeReason = "data returned too small";
+            return null;
+        }
+        int macedDataLength = fullMacedData.length - 8;
+        log(methodName, "The fullMacedData is of length " + fullMacedData.length + " that includes 8 bytes for MAC");
+        log(methodName, "The macedData length is " + macedDataLength);
+        byte[] macedData = Arrays.copyOfRange(fullMacedData, 0, macedDataLength);
+        byte[] responseMACTruncatedReceived = Arrays.copyOfRange(fullMacedData, macedDataLength, fullMacedData.length);
+        log(methodName, printData("macedData", macedData));
+        byte[] readData = Arrays.copyOfRange(macedData, 0, macedDataLength);
+        log(methodName, printData("readData", readData));
+        if (verifyResponseMac(responseMACTruncatedReceived, macedData)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return readData;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return null;
+        }
+    }
 
 
     /**

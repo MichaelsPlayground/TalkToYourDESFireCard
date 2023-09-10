@@ -2451,6 +2451,20 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             @Override
             public void onClick(View view) {
                 clearOutputFields();
+                String logString = "getKeySettings";
+                writeToUiAppend(output, logString);
+
+                byte[] result = desfireEv3.getKeySettings();
+                writeToUiAppend(output, printData("getKeySettings", result));
+                byte byte0 = result[0];
+                byte byte1 = result[1];
+
+                int byte1LowerNibbleInt = Utils.byteToLowerNibbleInt(byte1);
+                int byte1UpperNibbleInt = Utils.byteToUpperNibbleInt(byte1);
+                writeToUiAppend(output, "byte1LowerNibbleInt (numberOfKeys): " + byte1LowerNibbleInt + " byte1UpperNibbleInt (keyType): " + byte1UpperNibbleInt);
+
+                writeToUiAppend(output, desfireEv3.getApplicationKeySettings().dump());
+/*
                 String logString = "Test signatures";
                 writeToUiAppend(output, logString);
 
@@ -2533,7 +2547,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 // e1e2e3df01a00000039656434103f015400000000be1e2e4dd01a0ddee039656434103f015400000000b      e1e2e5 dd02 a2dd e1e2e6 dd03 a3dd03
 
 
-
+*/
                 /*
                 List<byte[]> appIdsList = desfireEv3.getApplicationIdsList();
                 // get iso file ids and df names by parsing through list
@@ -2587,6 +2601,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
 
                  */
+/*
                 List <byte[]> isoFileIdsList = new ArrayList<>();
                 List <byte[]> isoDfNamesList = new ArrayList<>();
                 success = desfireEv3.getApplicationsIsoData();
@@ -2602,7 +2617,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                     Log.d(TAG, "i: " + i + printData(" isoFileId", isoFileIdsList.get(i)));
                     Log.d(TAG, "i: " + i + printData(" isoDfName", isoDfNamesList.get(i)));
                 }
-
+*/
                 /*
                 boolean success;
                 String stepString = "1 select Master Application";

@@ -147,7 +147,7 @@ public class CreateApplicationActivity extends AppCompatActivity implements NfcA
 
         // now the funny part - the application settings - bitwise combined with carKeyByte
         /*
-			bit 0 is most right bis (counted from right to left)
+			bit 0 is most right bit (counted from right to left)
 			bit 0 = application master key is changeable (1) or frozen (0)
 			bit 1 = application master key authentication is needed for file directory access (1)
 			bit 2 = application master key authentication is needed before CreateFile / DeleteFile (1)

@@ -143,6 +143,14 @@ public class Utils {
         return byteArray[0];
     }
 
+    public static int byteToUpperNibbleInt(Byte input) {
+        return (input & 0xF0 ) >> 4;
+    }
+
+    public static int byteToLowerNibbleInt(Byte input) {
+        return input & 0x0F;
+    }
+
     public static byte[] hexStringToByteArray(String s) {
         try {
             int len = s.length();
