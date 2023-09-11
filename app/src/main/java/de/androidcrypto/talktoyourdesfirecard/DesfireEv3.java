@@ -205,6 +205,7 @@ public class DesfireEv3 {
      */
     private final byte ACCESS_RIGHTS_R_W_TMAC = (byte) 0x1F; // Read Access (key 01) & Write Access (no access)
 
+    private final byte GET_CARD_UID_COMMAND = (byte) 0x51;
     private final byte FORMAT_PICC_COMMAND = (byte) 0xFC;
     private final byte DELETE_FILE_COMMAND = (byte) 0xDF;
     private final byte GET_FILE_IDS_COMMAND = (byte) 0x6F;
@@ -8384,6 +8385,39 @@ fileSize: 128
         }
     }
 
+    // response code is usually 0x00 but if "unneccessary authentication" it is 0x90
+    private boolean verifyResponseMac(byte[] responseMAC, byte[] responseData, byte responseCode) {
+        final String methodName = "verifyResponseMac";
+        byte[] commandCounterLsb = intTo2ByteArrayInversed(CmdCounter);
+        ByteArrayOutputStream responseMacBaos = new ByteArrayOutputStream();
+        responseMacBaos.write(responseCode); // response code 00 means success
+        responseMacBaos.write(commandCounterLsb, 0, commandCounterLsb.length);
+        responseMacBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        if (responseData != null) {
+            responseMacBaos.write(responseData, 0, responseData.length);
+        }
+        byte[] macInput = responseMacBaos.toByteArray();
+        log(methodName, printData("macInput", macInput));
+        byte[] responseMACCalculated = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("responseMACTruncatedReceived  ", responseMAC));
+        log(methodName, printData("responseMACCalculated", responseMACCalculated));
+        byte[] responseMACTruncatedCalculated = truncateMAC(responseMACCalculated);
+        log(methodName, printData("responseMACTruncatedCalculated", responseMACTruncatedCalculated));
+        // compare the responseMAC's
+        if (Arrays.equals(responseMACTruncatedCalculated, responseMAC)) {
+            Log.d(TAG, "responseMAC SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = "SUCCESS";
+            return true;
+        } else {
+            Log.d(TAG, "responseMAC FAILURE");
+            errorCode = RESPONSE_FAILURE;
+            errorCodeReason = "responseMAC FAILURE";
+            return false;
+        }
+    }
+
+
     private byte[] truncateMAC(byte[] fullMAC) {
         final String methodName = "truncateMAC";
         log(methodName, printData("fullMAC", fullMAC), true);
@@ -10106,17 +10140,125 @@ fileSize: 128
         return ((hardwareType == 1) && (hardwareVersion == 51));
     }
 
+    /*
+    MIFARE DESFire Light contactless application IC MF2DLHX0.pdf pages 70 ff
+    GetCardUID command is required to get the 7-byte UID from the card. In case "Random ID" at activation is configured,
+    encrypted secure messaging is applied for this command and response. An authentication with any key needs to be
+    performed prior to the command GetCardUID. This command returns the UID and gives the opportunity to retrieve the
+    UID, even if the Random ID is used.
+     */
+    public byte[] getCardUidFull() {
+        logData = "";
+        final String methodName = "getCardUidFull";
+        log(methodName, methodName);
+
+        if (!checkAuthentication()) return null;
+        if (!checkIsoDep()) return null;
+
+        // Constructing the full GetCardUID Command APDU
+        // Data = MAC over command = MACKSesAuthMACKey(Ins || CmdCtr || TI)
+        byte[] macInput = getMacInput(GET_CARD_UID_COMMAND, null);
+        log(methodName, printData("macInput", macInput));
+
+        // generate the MAC (CMAC) with the SesAuthMACKey
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Cmd.GetCardUID C-APDU (Part 1)
+        //(Cmd || Ins || P1 || P2 || Lc || Data || Le)
+
+        // Data (CmdHeader = keyNumber || Encrypted Data || MAC)
+        ByteArrayOutputStream baosCommand = new ByteArrayOutputStream();
+        baosCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] command = baosCommand.toByteArray();
+        log(methodName, printData("command", command));
+
+        byte[] response;
+        byte[] apdu;
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(GET_CARD_UID_COMMAND, command);
+
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return null;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+        } else {
+            Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+            Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+            return null;
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
+        // the fullEncryptedData is 56 bytes long, the first 48 bytes are encryptedData and the last 8 bytes are the responseMAC
+        byte[] fullEncryptedData = getData(response);
+        int encryptedDataLength = fullEncryptedData.length - 8;
+        log(methodName, "The fullEncryptedData is of length " + fullEncryptedData.length + " that includes 8 bytes for MAC");
+        log(methodName, "The encryptedData length is " + encryptedDataLength);
+        byte[] encryptedData = Arrays.copyOfRange(fullEncryptedData, 0, encryptedDataLength);
+        responseMACTruncatedReceived = Arrays.copyOfRange(fullEncryptedData, encryptedDataLength, fullEncryptedData.length);
+        log(methodName, printData("encryptedData", encryptedData));
+
+        // start decrypting the data
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+        byte[] padding = hexStringToByteArray("0000000000000000");
+        byte[] startingIv = new byte[16];
+        ByteArrayOutputStream decryptBaos = new ByteArrayOutputStream();
+        decryptBaos.write(IV_LABEL_DEC, 0, IV_LABEL_DEC.length); // fixed to 0x5AA5
+        decryptBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        decryptBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        decryptBaos.write(padding, 0, padding.length);
+        byte[] ivInputResponse = decryptBaos.toByteArray();
+        log(methodName, printData("ivInputResponse", ivInputResponse));
+        byte[] ivResponse = AES.encrypt(startingIv, SesAuthENCKey, ivInputResponse);
+        log(methodName, printData("ivResponse", ivResponse));
+        byte[] decryptedData = AES.decrypt(ivResponse, SesAuthENCKey, encryptedData);
+        log(methodName, printData("decryptedData", decryptedData));
+        final int UIDLength = 7;
+        byte[] readData = Arrays.copyOfRange(decryptedData, 0, UIDLength);
+        log(methodName, printData("readData", readData));
+
+        if (verifyResponseMac(responseMACTruncatedReceived, encryptedData)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return readData;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return null;
+        }
+    }
+
     public boolean formatPicc() {
         logData = "";
         final String methodName = "formatPicc";
         log(methodName, methodName);
 
+        if (!checkIsoDep()) return false;
+        /*
         if ((isoDep == null) || (!isoDep.isConnected())) {
             log(methodName, "no or lost connection to the card, aborted");
             Log.e(TAG, methodName + " no or lost connection to the card, aborted");
             System.arraycopy(RESPONSE_FAILURE, 0, errorCode, 0, 2);
             return false;
-        }
+        }*/
 
         // the first step is to select the Master Application
         boolean success = selectApplicationByAid(MASTER_APPLICATION_IDENTIFIER);
@@ -10305,7 +10447,6 @@ fileSize: 128
         }
     }
 
-
     /*
     Mifare DESFire Light MF2DLHX0.pdf pages 117 ff:
     The asymmetric originality signature is based on ECC and only requires a public key for the verification, which is done
@@ -10325,7 +10466,7 @@ fileSize: 128
      */
 
 
-    public byte[] readSignature() {
+    public byte[] readSignaturePlain() {
 
         // Mifare DESFire Light MF2DLHX0.pdf pages 117 ff
         // returns 2 bytes: key settings || max number of keys
@@ -10368,16 +10509,112 @@ fileSize: 128
         }
     }
 
-    private byte[] readSignatureFull() {
+    public byte[] readSignatureFull() {
         logData = "";
         final String methodName = "readSignatureFull";
         log(methodName, methodName + " started");
 
-        // todo fill with code for FULL
+        if (!checkAuthentication()) return null;
+        if (!checkIsoDep()) return null;
 
+        // encrypting the command data
+        // IV_Input (IV_Label || TI || CmdCounter || Padding)
+        byte[] ivInput = getIvInput();
+        log(methodName, printData("ivInput", ivInput));
 
+        // MAC_Input (Ins || CmdCounter || TI || CmdHeader ( = File number) )
+        byte TargetingNXPOriginalitySignature = (byte) 0x00;
+        byte[] macInput = getMacInput(READ_SIGNATURE_COMMAND, new byte[]{TargetingNXPOriginalitySignature});
+        log(methodName, printData("macInput", macInput));
 
-        return null;
+        // generate the (truncated) MAC (CMAC) with the SesAuthMACKey: MAC = CMAC(KSesAuthMAC, MAC_ Input)
+        log(methodName, printData("SesAuthMACKey", SesAuthMACKey));
+        byte[] macFull = calculateDiverseKey(SesAuthMACKey, macInput);
+        log(methodName, printData("macFull", macFull));
+        // now truncate the MAC
+        byte[] macTruncated = truncateMAC(macFull);
+        log(methodName, printData("macTruncated", macTruncated));
+
+        // Data (CmdHeader = File number || MAC)
+        ByteArrayOutputStream baosCommand = new ByteArrayOutputStream();
+        baosCommand.write(TargetingNXPOriginalitySignature);
+        baosCommand.write(macTruncated, 0, macTruncated.length);
+        byte[] command = baosCommand.toByteArray();
+        log(methodName, printData("command", command));
+
+        byte[] response;
+        byte[] apdu;
+        byte[] responseMACTruncatedReceived;
+        try {
+            apdu = wrapMessage(READ_SIGNATURE_COMMAND, command);
+            response = sendData(apdu);
+        } catch (IOException e) {
+            Log.e(TAG, methodName + " transceive failed, IOException:\n" + e.getMessage());
+            log(methodName, "transceive failed: " + e.getMessage(), false);
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = "IOException: transceive failed: " + e.getMessage();
+            return null;
+        }
+        byte[] responseBytes = returnStatusBytes(response);
+        System.arraycopy(responseBytes, 0, errorCode, 0, 2);
+        byte responseCode = (byte) 0x00;
+        if (checkResponse(response)) {
+            Log.d(TAG, methodName + " SUCCESS, now decrypting the received data");
+        } else {
+            // check for 0x9190
+            if (checkResponseUnauthenticated(response)) {
+                log(methodName, "we received the status code 0x9190 meaning that the command is run unnecessary in Full mode, proceed");
+                responseCode = (byte) 0x90;
+            } else {
+                Log.d(TAG, methodName + " FAILURE with error code " + Utils.bytesToHexNpeUpperCase(responseBytes));
+                Log.d(TAG, methodName + " error code: " + EV3.getErrorCode(responseBytes));
+                return null;
+            }
+        }
+
+        // note: after sending data to the card the commandCounter is increased by 1
+        CmdCounter++;
+        log(methodName, "the CmdCounter is increased by 1 to " + CmdCounter);
+
+        // the fullEncryptedData is 72 bytes long, the first 56 bytes are encryptedData || padding 8 bytes || the last 8 bytes are the responseMAC
+        byte[] fullEncryptedData = getData(response);
+        int encryptedDataLength = fullEncryptedData.length - 8;
+        log(methodName, "The fullEncryptedData is of length " + fullEncryptedData.length + " that includes 8 bytes for MAC");
+        log(methodName, "The encryptedData length is " + encryptedDataLength);
+        byte[] encryptedDataD = Arrays.copyOfRange(fullEncryptedData, 0, encryptedDataLength);
+        responseMACTruncatedReceived = Arrays.copyOfRange(fullEncryptedData, encryptedDataLength, fullEncryptedData.length);
+        log(methodName, printData("encryptedDataD", encryptedDataD));
+
+        // start decrypting the data
+        byte[] commandCounterLsb2 = intTo2ByteArrayInversed(CmdCounter);
+        byte[] padding = hexStringToByteArray("0000000000000000");
+        byte[] startingIvD = new byte[16];
+        ByteArrayOutputStream decryptBaos = new ByteArrayOutputStream();
+        decryptBaos.write(IV_LABEL_DEC, 0, IV_LABEL_DEC.length); // fixed to 0x5AA5
+        decryptBaos.write(TransactionIdentifier, 0, TransactionIdentifier.length);
+        decryptBaos.write(commandCounterLsb2, 0, commandCounterLsb2.length);
+        decryptBaos.write(padding, 0, padding.length);
+        byte[] ivInputResponse = decryptBaos.toByteArray();
+        log(methodName, printData("ivInputResponse", ivInputResponse));
+        byte[] ivResponse = AES.encrypt(startingIvD, SesAuthENCKey, ivInputResponse);
+        log(methodName, printData("ivResponse", ivResponse));
+        byte[] decryptedData = AES.decrypt(ivResponse, SesAuthENCKey, encryptedDataD);
+        log(methodName, printData("decryptedData", decryptedData));
+        final int SignatureLength = 56;
+        byte[] readData = Arrays.copyOfRange(decryptedData, 0, SignatureLength);
+        log(methodName, printData("readData", readData));
+
+        if (verifyResponseMac(responseMACTruncatedReceived, encryptedDataD, responseCode)) {
+            log(methodName, methodName + " SUCCESS");
+            errorCode = RESPONSE_OK.clone();
+            errorCodeReason = methodName + " SUCCESS";
+            return readData;
+        } else {
+            log(methodName, methodName + " FAILURE");
+            errorCode = RESPONSE_FAILURE.clone();
+            errorCodeReason = methodName + " FAILURE";
+            return null;
+        }
     }
 
     /**

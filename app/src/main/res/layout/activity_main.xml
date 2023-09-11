@@ -1076,12 +1076,12 @@
                     android:orientation="horizontal">
 
                     <Button
-                        android:id="@+id/btnGetTagVersion"
+                        android:id="@+id/btnGetTagVersionxx"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginRight="8dp"
                         android:layout_weight="1"
-                        android:text="tag version" />
+                        android:text="xx" />
 
                     <Button
                         android:id="@+id/btnTest"
@@ -1099,6 +1099,29 @@
                         android:layout_marginLeft="8dp"
                         android:layout_weight="1"
                         android:text="key settings" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnGetTagVersion"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginRight="8dp"
+                        android:layout_weight="1"
+                        android:text="tag version" />
+
+                    <Button
+                        android:id="@+id/btnGetTagUid"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="8dp"
+                        android:layout_weight="1"
+                        android:text="tag UID" />
 
                 </LinearLayout>
 
@@ -1176,7 +1199,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginRight="8dp"
                     android:layout_weight="1"
-                    android:backgroundTint="#FFAB00"
+                    android:backgroundTint="#EFA9FF"
                     android:text="read SIG" />
 
                 <Button
@@ -1185,7 +1208,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginLeft="8dp"
                     android:layout_weight="1"
-                    android:backgroundTint="#FFAB00"
+                    android:backgroundTint="#E98BFF"
                     android:text="verify SIG" />
 
             </LinearLayout>

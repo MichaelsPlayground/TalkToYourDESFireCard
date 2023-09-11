@@ -160,7 +160,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for general
      */
 
-    private Button getTagVersion, getKeySettings, formatPicc;
+    private Button getTagVersion, getTagUid, getKeySettings, formatPicc;
 
     private LinearLayout llSectionOriginalitySignature;
     private Button readSignature, verifySignature;
@@ -301,6 +301,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
         // general handling
         getTagVersion = findViewById(R.id.btnGetTagVersion);
+        getTagUid = findViewById(R.id.btnGetTagUid);
         getKeySettings = findViewById(R.id.btnGetKeySettings);
         formatPicc = findViewById(R.id.btnFormatPicc);
 
@@ -2398,6 +2399,30 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        getTagUid.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // get the tag version data
+                clearOutputFields();
+                String logString = "getCardUid";
+                writeToUiAppend(output, logString);
+                writeToUiAppend(output, "Don't forget to authenticate with ANY key first");
+
+                byte[] cardUid = desfireEv3.getCardUidFull();
+                byte[] responseData = desfireEv3.getErrorCode();
+                if ((cardUid != null) && (cardUid.length > 1)) {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppend(output, printData("cardUid", cardUid));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                } else {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                }
+            }
+        });
+
+
         getKeySettings.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -2484,7 +2509,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 String logString = "readSignature";
                 writeToUiAppend(output, logString);
 
-                byte[] result = desfireEv3.readSignature();
+                byte[] result = desfireEv3.readSignaturePlain();
                 byte[] responseData = desfireEv3.getErrorCode();
                 if ((result == null) || (result.length < 1)) {
                     writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
@@ -2497,6 +2522,31 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 }
             }
         });
+
+        verifySignature.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // get the tag version data
+                clearOutputFields();
+                String logString = "verifySignature";
+                writeToUiAppend(output, logString);
+                writeToUiAppend(output, "This is a bundled command that is NOT a DESFire EVx command");
+                writeToUiAppend(output, "It needs a preceding authentication with ANY key");
+
+                byte[] result = desfireEv3.readSignatureFull();
+                byte[] responseData = desfireEv3.getErrorCode();
+                if ((result == null) || (result.length < 1)) {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                } else {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppend(output, printData("signature", result));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }
+            }
+        });
+
 
         /**
          * section for tests
