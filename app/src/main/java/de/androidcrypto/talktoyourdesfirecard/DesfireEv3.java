@@ -10603,7 +10603,8 @@ fileSize: 128
         final int SignatureLength = 56;
         byte[] readData = Arrays.copyOfRange(decryptedData, 0, SignatureLength);
         log(methodName, printData("readData", readData));
-
+        // we need to use the responseCode option/parameter as if "unnecessary authentication" response
+        // from PICC (0x9190) the verification of the response MAC fails on regular method
         if (verifyResponseMac(responseMACTruncatedReceived, encryptedDataD, responseCode)) {
             log(methodName, methodName + " SUCCESS");
             errorCode = RESPONSE_OK.clone();
