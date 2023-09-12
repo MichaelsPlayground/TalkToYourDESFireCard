@@ -1199,7 +1199,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginRight="8dp"
                     android:layout_weight="1"
-                    android:backgroundTint="#EFA9FF"
+                    android:backgroundTint="#8652FF"
                     android:text="read SIG" />
 
                 <Button
@@ -1217,7 +1217,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginLeft="8dp"
                     android:layout_weight="1"
-                    android:backgroundTint="#9C73FB"
+                    android:backgroundTint="#8652FF"
                     android:text="verify SIG" />
 
             </LinearLayout>
