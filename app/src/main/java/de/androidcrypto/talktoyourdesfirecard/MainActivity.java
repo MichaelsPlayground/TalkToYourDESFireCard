@@ -160,7 +160,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
      * section for general
      */
 
-    private Button getTagVersion, getTagUid, getKeySettings, formatPicc;
+    private Button getTagVersion, getTagUid, getKeySettings, formatPicc, applicationSelectMaster;
 
     private LinearLayout llSectionOriginalitySignature;
     private Button readSignaturePlain, readSignatureFull, verifySignature;
@@ -304,6 +304,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         getTagUid = findViewById(R.id.btnGetTagUid);
         getKeySettings = findViewById(R.id.btnGetKeySettings);
         formatPicc = findViewById(R.id.btnFormatPicc);
+        applicationSelectMaster = findViewById(R.id.btnSelectMasterApplication);
 
         readSignaturePlain = findViewById(R.id.btnReadSignaturePlain);
         readSignatureFull = findViewById(R.id.btnReadSignatureFull);
@@ -414,6 +415,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 dialog.show();
             }
         });
+
+        // there is an applicationSelectMaster in section general
 
         fileSelect.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -2498,6 +2501,32 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             }
         });
 
+        applicationSelectMaster.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                clearOutputFields();
+                String logString = "select the Master application";
+                writeToUiAppend(output, logString);
+                if (!isDesfireEv3Available()) return;
+
+                isFileListRead = false; // invalidates the data
+                invalidateAllSelections();
+
+                // select Master Application first
+                boolean success = desfireEv3.selectApplicationByAid(DesfireEv3.MASTER_APPLICATION_IDENTIFIER);
+                byte[] errorCodeDf = desfireEv3.getErrorCode();
+                if (!success) {
+                    writeToUiAppend(output, "cannot select Master Application, aborted");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(errorCodeDf), COLOR_RED);
+                    return;
+                } else {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                }
+                llSectionAuthentication.setVisibility(View.VISIBLE);
+            }
+        });
+
         /**
          * section for originality signature
          */
@@ -2553,19 +2582,56 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 clearOutputFields();
                 String logString = "verifySignature";
                 writeToUiAppend(output, logString);
-                writeToUiAppend(output, "This is a bundled command that is NOT a DESFire EVx command");
+                writeToUiAppend(output, "This is a bundled sequence that is NOT part of the DESFire EVx command set");
+                writeToUiAppend(output, "It will run in the Cryptography class");
                 writeToUiAppend(output, "It needs a preceding authentication with ANY key");
 
-                byte[] result = desfireEv3.verifySignature();
+                String stepString = "get the card UID";
+                byte[] cardUid = desfireEv3.getCardUidFull();
                 byte[] responseData = desfireEv3.getErrorCode();
-                if ((result == null) || (result.length < 1)) {
-                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
-                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                if ((cardUid != null) && (cardUid.length > 1)) {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppend(output, printData("cardUid", cardUid));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
                 } else {
-                    writeToUiAppend(output, logString + " SUCCESS");
-                    writeToUiAppend(output, printData("signature", result));
+                    writeToUiAppend(output, stepString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                }
+
+                stepString = "get the card signature";
+                byte[] originalitySignature = desfireEv3.readSignatureFull();
+                responseData = desfireEv3.getErrorCode();
+                if ((originalitySignature == null) || (originalitySignature.length < 1)) {
+                    writeToUiAppend(output, stepString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                    return;
+                } else {
+                    writeToUiAppend(output, stepString + " SUCCESS");
+                    writeToUiAppend(output, printData("signature", originalitySignature));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, stepString + " SUCCESS", COLOR_GREEN);
+                }
+
+                Cryptography cryptography = new Cryptography();
+                boolean success = false;
+
+                // depending on card types we have separate methods
+                if (desfireEv3.checkForDESFireEv3()) {
+                    success = cryptography.verifyOriginalitySignatureDesfireEv3(cardUid, originalitySignature);
+                }
+                if (desfireEv3.checkForDESFireEv2()) {
+                    success = cryptography.verifyOriginalitySignatureDesfireEv2(cardUid, originalitySignature);
+                }
+                if (desfireEv3.checkForDESFireLight()) {
+                    success = cryptography.verifyOriginalitySignatureDesfireLight(cardUid, originalitySignature);
+                }
+                if (success) {
+                    writeToUiAppend(output, "The Originality Signature is VALID");
                     writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
                     vibrateShort();
+                 } else {
+                    writeToUiAppend(output, logString + " The Originality Signature is INVALID");
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE", COLOR_RED);
                 }
             }
         });
@@ -3140,6 +3206,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
 
                 writeToUiAppend(output, "NFC tag connected");
                 writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The app and DESFire tag are ready to use", COLOR_GREEN);
+
             }
 
         } catch (IOException e) {

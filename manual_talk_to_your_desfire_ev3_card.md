@@ -218,8 +218,37 @@ This information is used during tag discovery to determine that the tag is of ty
 is processed in the 'VersionInfo' class that allows an easy access to all returned data fields.
 
 A note on the Master Application and it's authentication. As this app isn't touching the Master Application this command is bundled in the UI 
-with an 'authenticateLegacy' call to the 'AuthenticateDesfireLegacy' class. If your Master Application Key is changed to an AES key this comand 
+with an 'authenticateLegacy' call to the 'AuthenticateDesfireLegacy' class. If your Master Application Key is changed to an AES key this command 
 won't run properly.
+
+You may be think *Why is there a dedicated method to read the tag's UID - it is show after tapping the tag to the reader ?* and you're right. 
+When using a tag with fabric settings the tag's UID is part of the regular process between card reader and tag. The reveal of the UID is 
+acceptable when the tag is used e.g. as hotel room access card. But think of a card that is used in a smart city for several actions. The card 
+holder get's **trackable** as each card reader knows "*this card was presented to me yesterday*". For that reason the tag can get personalized 
+for a **random UID** that is shown to the reader. If this option is enabled only a reader with the knowledge of the Master or any Application 
+key is been able to read this information - this is a plus on privacy. So don't forget - the **get tag UID** method is available after a successfully 
+authentication only.
+
+### Originality signature commands
+
+The **Originality Signature Verification** allows verification of the genuineness of MIFARE DESFire Light (MF2DL(H)x0). Two ways are offered 
+to check the originality of the PICC: the first is based on a symmetric authentication, the second works on the verification of an asymmetric 
+signature retrieved from the card. As the first way is usable after an "AuthenticateLRPFirst" "or NonFirst" and these authentication methods 
+are not supported by the library only the second way is in use. There are 3 steps to verify the signature:
+1) read the tag's UID (see "General commands")
+2) read the tag's originality signature
+3) verify the signature
+
+The library offers two ways to read the signature: **read signature** and **read signature full**. The first method is run without any previous 
+authentication (e.g. directly after tapping the tag) and the second will proceed after an authentication with any key only, so the best way is 
+to select an application and use the visible authentication buttons for this first.    
+
+The third step is **verification of the signature** - as this is not a tag command it is outsourced to the **Cryptography class** where all of 
+the calculations are done. The app bundles the "read tag UID" and "read signature full" commands and then verifies the result. 
+
+From the DESFire Light datasheet: *The NXPOriginalitySignature is computed over the UID with the use of asymmetric cryptographic algorithm 
+Elliptic Curve Cryptography Digital Signature Algorithm (ECDSA), see [14]. No hash is computed: M is directly used as H. The NXP Originality 
+Signature calculation uses curve secp224r1.*
 
 ## Why does the app stops working ?
 

@@ -50,7 +50,12 @@ public class Cryptography {
      * section for Originality check
      */
 
-    private static final byte[] SECP224R1_HEAD = base64Decoding("ME4wEAYHKoZIzj0CAQYFK4EEACEDOgAE"); // this is the header of secp224r1
+    private final byte[] SECP224R1_HEAD = Utils.hexStringToByteArray("304e301006072a8648ce3d020106052b81040021033a0004"); // this is the header of secp224r1
+    //private final byte[] SECP224R1_HEAD = base64Decoding("ME4wEAYHKoZIzj0CAQYFK4EEACEDOgAE"); // this is the header of secp224r1
+    private final byte[] PublicKeyNxpDESFire_Light_Encoded = Utils.hexStringToByteArray("040E98E117AAA36457F43173DC920A8757267F44CE4EC5ADD3C54075571AEBBF7B942A9774A1D94AD02572427E5AE0A2DD36591B1FB34FCF3D");
+    private final byte[] PublicKeyNxpDESFire_Ev2_Encoded = Utils.hexStringToByteArray("04B304DC4C615F5326FE9383DDEC9AA892DF3A57FA7FFB3276192BC0EAA252ED45A865E3B093A3D0DCE5BE29E92F1392CE7DE321E3E5C52B3A");
+    private final byte[] PublicKeyNxpDESFire_Ev3_Encoded = Utils.hexStringToByteArray("041DB46C145D0A36539C6544BD6D9B0AA62FF91EC48CBC6ABAE36E0089A46F0D08C8A715EA40A63313B92E90DDC1730230E0458A33276FB743");
+
 
     /**
      * section for signatures
@@ -199,13 +204,58 @@ The signature is verified: true
      * section for Originality Check
      */
 
+    public boolean verifyOriginalitySignatureDesfireLight (byte[] cardUid, byte[] originalitySignature) {
+        return verifyOriginalitySignature(cardUid, originalitySignature, PublicKeyNxpDESFire_Light_Encoded);
+    }
+
+    public boolean verifyOriginalitySignatureDesfireEv2 (byte[] cardUid, byte[] originalitySignature) {
+        return verifyOriginalitySignature(cardUid, originalitySignature, PublicKeyNxpDESFire_Ev2_Encoded);
+    }
+
+    public boolean verifyOriginalitySignatureDesfireEv3 (byte[] cardUid, byte[] originalitySignature) {
+        return verifyOriginalitySignature(cardUid, originalitySignature, PublicKeyNxpDESFire_Ev3_Encoded);
+    }
+
+    private boolean verifyOriginalitySignature(byte[] cardUid, byte[] originalitySignature, byte[] publicKeyNxpByte) {
+        Log.d(TAG, Utils.printData("public key", publicKeyNxpByte));
+        if ((cardUid == null) || (cardUid.length != 7)) {
+            Log.e(TAG, "cardUid is NULL or not of length 7");
+            return false;
+        }
+        if ((originalitySignature == null) || (originalitySignature.length != 56)) {
+            Log.e(TAG, "originalitySignature is NULL or not of length 56");
+            return false;
+        }
+
+        boolean signatureVerified = false;
+        // get the EC Public Key
+        ECPublicKey ecPubKey = null;
+        try {
+            ecPubKey = generateP256PublicKeyFromUncompressedW(publicKeyNxpByte);
+        } catch (InvalidKeySpecException e) {
+            Log.e(TAG, "Error on getting the key (native Java): " + e.getMessage());
+            return false;
+        }
+        try {
+            signatureVerified = checkEcdsaSignatureEcPubKey(ecPubKey, originalitySignature, cardUid);
+        } catch (NoSuchAlgorithmException e) {
+            Log.e(TAG, "Error in checkEcdsaSignatureEcPubKey: " + e.getMessage());
+            return false;
+
+        }
+        Log.d(TAG, "verification status: " + signatureVerified);
+        return signatureVerified;
+    }
+
+
+
     /**
      * Converts an uncompressed secp256r1 / P-256 public point to the EC public key it is representing.
      *
      * @param w a 64 byte uncompressed EC point starting with <code>04</code>
      * @return an <code>ECPublicKey</code> that the point represents
      */
-    public ECPublicKey generateP256PublicKeyFromUncompressedW(byte[] w) throws InvalidKeySpecException {
+    private ECPublicKey generateP256PublicKeyFromUncompressedW(byte[] w) throws InvalidKeySpecException {
         if (w[0] != 0x04) {
             throw new InvalidKeySpecException("w is not an uncompressed key");
         }
@@ -218,7 +268,8 @@ The signature is verified: true
      * @param w a 64 byte uncompressed EC point consisting of just a 256-bit X and Y
      * @return an <code>ECPublicKey</code> that the point represents
      */
-    public ECPublicKey generateP256PublicKeyFromFlatW(byte[] w) throws InvalidKeySpecException {
+    private ECPublicKey generateP256PublicKeyFromFlatW(byte[] w) throws InvalidKeySpecException {
+        Log.e(TAG, Utils.printData("SECP224R1_HEAD", SECP224R1_HEAD));
         byte[] encodedKey = new byte[SECP224R1_HEAD.length + w.length];
         System.arraycopy(SECP224R1_HEAD, 0, encodedKey, 0, SECP224R1_HEAD.length);
         System.arraycopy(w, 0, encodedKey, SECP224R1_HEAD.length, w.length);
@@ -232,7 +283,7 @@ The signature is verified: true
         return (ECPublicKey) eckf.generatePublic(ecpks);
     }
 
-    public boolean checkEcdsaSignatureEcPubKey(final ECPublicKey
+    private boolean checkEcdsaSignatureEcPubKey(final ECPublicKey
                                                        ecPubKey, final byte[]
                                                        signature, final byte[] data)
             throws NoSuchAlgorithmException {
@@ -247,7 +298,7 @@ The signature is verified: true
         return false;
     }
 
-    public static byte[] derEncodeSignatureSecp224r1(final byte[] signature) {
+    private static byte[] derEncodeSignatureSecp224r1(final byte[] signature) {
         // split into r and s
         final byte[] r = Arrays.copyOfRange(signature, 0, 28);
         final byte[] s = Arrays.copyOfRange(signature, 28, 56);
@@ -279,10 +330,6 @@ The signature is verified: true
                 s.length);
 
         return encodedSig;
-    }
-
-    public static byte[] base64Decoding(String input) {
-        return Base64.decode(input, Base64.NO_WRAP);
     }
 
 }

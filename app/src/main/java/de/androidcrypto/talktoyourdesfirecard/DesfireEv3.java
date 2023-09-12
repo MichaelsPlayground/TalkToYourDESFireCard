@@ -255,13 +255,6 @@ public class DesfireEv3 {
     private final byte[] HEADER_MAC = new byte[]{(byte) (0xA5), (byte) (0x5A)}; // fixed to 0x5AA5
     private final byte[] PADDING_FULL = hexStringToByteArray("80000000000000000000000000000000");
 
-    /**
-     * signature verification
-     */
-
-    private final byte[] PublicKeyNxpDESFire_Light_Encoded = Utils.hexStringToByteArray("040E98E117AAA36457F43173DC920A8757267F44CE4EC5ADD3C54075571AEBBF7B942A9774A1D94AD02572427E5AE0A2DD36591B1FB34FCF3D");
-    private final byte[] PublicKeyNxpDESFire_Ev2_Encoded = Utils.hexStringToByteArray("04B304DC4C615F5326FE9383DDEC9AA892DF3A57FA7FFB3276192BC0EAA252ED45A865E3B093A3D0DCE5BE29E92F1392CE7DE321E3E5C52B3A");
-    private final byte[] PublicKeyNxpDESFire_Ev3_Encoded = Utils.hexStringToByteArray("041DB46C145D0A36539C6544BD6D9B0AA62FF91EC48CBC6ABAE36E0089A46F0D08C8A715EA40A63313B92E90DDC1730230E0458A33276FB743");
 
     /**
      * application
@@ -10122,7 +10115,7 @@ fileSize: 128
      *
      * @return true on success
      */
-    public boolean checkForDESFireEv2XX() {
+    public boolean checkForDESFireEv2() {
         // todo work on this, hardware version may be wrong !
         VersionInfo versionInfo = getVersionInformation();
         if (versionInfo == null) return false;
@@ -10146,6 +10139,19 @@ fileSize: 128
         int hardwareType = versionInfo.getHardwareType(); // 1 = DESFire, 4 = NTAG family 4xx
         int hardwareVersion = versionInfo.getHardwareVersionMajor(); // 51 = DESFire EV3, 48 = NTAG 424 DNA
         return ((hardwareType == 1) && (hardwareVersion == 51));
+    }
+
+    /**
+     * checks that the tapped tag is of type DESFire Light - this might never called as the onDetached methods prevent on working with this card type
+     * @return true on success
+     */
+    public boolean checkForDESFireLight() {
+        VersionInfo versionInfo = getVersionInformation();
+        if (versionInfo == null) return false;
+        Log.d(TAG, versionInfo.dump());
+        int hardwareType = versionInfo.getHardwareType(); // 1 = DESFire, 4 = NTAG family 4xx, 8 = DESFire Light
+        int hardwareVersion = versionInfo.getHardwareVersionMajor(); // 51 = DESFire EV3, 48 = NTAG 424 DNA
+        return ((hardwareType == 8) && (hardwareVersion == 48));
     }
 
     /*
@@ -10494,14 +10500,12 @@ fileSize: 128
         try {
             apdu = wrapMessage(READ_SIGNATURE_COMMAND, new byte[]{(byte) 0x00});
             response = sendData(apdu);
-            System.out.println(printData("res1", response));
         } catch (IOException e) {
             log(methodName, "IOException: " + e.getMessage());
             errorCode = RESPONSE_FAILURE.clone();
             errorCodeReason = "IOException: transceive failed: " + e.getMessage();
             return null;
         }
-        System.out.println(printData("res", response));
         System.arraycopy(response, 0, errorCode, 0, 2);
         if (checkResponse(response)) {
             errorCodeReason = "success";
@@ -10624,26 +10628,6 @@ fileSize: 128
             errorCodeReason = methodName + " FAILURE";
             return null;
         }
-    }
-
-    public boolean verifySignature() {
-        byte[] cardUid = getCardUidFull();
-        byte[] signature = readSignatureFull();
-        return verifySignature(cardUid, signature);
-    }
-
-    public boolean verifySignature(byte[] cardUid, byte[] signature) {
-        logData = "";
-        final String methodName = "verifySignature";
-        log(methodName, methodName + " started");
-
-        if (!checkAuthentication()) return false;
-        if (!checkIsoDep()) return false;
-
-        // todo fill with code
-
-
-        return false;
     }
 
     /**
