@@ -256,6 +256,14 @@ public class DesfireEv3 {
     private final byte[] PADDING_FULL = hexStringToByteArray("80000000000000000000000000000000");
 
     /**
+     * signature verification
+     */
+
+    private final byte[] PublicKeyNxpDESFire_Light_Encoded = Utils.hexStringToByteArray("040E98E117AAA36457F43173DC920A8757267F44CE4EC5ADD3C54075571AEBBF7B942A9774A1D94AD02572427E5AE0A2DD36591B1FB34FCF3D");
+    private final byte[] PublicKeyNxpDESFire_Ev2_Encoded = Utils.hexStringToByteArray("04B304DC4C615F5326FE9383DDEC9AA892DF3A57FA7FFB3276192BC0EAA252ED45A865E3B093A3D0DCE5BE29E92F1392CE7DE321E3E5C52B3A");
+    private final byte[] PublicKeyNxpDESFire_Ev3_Encoded = Utils.hexStringToByteArray("041DB46C145D0A36539C6544BD6D9B0AA62FF91EC48CBC6ABAE36E0089A46F0D08C8A715EA40A63313B92E90DDC1730230E0458A33276FB743");
+
+    /**
      * application
      */
 
@@ -10616,6 +10624,26 @@ fileSize: 128
             errorCodeReason = methodName + " FAILURE";
             return null;
         }
+    }
+
+    public boolean verifySignature() {
+        byte[] cardUid = getCardUidFull();
+        byte[] signature = readSignatureFull();
+        return verifySignature(cardUid, signature);
+    }
+
+    public boolean verifySignature(byte[] cardUid, byte[] signature) {
+        logData = "";
+        final String methodName = "verifySignature";
+        log(methodName, methodName + " started");
+
+        if (!checkAuthentication()) return false;
+        if (!checkIsoDep()) return false;
+
+        // todo fill with code
+
+
+        return false;
     }
 
     /**

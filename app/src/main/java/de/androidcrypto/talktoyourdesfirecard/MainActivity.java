@@ -163,7 +163,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     private Button getTagVersion, getTagUid, getKeySettings, formatPicc;
 
     private LinearLayout llSectionOriginalitySignature;
-    private Button readSignature, verifySignature;
+    private Button readSignaturePlain, readSignatureFull, verifySignature;
 
 
     /**
@@ -305,7 +305,8 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         getKeySettings = findViewById(R.id.btnGetKeySettings);
         formatPicc = findViewById(R.id.btnFormatPicc);
 
-        readSignature = findViewById(R.id.btnReadSignature);
+        readSignaturePlain = findViewById(R.id.btnReadSignaturePlain);
+        readSignatureFull = findViewById(R.id.btnReadSignatureFull);
         verifySignature = findViewById(R.id.btnVerifySignature);
 
         // test section
@@ -2501,15 +2502,37 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
          * section for originality signature
          */
 
-        readSignature.setOnClickListener(new View.OnClickListener() {
+        readSignaturePlain.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 // get the tag version data
                 clearOutputFields();
-                String logString = "readSignature";
+                String logString = "readSignaturePlain";
                 writeToUiAppend(output, logString);
 
                 byte[] result = desfireEv3.readSignaturePlain();
+                byte[] responseData = desfireEv3.getErrorCode();
+                if ((result == null) || (result.length < 1)) {
+                    writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " FAILURE with error code: " + Utils.bytesToHexNpeUpperCase(responseData), COLOR_RED);
+                } else {
+                    writeToUiAppend(output, logString + " SUCCESS");
+                    writeToUiAppend(output, printData("signature", result));
+                    writeToUiAppendBorderColor(errorCode, errorCodeLayout, logString + " SUCCESS", COLOR_GREEN);
+                    vibrateShort();
+                }
+            }
+        });
+
+        readSignatureFull.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // get the tag version data
+                clearOutputFields();
+                String logString = "readSignatureFull";
+                writeToUiAppend(output, logString);
+
+                byte[] result = desfireEv3.readSignatureFull();
                 byte[] responseData = desfireEv3.getErrorCode();
                 if ((result == null) || (result.length < 1)) {
                     writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
@@ -2533,7 +2556,7 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 writeToUiAppend(output, "This is a bundled command that is NOT a DESFire EVx command");
                 writeToUiAppend(output, "It needs a preceding authentication with ANY key");
 
-                byte[] result = desfireEv3.readSignatureFull();
+                byte[] result = desfireEv3.verifySignature();
                 byte[] responseData = desfireEv3.getErrorCode();
                 if ((result == null) || (result.length < 1)) {
                     writeToUiAppend(output, logString + " FAILURE with error " + EV3.getErrorCode(responseData));
