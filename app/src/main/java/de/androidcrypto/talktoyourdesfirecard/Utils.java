@@ -392,6 +392,19 @@ System.out.println(i2); // 234
         return result;
     }
 
+
+    /**
+     * checks if a byte array is part of the List<byte[]>
+     * @param arrays
+     * @param other
+     * @return true on success
+     */
+    public static boolean listContains(List<byte[]> arrays, byte[] other) {
+        for (byte[] b : arrays)
+            if (Arrays.equals(b, other)) return true;
+        return false;
+    }
+
     // gives an 19 byte long timestamp yyyy.MM.dd HH:mm:ss
     public static String getTimestamp() {
         // gives a 19 character long string
