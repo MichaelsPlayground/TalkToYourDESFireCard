@@ -2624,7 +2624,6 @@ final String methodName = "createAStandardFileIso";
      * @return true on success
      * Note: check errorCode and errorCodeReason in case of failure
      */
-
     public boolean writeToStandardFileUrlPlain(byte fileNumber, String urlToWrite) {
         String logData = "";
         final String methodName = "writeToStandardFileUrlPlain";
