@@ -1,5 +1,6 @@
 package de.androidcrypto.talktoyourdesfirecard;
 
+import static de.androidcrypto.talktoyourdesfirecard.Utils.bytesToHexNpe;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.divideArrayToList;
 import static de.androidcrypto.talktoyourdesfirecard.Utils.printData;
 
@@ -3204,6 +3205,14 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
                 writeToUiAppend(output, "tag id: " + Utils.bytesToHex(tagIdByte));
                 Log.d(TAG, "tag id: " + Utils.bytesToHex(tagIdByte));
 
+                // this is a 'hack' to read HCE emulated DESFire tags as well
+                String selectHceStringDesfire = "00A4040007D2760000850100";
+                byte[] selectHce = Utils.hexStringToByteArray(selectHceStringDesfire);
+                System.out.println("selectHce: " + bytesToHexNpe(selectHce));
+                byte[] response;
+                response = isoDep.transceive(selectHce);
+                System.out.println("response after selectHce: " + bytesToHexNpe(response));
+
                 writeToUiAppend(output, "NFC tag connected");
                 writeToUiAppendBorderColor(errorCode, errorCodeLayout, "The app and DESFire tag are ready to use", COLOR_GREEN);
 
@@ -3237,11 +3246,16 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             mNfcAdapter.enableReaderMode(this,
                     this,
                     NfcAdapter.FLAG_READER_NFC_A |
+                            NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK |
+                            NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS,
+                    /*
+                    NfcAdapter.FLAG_READER_NFC_A |
                             NfcAdapter.FLAG_READER_NFC_B |
                             NfcAdapter.FLAG_READER_NFC_F |
                             NfcAdapter.FLAG_READER_NFC_V |
                             NfcAdapter.FLAG_READER_NFC_BARCODE |
                             NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS,
+                     */
                     options);
         }
     }
